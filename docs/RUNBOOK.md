@@ -8,7 +8,11 @@ Bu belge, botu **güvenle izlemek**, **doğrulamak** ve **canlıya geçerken** k
 
 - Python ≥ 3.10, proje kökünde: `pip install -e ".[dev]"`
 - Borsa anahtarları: yalnız **testnet** veya **küçük bakiye** ile canlı dene; `.env` asla commitleme
-- Faz 2: CI (lint + hızlı test) yeşil — aksi halde bu runbook yalnızca “hedef davranış”tır, kod garantisi değildir
+
+### Faz 2 (sürekli entegrasyon)
+
+- CI’da **lint (Ruff)** + **hızlı test (pytest; ağır sweep’ler hariç)** yeşil — aksi halde bu runbook yalnızca “hedef davranış”tır, kod garantisi değildir
+- Kapsam: `pytest` + `--cov=super_otonom` + coverage **`--cov-fail-under=80`** (güncel eşik ve komut: `.github/workflows/ci.yml`)
 
 ---
 

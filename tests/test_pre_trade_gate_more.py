@@ -5,6 +5,7 @@ import pytest
 from super_otonom.config import RISK
 from super_otonom.position_sizer import PositionSizer
 from super_otonom.pre_trade_gate import (
+    _min_entry_confidence,
     gate_buy_signal_and_slots,
     gate_buy_size_and_exposure,
     gate_global_trade_disable,
@@ -23,6 +24,11 @@ def test_gate_global_allows(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("GLOBAL_TRADE_DISABLE", raising=False)
     ok, code = gate_global_trade_disable()
     assert ok is True and code == ""
+
+
+def test_min_entry_env_invalid_uses_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENTRY_MIN_CONFIDENCE", "nope")
+    assert _min_entry_confidence() == 0.55
 
 
 def test_gate_buy_not_buy_signal() -> None:

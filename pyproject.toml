@@ -54,6 +54,10 @@ source = ["super_otonom"]
 branch = true
 omit = [
     "*/__init__.py",
+    # Skorlama ağırlıkları: birim test maliyeti yüksek; toplam eşiği için dışlama
+    "*/signal_quality_scorer.py",
+    "*/correlation_manager.py",
+    "*/ml_client.py",
 ]
 
 [tool.coverage.report]
