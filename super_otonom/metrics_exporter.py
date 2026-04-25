@@ -87,40 +87,82 @@ class MetricsExporter:
                 )
 
         # ── Sembol etiketli Gauge'ler (v5 yenilikleri) ───────────────────────
-        self._gauges["slippage_avg"] = Gauge(
-            f"{namespace}_slippage_avg",
-            "Ortalama execution kayması (yüzde)",
-            ["symbol"],
-        )
-        self._gauges["regime"] = Gauge(
-            f"{namespace}_regime",
-            "Piyasa rejimi: 0=NOISY, 1=MEAN_REVERTING, 2=TRENDING",
-            ["symbol"],
-        )
-        self._gauges["circuit_breaker_open"] = Gauge(
-            f"{namespace}_circuit_breaker_open",
-            "CircuitBreaker açık mı: 0=KAPALI, 1=AÇIK",
-            ["symbol"],
-        )
+        try:
+            self._gauges["slippage_avg"] = Gauge(
+                f"{namespace}_slippage_avg",
+                "Ortalama execution kayması (yüzde)",
+                ["symbol"],
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["slippage_avg"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_slippage_avg"
+            )
+        try:
+            self._gauges["regime"] = Gauge(
+                f"{namespace}_regime",
+                "Piyasa rejimi: 0=NOISY, 1=MEAN_REVERTING, 2=TRENDING",
+                ["symbol"],
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["regime"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_regime"
+            )
+        try:
+            self._gauges["circuit_breaker_open"] = Gauge(
+                f"{namespace}_circuit_breaker_open",
+                "CircuitBreaker açık mı: 0=KAPALI, 1=AÇIK",
+                ["symbol"],
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["circuit_breaker_open"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_circuit_breaker_open"
+            )
 
         # ── Counter'lar ───────────────────────────────────────────────────────
-        self._counters["trades"] = Counter(
-            f"{namespace}_trades_total",
-            "Toplam kapatılan işlem sayısı",
-            ["reason"],
-        )
+        try:
+            self._counters["trades"] = Counter(
+                f"{namespace}_trades_total",
+                "Toplam kapatılan işlem sayısı",
+                ["reason"],
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._counters["trades"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_trades_total"
+            )
 
         # ── Histogram'lar ─────────────────────────────────────────────────────
-        self._histos["pnl"] = Histogram(
-            f"{namespace}_trade_pnl",
-            "İşlem başına kar/zarar dağılımı",
-            buckets=[-50, -20, -10, -5, -2, -1, 0, 1, 2, 5, 10, 20, 50, 100],
-        )
-        self._histos["slippage"] = Histogram(
-            f"{namespace}_slippage_hist",
-            "Execution kayması dağılımı (yüzde)",
-            buckets=[0, 0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05],
-        )
+        try:
+            self._histos["pnl"] = Histogram(
+                f"{namespace}_trade_pnl",
+                "İşlem başına kar/zarar dağılımı",
+                buckets=[-50, -20, -10, -5, -2, -1, 0, 1, 2, 5, 10, 20, 50, 100],
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._histos["pnl"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_trade_pnl"
+            )
+        try:
+            self._histos["slippage"] = Histogram(
+                f"{namespace}_slippage_hist",
+                "Execution kayması dağılımı (yüzde)",
+                buckets=[0, 0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05],
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._histos["slippage"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_slippage_hist"
+            )
 
         if port > 0:
             try:
