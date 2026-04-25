@@ -1,0 +1,13 @@
+# Yerel: pip install pre-commit && pre-commit install
+# Commit öncesi: ruff (staj dosyalar) + ruff format
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+        types_or: [python, pyi]
+        files: ^(super_otonom|tests)/
+      - id: ruff-format
+        types_or: [python, pyi]
+        files: ^(super_otonom|tests)/

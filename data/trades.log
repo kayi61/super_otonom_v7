@@ -1,0 +1,14 @@
+{"symbol": "A", "entry": 1.0, "exit": 0.9996219804195973, "qty": 0.7684698171794038, "pnl": -0.0003, "reason": "STRATEGY_CHANGE", "strategist": "t", "logged_at": 1777152912.3050787}
+{"symbol": "A", "entry": 1.0, "exit": 0.9990722773495556, "qty": 0.8055888147263673, "pnl": -0.0007, "reason": "STRATEGY_CHANGE", "strategist": "t", "logged_at": 1777152925.2560372}
+{"symbol": "A", "entry": 1.0, "exit": 0.9988125392492895, "qty": 0.8964811070017287, "pnl": -0.0011, "reason": "STRATEGY_CHANGE", "strategist": "t", "logged_at": 1777152967.8260107}
+{"symbol": "A", "entry": 1.0, "exit": 0.9991867168191234, "qty": 0.7841455861289339, "pnl": -0.0006, "reason": "STRATEGY_CHANGE", "strategist": "t", "logged_at": 1777153263.4213023}
+{"symbol": "A", "entry": 1.0, "exit": 0.9988539404950072, "qty": 0.8484087957910705, "pnl": -0.001, "reason": "STRATEGY_CHANGE", "strategist": "t", "logged_at": 1777153312.8929925}
+{"symbol": "A", "entry": 1.0, "exit": 0.9994867927652114, "qty": 0.7556972214980588, "pnl": -0.0004, "reason": "STRATEGY_CHANGE", "strategist": "t", "logged_at": 1777153348.0986063}
+{"symbol": "A", "entry": 1.0, "exit": 0.9995834521234046, "qty": 0.8744435491342545, "pnl": -0.0004, "reason": "STRATEGY_CHANGE", "strategist": "t", "logged_at": 1777153400.2003455}
+{"symbol": "BTC/USDT", "entry": 100.0, "exit": 104.0, "qty": 2.0, "pnl": 8.0, "reason": "TAKE_PROFIT", "strategist": "trend", "logged_at": 1777153729.0742042}
+{"symbol": "A", "entry": 1.0, "exit": 0.9996018693482341, "qty": 0.7150931365173637, "pnl": -0.0003, "reason": "STRATEGY_CHANGE", "strategist": "t", "logged_at": 1777153743.0001435}
+{"symbol": "BTC/USDT", "entry": 100.0, "exit": 104.0, "qty": 2.0, "pnl": 8.0, "reason": "TAKE_PROFIT", "strategist": "trend", "logged_at": 1777153743.0703464}
+{"symbol": "A", "entry": 1.0, "exit": 0.9990634149432125, "qty": 0.9824101287002568, "pnl": -0.0009, "reason": "STRATEGY_CHANGE", "strategist": "t", "logged_at": 1777153877.6253424}
+{"symbol": "BTC/USDT", "entry": 100.0, "exit": 104.0, "qty": 2.0, "pnl": 8.0, "reason": "TAKE_PROFIT", "strategist": "trend", "logged_at": 1777153877.6850934}
+{"symbol": "A", "entry": 1.0, "exit": 0.9988395585314215, "qty": 0.8340386610649986, "pnl": -0.001, "reason": "STRATEGY_CHANGE", "strategist": "t", "logged_at": 1777154056.8862638}
+{"symbol": "BTC/USDT", "entry": 100.0, "exit": 104.0, "qty": 2.0, "pnl": 8.0, "reason": "TAKE_PROFIT", "strategist": "trend", "logged_at": 1777154056.9869668}
