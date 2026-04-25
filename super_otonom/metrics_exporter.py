@@ -77,7 +77,14 @@ class MetricsExporter:
             ("volatility",        "Son analiz volatilite"),
         ]
         for name, desc in gauge_defs:
-            self._gauges[name] = Gauge(f"{namespace}_{name}", desc)
+            try:
+                self._gauges[name] = Gauge(f"{namespace}_{name}", desc)
+            except ValueError:
+                from prometheus_client import REGISTRY
+
+                self._gauges[name] = REGISTRY._names_to_collectors.get(
+                    f"{namespace}_{name}"
+                )
 
         # ── Sembol etiketli Gauge'ler (v5 yenilikleri) ───────────────────────
         self._gauges["slippage_avg"] = Gauge(
