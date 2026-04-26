@@ -78,6 +78,10 @@ except ImportError:
 
         class _StubSizer:
             min_notional = 10.0
+
+            def __init__(self, *a, **k):
+                pass
+
             def set_trade_log(self, tl): pass
             def calculate(self, sym, equity, **kw): return 0.0
             def calculate_with_slippage(self, **kw): return 0.0
@@ -87,6 +91,10 @@ except ImportError:
         class _StubRisk:
             emergency_stop = False
             emergency_reason = None
+
+            def __init__(self, capital: float = 0.0, *a, **k):
+                pass
+
             def trigger_emergency(self, code, silent=False):
                 self.emergency_stop = True
                 self.emergency_reason = code

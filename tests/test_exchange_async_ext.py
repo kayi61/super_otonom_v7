@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
+import importlib
+import sys
 import types
+from types import MethodType
 from unittest import mock
 from unittest.mock import AsyncMock, MagicMock
 
@@ -210,5 +214,161 @@ def test_aexit_calls_close() -> None:
     async def go():
         await h.__aexit__(None, None, None)
         m_ex.close.assert_awaited()
+
+    asyncio.run(go())
+
+
+def test_ccxt_import_error_disables_exchange() -> None:
+    """25-28: ImportError → simule mod."""
+    saved = sys.modules.get("super_otonom.exchange_async")
+    orig_imp = builtins.__import__
+
+    def _imp(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "ccxt.async_support":
+            raise ImportError("simulated")
+        return orig_imp(name, globals, locals, fromlist, level)
+
+    builtins.__import__ = _imp
+    try:
+        sys.modules.pop("super_otonom.exchange_async", None)
+        mod = importlib.import_module("super_otonom.exchange_async")
+        assert mod._CCXT_AVAILABLE is False
+        assert mod.ccxt_async is None
+    finally:
+        builtins.__import__ = orig_imp
+        sys.modules.pop("super_otonom.exchange_async", None)
+        if saved is not None:
+            sys.modules["super_otonom.exchange_async"] = saved
+        importlib.import_module("super_otonom.exchange_async")
+
+
+def test_async_handler_early_return_when_ccxt_missing() -> None:
+    """144-145: _CCXT_AVAILABLE False iken _ex None."""
+    with mock.patch.object(ex, "_CCXT_AVAILABLE", False):
+        h = AsyncExchangeHandler("binance")
+        assert h._ex is None
+
+
+def test_circuit_breaker_logs_once_when_threshold_crossed(caplog: pytest.LogCaptureFixture) -> None:
+    """60-66: ilk açılışta uyarı."""
+    cb = CircuitBreaker(2, 60.0)
+    caplog.set_level("WARNING", logger="super_otonom.exchange_async")
+    cb.record_failure()
+    cb.record_failure()
+    assert cb.is_open
+    assert any("devre AÇILDI" in r.message for r in caplog.records)
+
+
+def test_circuit_breaker_no_extra_log_when_already_open(caplog: pytest.LogCaptureFixture) -> None:
+    cb = CircuitBreaker(1, 60.0)
+    caplog.set_level("WARNING", logger="super_otonom.exchange_async")
+    cb.record_failure()
+    n = len(caplog.records)
+    cb.record_failure()
+    assert len(caplog.records) == n
+
+
+def test_circuit_breaker_success_logs_when_was_open(caplog: pytest.LogCaptureFixture) -> None:
+    """71: is_open True iken record_success."""
+    cb = CircuitBreaker(1, 60.0)
+    caplog.set_level("INFO", logger="super_otonom.exchange_async")
+    cb.record_failure()
+    cb.record_success()
+    assert any("KAPATILDI" in r.message for r in caplog.records)
+
+
+def test_handler_extra_config_and_sandbox_mode() -> None:
+    """153, 159-162."""
+    class FakeEx:
+        def __init__(self, config: dict) -> None:
+            self.config = config
+            self.sandbox = False
+
+        def set_sandbox_mode(self, v: bool) -> None:
+            self.sandbox = bool(v)
+
+    ns = types.SimpleNamespace(binance=FakeEx)
+    with mock.patch.object(ex, "_CCXT_AVAILABLE", True), mock.patch.object(ex, "ccxt_async", ns):
+        h = AsyncExchangeHandler("binance", testnet=True, extra_config={"opt": 7})
+        assert h._ex.config.get("opt") == 7
+        assert h._ex.sandbox is True
+
+
+def test_circuit_breaker_status_reports_symbols() -> None:
+    """246."""
+    h = object.__new__(AsyncExchangeHandler)
+    h._breakers = {}
+    h._cb_threshold = 5
+    h._cb_recovery = 60.0
+    AsyncExchangeHandler._get_breaker(h, "SYM")
+    st = h.circuit_breaker_status()
+    assert "SYM" in st and "CLOSED" in st["SYM"]
+
+
+def test_fetch_one_ratelimit_marks_storm() -> None:
+    """201-203."""
+
+    class RL(Exception):
+        code = 429
+
+    m_ex = MagicMock()
+    m_ex.fetch_ohlcv = AsyncMock(side_effect=RL())
+    h = object.__new__(AsyncExchangeHandler)
+    h._ex = m_ex
+    h.max_retries = 1
+    h.retry_delay = 0.0
+    h._cb_threshold = 5
+    h._cb_recovery = 60.0
+    h._breakers = {}
+
+    async def go():
+        res = await AsyncExchangeHandler._fetch_one(h, "R", "1m", 2)  # type: ignore
+        assert isinstance(res, RL)
+
+    asyncio.run(go())
+
+
+def test_fetch_all_logs_task_exception(caplog: pytest.LogCaptureFixture) -> None:
+    """234-236."""
+    caplog.set_level("ERROR", logger="super_otonom.exchange_async")
+    h = object.__new__(AsyncExchangeHandler)
+
+    async def boom(self, *_a, **_k):
+        raise OSError("gather_fail")
+
+    h._fetch_one = MethodType(boom, h)  # type: ignore[method-assign]
+
+    async def go():
+        out = await h.fetch_all_ohlcv(["U"], "1m", 1)
+        assert out["U"] == []
+
+    asyncio.run(go())
+    assert any("U" in r.message for r in caplog.records)
+
+
+def test_fetch_order_book_ratelimit_branch() -> None:
+    """265-267."""
+
+    class RL(Exception):
+        code = 429
+
+    m_ex = MagicMock()
+    m_ex.fetch_order_book = AsyncMock(side_effect=RL())
+    h = object.__new__(AsyncExchangeHandler)
+    h._ex = m_ex
+
+    async def go():
+        ob = await h.fetch_order_book("Z", 3)
+        assert ob == {"asks": [], "bids": []}
+
+    asyncio.run(go())
+
+
+def test_aenter_returns_handler() -> None:
+    """319-320."""
+    h = object.__new__(AsyncExchangeHandler)
+
+    async def go():
+        assert await h.__aenter__() is h
 
     asyncio.run(go())

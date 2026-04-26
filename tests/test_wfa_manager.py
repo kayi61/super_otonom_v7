@@ -100,3 +100,31 @@ def test_results_dataframe() -> None:
     df = m.results_dataframe()
     assert len(df) == 1
     assert "param_p" in df.columns or "fold_id" in df.columns
+
+
+def test_summary_empty_test_scores_stats() -> None:
+    """157: _stats boş liste → {}."""
+    m = WFAManager(_df(5000), window_size=1000, step_size=200, min_test_rows=1)
+    f0, f1 = m.get_folds()[:2]
+    m.record_result(f0, {}, train_score=0.5, test_score=None)
+    m.record_result(f1, {}, train_score=0.6, test_score=None)
+    s = m.summary()
+    assert s["test_scores"] == {}
+    assert s["train_scores"].get("count") == 2
+
+
+def test_summary_overfit_ratio_computed() -> None:
+    """168-171."""
+    m = WFAManager(_df(5000), window_size=1000, step_size=200, min_test_rows=1)
+    f0, f1 = m.get_folds()[:2]
+    m.record_result(f0, {}, train_score=0.8, test_score=0.3)
+    m.record_result(f1, {}, train_score=0.8, test_score=0.2)
+    s = m.summary()
+    assert s.get("overfit_ratio") is not None
+    assert s["overfit_ratio"] > 0
+
+
+def test_results_dataframe_no_rows() -> None:
+    """193-194."""
+    m = WFAManager(_df(2000), window_size=1000, step_size=200, min_test_rows=1)
+    assert m.results_dataframe().empty

@@ -1,8 +1,41 @@
 """MetricsExporter: no-op veya prom ile çökmeme."""
 from __future__ import annotations
 
+import importlib
+import sys
+import types
+import uuid
+from unittest.mock import MagicMock
+
 import pytest
 from super_otonom.metrics_exporter import _PROMETHEUS_AVAILABLE, MetricsExporter
+
+
+def test_import_error_sets_no_prometheus_and_noops() -> None:
+    """21-23 ImportError; 57-58 erken çıkış; update/record yolları 182,216,247,268,285."""
+    saved_pc = sys.modules.get("prometheus_client")
+    saved_me = sys.modules.get("super_otonom.metrics_exporter")
+    try:
+        sys.modules["prometheus_client"] = types.ModuleType("prometheus_client")
+        sys.modules.pop("super_otonom.metrics_exporter", None)
+        me = importlib.import_module("super_otonom.metrics_exporter")
+        assert me._PROMETHEUS_AVAILABLE is False
+        m = me.MetricsExporter(port=8000, namespace=f"imp_err_{uuid.uuid4().hex[:8]}")
+        assert m.is_active is False
+        m.update({"equity": 1.0, "emergency_stop": True})
+        m.record_analysis({"symbol": "BTC/USDT", "regime": "TRENDING"})
+        m.record_slippage("BTC/USDT", 100.0, 100.1)
+        m.update_circuit_breakers({"ETH/USDT": "OPEN (x)"})
+        m.record_trade(0.5, reason="t")
+    finally:
+        if saved_pc is not None:
+            sys.modules["prometheus_client"] = saved_pc
+        else:
+            sys.modules.pop("prometheus_client", None)
+        sys.modules.pop("super_otonom.metrics_exporter", None)
+        if saved_me is not None:
+            sys.modules["super_otonom.metrics_exporter"] = saved_me
+        importlib.import_module("super_otonom.metrics_exporter")
 
 
 def test_init_port_zero_no_server_bind() -> None:
@@ -40,6 +73,46 @@ def test_update_ignores_non_coercible_status_numbers() -> None:
     m = MetricsExporter(port=0, namespace="test_metrics_coerce")
     m.update({"equity": "not_a_float", "open_positions": object()})
     m.update({"equity": 100.0})
+
+
+@pytest.mark.skipif(not _PROMETHEUS_AVAILABLE, reason="prometheus_client yok")
+def test_update_circuit_breakers_swallows_label_errors() -> None:
+    """273-274: labels/set patlarsa yutulur."""
+    m = MetricsExporter(port=0, namespace=f"cb_lbl_{uuid.uuid4().hex[:8]}")
+    bad = MagicMock()
+    bad.labels.side_effect = RuntimeError("cb labels")
+    m._gauges["circuit_breaker_open"] = bad
+    m.update_circuit_breakers({"BTC/USDT": "CLOSED"})
+
+
+@pytest.mark.skipif(not _PROMETHEUS_AVAILABLE, reason="prometheus_client yok")
+def test_record_slippage_swallows_prom_errors() -> None:
+    """254-255: gauge veya histogram hata verirse yutulur."""
+    m = MetricsExporter(port=0, namespace=f"slip_ex_{uuid.uuid4().hex[:8]}")
+    bad_g = MagicMock()
+    bad_g.labels.return_value.set.side_effect = RuntimeError("slip set")
+    m._gauges["slippage_avg"] = bad_g
+    m.record_slippage("S", 100.0, 101.0)
+
+
+@pytest.mark.skipif(not _PROMETHEUS_AVAILABLE, reason="prometheus_client yok")
+def test_record_trade_swallows_prom_errors() -> None:
+    """289-290."""
+    m = MetricsExporter(port=0, namespace=f"tr_ex_{uuid.uuid4().hex[:8]}")
+    bad_c = MagicMock()
+    bad_c.labels.return_value.inc.side_effect = RuntimeError("inc")
+    m._counters["trades"] = bad_c
+    m.record_trade(1.0, reason="r")
+
+
+@pytest.mark.skipif(not _PROMETHEUS_AVAILABLE, reason="prometheus_client yok")
+def test_record_analysis_swallows_regime_label_errors() -> None:
+    """231-232: regime gauge labels hata."""
+    m = MetricsExporter(port=0, namespace=f"reg_ex_{uuid.uuid4().hex[:8]}")
+    bad = MagicMock()
+    bad.labels.return_value.set.side_effect = RuntimeError("reg")
+    m._gauges["regime"] = bad
+    m.record_analysis({"symbol": "S", "regime": "TRENDING"})
 
 
 @pytest.mark.skipif(not _PROMETHEUS_AVAILABLE, reason="prometheus_client yok")

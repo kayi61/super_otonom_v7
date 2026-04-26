@@ -1,9 +1,14 @@
 """AILayer: get_decision_reason + validate_signal dalları (mock)."""
 from __future__ import annotations
 
+import importlib
+import sys
+import types
+from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
+import super_otonom.config as cfg
 from super_otonom.ai_layer import AILayer, _entry_conf_floor
 
 
@@ -75,3 +80,94 @@ def test_stop_clears_server() -> None:
     a._server = MagicMock()
     a.stop()
     a._server.stop.assert_called_once()
+
+
+def test_market_models_import_success_sets_flag() -> None:
+    """20-23: ModelServer importu başarılı."""
+    saved = sys.modules.get("super_otonom.ai_layer")
+    core = types.ModuleType("super_otonom.core")
+    mm = types.ModuleType("super_otonom.core.market_models")
+
+    class _MS:
+        def __init__(self, model_path: str = "") -> None:
+            pass
+
+    mm.ModelServer = _MS
+    sys.modules["super_otonom.core"] = core
+    sys.modules["super_otonom.core.market_models"] = mm
+    try:
+        sys.modules.pop("super_otonom.ai_layer", None)
+        al = importlib.import_module("super_otonom.ai_layer")
+        assert al._MODEL_SERVER_AVAILABLE is True
+    finally:
+        sys.modules.pop("super_otonom.ai_layer", None)
+        sys.modules.pop("super_otonom.core.market_models", None)
+        sys.modules.pop("super_otonom.core", None)
+        if saved is not None:
+            sys.modules["super_otonom.ai_layer"] = saved
+        importlib.import_module("super_otonom.ai_layer")
+
+
+def test_ailayer_warns_when_lstm_enabled_but_file_missing(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """58-63."""
+    monkeypatch.setitem(cfg.AI, "lstm_enabled", True)
+    caplog.set_level("WARNING", logger="super_otonom.ai")
+    p = tmp_path / "no_such_model.pt"
+    AILayer(model_path=str(p))
+    assert any("model bulunamadi" in r.message.lower() for r in caplog.records)
+
+
+def test_ailayer_starts_modelserver_when_enabled(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """66-68."""
+    monkeypatch.setitem(cfg.AI, "lstm_enabled", True)
+    p = tmp_path / "w.pt"
+    p.write_bytes(b"1")
+    fake_ms = MagicMock()
+    with mock.patch("super_otonom.ai_layer._MODEL_SERVER_AVAILABLE", True), mock.patch(
+        "super_otonom.ai_layer.ModelServer", fake_ms
+    ):
+        AILayer(model_path=str(p))
+    fake_ms.assert_called_once()
+    fake_ms.return_value.start.assert_called_once()
+
+
+def test_extract_features_zero_close() -> None:
+    """75-77: string '0.0' → float 0 (truthy str, `or 1.0` atlanmaz)."""
+    a = AILayer(model_path="___nonexistent_model_xyz___")
+    vec = a._extract_features(
+        {"close": "0.0", "open": 1, "high": 1, "low": 1, "volume": 1.0},
+        {"rsi": 50.0, "ema_diff": 0.0, "vol_ratio": 1.0, "bb_pct_b": 0.5},
+    )
+    assert len(vec) == 8
+
+
+def test_validate_signal_buffer_insufficient() -> None:
+    """165-168."""
+    a = AILayer(model_path="___nonexistent_model_xyz___")
+    a.enabled = True
+    a._server = MagicMock()
+    a.seq_len = 5
+    a._buffer["Z"] = [[0.0] * 7]
+    sig, conf, reason = a.validate_signal("Z", "BUY", {"regime": "TRENDING", "hurst": 0.5})
+    assert sig == "BUY" and reason == "AI_BUFFER_INSUFFICIENT"
+
+
+def test_validate_signal_hold_passes_through_final_ai_path() -> None:
+    """198-204: baz HOLD, AI BUY → son dönüş."""
+    a = AILayer(model_path="___nonexistent_model_xyz___")
+    a.enabled = True
+    srv = MagicMock(
+        return_value={"source": "ok", "confidence": 0.72, "signal": "BUY"}
+    )
+    a._server = srv
+    a.seq_len = 1
+    a._buffer["K"] = [[0.0] * 7]
+    sig, conf, _r = a.validate_signal("K", "HOLD", {"regime": "TRENDING", "hurst": 0.55})
+    assert sig == "HOLD"
+    assert 0.45 <= conf <= 0.95

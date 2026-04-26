@@ -16,3 +16,8 @@ htmlcov/
 # IDE
 .idea/
 .vscode/
+
+# Yerel çalıştırma / derleme
+*.egg-info/
+logs/
+data/bot_state.json

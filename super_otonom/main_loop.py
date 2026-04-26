@@ -290,5 +290,5 @@ async def main() -> None:
     log.info("Kapatma tamamlandi.")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     asyncio.run(main())

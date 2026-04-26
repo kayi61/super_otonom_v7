@@ -33,3 +33,22 @@ def test_crash_regime_squash() -> None:
     r, m, s, adj, _ = compute_omega_regime(a, 80)
     assert r == "CRASH_RISK"
     assert adj < 80
+
+
+def test_omega_trending_high_q_sf_boost() -> None:
+    a = {"regime": "TRENDING", "hurst": 0.6, "volatility": 0.02, "flash_crash": False}
+    r, m, s, _adj, _ = compute_omega_regime(a, 95)
+    assert r in ("TRENDING", "RANGING", "CRASH_RISK")
+
+
+def test_omega_else_branch() -> None:
+    # vol yüksekse CRASH_RISK dalar; else dalı için vol < OMEGA_CRASH_VOL olmalı
+    a = {"regime": "RANDOM", "hurst": 0.7, "volatility": 0.02, "flash_crash": False}
+    r, m, s, _adj, _ = compute_omega_regime(a, 50)
+    assert r == "RANGING"
+
+
+def test_omega_base_quality_45_caps_sf() -> None:
+    a = {"regime": "MEAN_REVERTING", "hurst": 0.5, "volatility": 0.01, "flash_crash": False}
+    _r, _m, s, _a, _ = compute_omega_regime(a, 45)
+    assert 0.2 <= s <= 1.2
