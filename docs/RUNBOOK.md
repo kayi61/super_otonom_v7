@@ -1,6 +1,6 @@
 # super_otonom — Faz 3–4: Gözlem, güven, runbook
 
-Bu belge, botu **güvenle izlemek**, **doğrulamak** ve **canlıya geçerken** kontrol listesini kullanmak içindir. Faz 5 (kanıt paketi, SLO imzası, dış inceleme) ayrı belgede genişletilir.
+Bu belge, botu **güvenle izlemek**, **doğrulamak** ve **canlıya geçerken** kontrol listesini kullanmak içindir. **Hedef:** operasyonel güven / runbook olgunluğu **+9.8** üzeri (Faz 5: kanıt paketi, SLO imzası, dış inceleme ayrı çalışma).
 
 ---
 
@@ -41,6 +41,116 @@ tail -f logs/health.log
 ```
 
 Beklenti: Her analiz+tick adımında `health.log`’a yeni satırlar (eşzamanlılık, borsa gecikmesi ve hata durumunda seyrekleşebilir).
+
+---
+
+## Faz 3-4 — İzleme turu, health ve operasyon
+
+Bu bölüm, üretim benzeri izleme ve müdahale için tek kaynak prosedürlerdir.
+
+### İzleme turu (adım adım, en az 8 adım)
+
+1. **Önkoşul:** CI yeşil; `.env` güncel; repoda `.env.example` ile uyumlu anahtarlar (canlı anahtar asla commit yok).
+2. **Süreç canlı mı:** İşletim sisteminde `python -m super_otonom.main_loop` (veya eşdeğer entrypoint) tek örnek mi; çakışan eski process yok.
+3. **Terminal (ana process):** Açılışta `Bot baslatildi`, risk özeti, DRY_RUN / paper / live kilidi mesajları; Windows’ta sinyal notu beklenir.
+4. **`logs/health.log` akışı:** `tail -f` veya PowerShell `Get-Content -Wait` ile satırların tick/döngü ile güncellendiğini doğrula (donma yok).
+5. **Tick satırı anlamı:** `[OK]` vs `[HALT]`, `Qraw` / `Qadj` / `effective_qmin`, `Scale`, `PnL`, `Lim`, OMEGA kısa metin — aşağıdaki tablo ile eşleştir.
+6. **Döngü sonu:** Terminalde `DURUM |` + `format_durum_line` özeti: `eq`, `pnl`, `emerg`, fuse / rate-limit sayaçları.
+7. **Dış ML:** `ML_SERVICE_ENABLED` kapalıysa logda `no_external_ml` beklentisi; açıksa gecikme ve timeout davranışını gözle.
+8. **Güvenlik durumu:** `EMERGENCY_STOP`, `kill_switch`, 429 fırtınası veya sürekli `LOW_QUALITY_REJECT` — beklenen aralıkta mı, yoksa müdahale mi gerekiyor?
+9. **Süreklilik:** En az bir oturumda log dosya boyutu / son değişiklik zamanı ile “yazım devam ediyor” teyidi (opsiyonel: arşiv rotasyonu yoksa `health.log` büyümesi normal).
+
+### Health check prosedürü
+
+| # | Kontrol | Geçer kriter |
+|---|---------|----------------|
+| H1 | `ensure_health_file_logger` çalıştı mı? | İlk tick öncesi `logs/` oluşur; `health.log` yazılabilir. |
+| H2 | Logger tekilliği | Aynı process içinde çift `FileHandler` yok (modül `_HEALTH_FILE_SETUP` ile korunur). |
+| H3 | Encoding | Satırlar UTF-8; Türkçe / sembol bozulmuyor. |
+| H4 | Seviye | Kokpit satırları INFO; beklenmeyen ERROR root’ta araştırılır. |
+| H5 | Flush | Her tick sonrası dosya handler flush (yüksek frekansta diskte güncel görünür). |
+| H6 | Acil durum etiketi | `emergency_stop` veya `decision_context.emergency_code` varsa satırda `[HALT]` ve açıklama. |
+
+**Hızlı komut (dosya var mı, son satırlar):**
+
+```bash
+# Linux / macOS
+test -f logs/health.log && tail -n 5 logs/health.log
+```
+
+```powershell
+# Windows (PowerShell)
+if (Test-Path logs\health.log) { Get-Content logs\health.log -Tail 5 }
+```
+
+### Log kontrol adımları
+
+1. Proje kökünden `logs/health.log` yolunu aç (veya `GENERAL["log_dir"]` özelleştiyse o dizin).
+2. Zaman damgası formatı: `YYYY-MM-DD HH:MM:SS | <mesaj>` (`health_summary` formatter).
+3. Her parite tick’inde `log_tick_health` ile bir satır; sembol ve `tick_id` izlenebilir olmalı.
+4. Terminaldeki `DURUM |` satırı ile `health.log` aynı oturumda tutarlı equity / emergency bilgisi vermeli (farklı kanallar, aynı motor).
+5. Hata ayıklamada: önce terminal (traceback), sonra `health.log` (iş mantığı özeti), gerekirse genel uygulama logları.
+6. Olay sonrası: ilgili zaman aralığını kopyala / arşivle; `.env` ve borsa limitini birlikte incele.
+
+### Canlı sistem doğrulama checklist
+
+Aşağıdakiler **bilinçli canlı** veya testnet denemesi öncesi işaretlensin:
+
+- [ ] `LIVE_CONFIRM=YES` ve `PAPER_MODE=false` yalnız kasıtlı olarak set; küçük sermaye veya testnet.
+- [ ] `DRY_RUN` durumu biliniyor; paper/live karışıklığı yok.
+- [ ] `health.log` canlı oturumda akıyor; `[HALT]` yoksa veya bilinen nedenle sınırlı.
+- [ ] İlk emirlerden sonra slipaj / `EYLEM` logları beklenen aralıkta.
+- [ ] Rate-limit / circuit breaker logları anormal değil.
+- [ ] `Ctrl+C` veya SIGTERM (Linux) ile temiz kapanış denendi; zombie process yok.
+- [ ] Operatör: kurtarma ve iletişim adımları bu runbook’ta okunmuş.
+
+### İzleme altyapısı doğrulaması (`health_summary.py`, `logs/health.log`)
+
+| Bileşen | Rol | Doğrulama |
+|---------|-----|-----------|
+| `ensure_health_file_logger(log_dir)` | `logs/health.log` için tekil `FileHandler`; `log_health` logger | Kod: `super_otonom/health_summary.py`. Çağrı: `main_loop` açılışında `GENERAL["log_dir"]` ile. |
+| `log_tick_health` / `format_tick_health` | Tick başına kokpit satırı (kalite, OMEGA özeti, limitleyiciler) | Her `engine.tick` sonrası `main_loop` içinde. |
+| `format_durum_line` | Döngü sonu equity / fuse / emergency özeti | Terminal `DURUM` logunda. |
+| Otomatik testler | Regresyon | `pytest tests/test_health_summary.py tests/test_health_summary_more.py` ve `tests/test_main_loop_helpers.py` (health logger kurulumu). |
+
+**Manuel duman testi:** Motoru kısa süre çalıştır → `logs/health.log` oluşuyor ve son satırlar zaman damgalı büyüyor → Ctrl+C ile durdur → dosya tutarlı kapanıyor.
+
+### Operasyonel prosedürler
+
+#### Sistem başlatma
+
+1. Sanal ortam / bağımlılıklar: `pip install -e ".[dev]"` (veya dağıtım imajı eşdeğeri).
+2. `.env` doğrula: borsa, `PAPER_MODE`, `DRY_RUN`, `LIVE_CONFIRM`, risk ve kalite eşikleri.
+3. Proje kökünden tek terminal: `python -m super_otonom.main_loop` (veya `super-otonom`).
+4. İkinci terminalde `health.log` takibi (bkz. §2).
+5. İlk 1–3 döngüde terminal + `health.log` uyumunu teyit et.
+
+#### Sistem durdurma
+
+1. **Tercih:** Ön plandaki süreçte `Ctrl+C` (Windows/Linux etkileşimli terminal).
+2. **Linux / arka plan:** süreçe `SIGTERM` gönder; gerekirse `SIGKILL` (son çare).
+3. **Windows:** Görev Yöneticisi veya `Stop-Process` yalnız motor durmuyorsa.
+4. Son kontrol: son `health.log` satırı zamanı; borsada bekleyen emir / açık pozisyon operasyon politikasına göre incelenir (bot dışı).
+
+#### Hata durumu prosedürü
+
+1. **Sınıflandır:** (A) borsa / ağ, (B) rate-limit / kill-switch, (C) mantık / assertion, (D) disk / izin.
+2. Motoru güvenli şekilde durdur (üstteki “Sistem durdurma”).
+3. Logları koru: terminal çıktısı + `logs/health.log` + ilgili uygulama logları.
+4. `.env` ve son deploy / config değişikliğini not et; CI son koşuyu kontrol et.
+5. Tekrar başlatmadan önce kök nedeni giderildi mi karar ver; gerekirse `DRY_RUN=true` ile repro.
+
+#### Kurtarma prosedürü
+
+1. **Minimum güvenli mod:** `DRY_RUN=true` ve/veya `PAPER_MODE=true` ile ayağa kaldır; gerçek emir yok.
+2. API anahtarı / IP / testnet anahtarı rotasyonu gerekiyorsa borsa panelinden yap.
+3. `health.log` ve `DURUM` ile equity / emergency normale dönene kadar izle.
+4. Canlıya dönüş: runbook “Aşamalı geçiş” ve “Canlı sistem doğrulama checklist” adımlarını sırayla uygula.
+5. Olay raporu: tarih, süre, kök neden, alınan önlem (ekip için kısa not).
+
+### Faz 3-4 tamamlandı
+
+**Durum:** ✅ **Faz 3-4 kapatıldı** — İzleme turu, health prosedürü, log kontrolleri, canlı checklist ve operasyonel akışlar bu belgede tanımlı; `health_summary` + `health.log` akışı kod ve testlerle hizalı.
 
 ---
 
@@ -126,10 +236,13 @@ Bunlar Faz 5 SLO değil; yalnız “doğru çalışıyor gibi” kontrol listesi
 ## 8) Faz 3–4 “tamam” tanımı (bu repo için)
 
 - Bu runbook + `.env.example` repoda, ekip aynı dili konuşuyor
-- En az bir tam izleme turu (checklist 5 maddesi elle işaretlenebilir)
-- Canlı denenecekse: yukarıdaki B adımı **kasıtlı** ve loglu
+- **Faz 3-4 — İzleme turu, health ve operasyon** bölümündeki maddeler (izleme turu, health check tablosu, log adımları, canlı checklist, operasyonel prosedürler) referans alındı
+- En az bir tam izleme turu (üst bölümdeki 8+ adım) ve hafif checklist (§6) elle işaretlenebilir
+- Canlı denenecekse: §5-B ve **Canlı sistem doğrulama checklist** **kasıtlı** ve loglu uygulanır
 
-Faz 5 (9+ puan) için: metrik bütçeleri, denetim izi, imzalanmış SLO, isteğe bağlı dış review — ayrı çalışma.
+**Kapanış işareti:** Üstteki **“Faz 3-4 tamamlandı”** kutusu bu fazın runbook tarafını resmi olarak işaretler.
+
+Faz 5 için: metrik bütçeleri, denetim izi, imzalanmış SLO, isteğe bağlı dış review — ayrı çalışma.
 
 ---
 
