@@ -641,3 +641,402 @@ def test_wait_shutdown_timeout_pymodule(
         await asyncio.wait_for(t, timeout=20.0)
 
     asyncio.run(_w())
+
+
+# ---------------------------------------------------------------------------
+# Windows SIGINT, CB tick atlama, KeyboardInterrupt, shutdown hata
+# ---------------------------------------------------------------------------
+
+
+def test_main_windows_registers_sigint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from super_otonom import main_loop as ml
+    from super_otonom.config import MTF
+
+    mtf = dict(MTF)
+    mtf["enabled"] = False
+    monkeypatch.setattr(ml, "MTF", mtf)
+    ml_mod = _ml_common_engines(tmp_path, monkeypatch, ["W/USDT"])
+    ts0 = int(time.time() * 1000)
+    row = [float(ts0), 1.0, 1.0, 1.0, 1.0, 1.0]
+    sym0 = ml_mod.PAIRS[0]
+
+    class Hw:
+        async def fetch_all_ohlcv(self, **kw) -> dict:
+            return {sym0: [row, row]}
+
+        async def fetch_order_book(self, *a, **k) -> dict:
+            return {"asks": [[1.0, 1.0]], "bids": []}
+
+        def circuit_breaker_status(self) -> dict:
+            return {}
+
+    class CM:
+        def __init__(self, **kw) -> None:
+            self.h = Hw()
+
+        async def __aenter__(self) -> "Hw":  # noqa: F821
+            return self.h
+
+        async def __aexit__(self, *a) -> object:
+            return None
+
+    monkeypatch.setattr(ml, "AsyncExchangeHandler", CM)
+    monkeypatch.setattr(ml, "apply_storm_trip_to_risk", lambda r: False)
+
+    class MA:
+        def analyze(self, sym: str, c: list) -> dict:
+            return {
+                "signal": "HOLD",
+                "regime": "RANGING",
+                "hurst": 0.5,
+                "volatility": 0.1,
+            }
+
+        def apply_liquidity_context(self, *a, **k) -> None:
+            pass
+
+    monkeypatch.setattr(ml, "MarketAnalyzer", MA)
+    sig_mock = MagicMock(return_value=None)
+
+    async def _run() -> None:
+        with patch.object(sys, "platform", "win32"):
+            with patch("super_otonom.main_loop.signal.signal", sig_mock):
+                t = asyncio.create_task(ml_mod.main())
+                await asyncio.sleep(0.12)
+                ml_mod._shutdown.set()
+                await asyncio.wait_for(t, timeout=20.0)
+
+    with caplog.at_level("INFO", logger="super_otonom.main"):
+        asyncio.run(_run())
+    sig_mock.assert_called()
+    assert "Windows" in caplog.text
+
+
+def test_main_windows_sigint_bind_failure_still_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from super_otonom import main_loop as ml
+    from super_otonom.config import MTF
+
+    mtf = dict(MTF)
+    mtf["enabled"] = False
+    monkeypatch.setattr(ml, "MTF", mtf)
+    ml_mod = _ml_common_engines(tmp_path, monkeypatch, ["WF/USDT"])
+    ts0 = int(time.time() * 1000)
+    row = [float(ts0), 1.0, 1.0, 1.0, 1.0, 1.0]
+    sym0 = ml_mod.PAIRS[0]
+
+    class Hw:
+        async def fetch_all_ohlcv(self, **kw) -> dict:
+            return {sym0: [row, row]}
+
+        async def fetch_order_book(self, *a, **k) -> dict:
+            return {"asks": [[1.0, 1.0]], "bids": []}
+
+        def circuit_breaker_status(self) -> dict:
+            return {}
+
+    class CM:
+        def __init__(self, **kw) -> None:
+            self.h = Hw()
+
+        async def __aenter__(self) -> "Hw":  # noqa: F821
+            return self.h
+
+        async def __aexit__(self, *a) -> object:
+            return None
+
+    monkeypatch.setattr(ml, "AsyncExchangeHandler", CM)
+    monkeypatch.setattr(ml, "apply_storm_trip_to_risk", lambda r: False)
+
+    class MA:
+        def analyze(self, sym: str, c: list) -> dict:
+            return {
+                "signal": "HOLD",
+                "regime": "RANGING",
+                "hurst": 0.5,
+                "volatility": 0.1,
+            }
+
+        def apply_liquidity_context(self, *a, **k) -> None:
+            pass
+
+    monkeypatch.setattr(ml, "MarketAnalyzer", MA)
+
+    async def _run() -> None:
+        with patch.object(sys, "platform", "win32"):
+            with patch(
+                "super_otonom.main_loop.signal.signal",
+                side_effect=ValueError("no signal"),
+            ):
+                t = asyncio.create_task(ml_mod.main())
+                await asyncio.sleep(0.12)
+                ml_mod._shutdown.set()
+                await asyncio.wait_for(t, timeout=20.0)
+
+    asyncio.run(_run())
+
+
+def test_tick_skipped_when_cb_opens_after_prep(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from super_otonom import main_loop as ml
+    from super_otonom.bot_engine import BotEngine
+    from super_otonom.config import MTF
+
+    mtf = dict(MTF)
+    mtf["enabled"] = False
+    monkeypatch.setattr(ml, "MTF", mtf)
+    ml_mod = _ml_common_engines(tmp_path, monkeypatch, ["CBLATE/USDT"])
+    sym = ml_mod.PAIRS[0]
+    ts0 = int(time.time() * 1000)
+    row = [float(ts0), 1.0, 1.0, 1.0, 1.0, 1.0]
+
+    class Hlate:
+        def __init__(self) -> None:
+            self._n = 0
+
+        async def fetch_all_ohlcv(self, **kw) -> dict:
+            return {sym: [row, row]}
+
+        async def fetch_order_book(self, *a, **k) -> dict:
+            return {"asks": [[1.0, 1.0]], "bids": []}
+
+        def circuit_breaker_status(self) -> dict:
+            self._n += 1
+            # 1=loop ozet, 2=prep CB kontrolu, 3=tick oncesi (burada OPEN)
+            if self._n >= 3:
+                return {sym: "OPEN (late)"}
+            return {}
+
+    class CM:
+        def __init__(self, **kw) -> None:
+            self.h = Hlate()
+
+        async def __aenter__(self) -> "Hlate":  # noqa: F821
+            return self.h
+
+        async def __aexit__(self, *a) -> object:
+            return None
+
+    monkeypatch.setattr(ml, "AsyncExchangeHandler", CM)
+    monkeypatch.setattr(ml, "apply_storm_trip_to_risk", lambda r: False)
+
+    class MA:
+        def analyze(self, sym2: str, c: list) -> dict:
+            return {
+                "signal": "BUY",
+                "regime": "TRENDING",
+                "hurst": 0.5,
+                "volatility": 0.1,
+            }
+
+        def apply_liquidity_context(self, *a, **k) -> None:
+            pass
+
+    monkeypatch.setattr(ml, "MarketAnalyzer", MA)
+
+    tick_mock = AsyncMock(
+        return_value={
+            "decision_context": None,
+            "decision_reason": "",
+            "final_signal": "HOLD",
+            "actions": [],
+        }
+    )
+
+    async def _run() -> None:
+        with patch.object(BotEngine, "tick", tick_mock):
+            with caplog.at_level("WARNING", logger="super_otonom.main"):
+                t = asyncio.create_task(ml_mod.main())
+                await asyncio.sleep(0.2)
+                ml_mod._shutdown.set()
+                await asyncio.wait_for(t, timeout=20.0)
+
+    asyncio.run(_run())
+    assert "CB_OPEN" in caplog.text
+    tick_mock.assert_not_called()
+
+
+def test_main_loop_keyboard_interrupt_in_fetch_breaks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from super_otonom import main_loop as ml
+    from super_otonom.config import MTF
+
+    mtf = dict(MTF)
+    mtf["enabled"] = False
+    monkeypatch.setattr(ml, "MTF", mtf)
+    ml_mod = _ml_common_engines(tmp_path, monkeypatch, ["KI/USDT"])
+
+    class H:
+        async def fetch_all_ohlcv(self, **kw) -> dict:
+            raise KeyboardInterrupt()
+
+        async def fetch_order_book(self, *a, **k) -> dict:
+            return {"asks": [], "bids": []}
+
+        def circuit_breaker_status(self) -> dict:
+            return {}
+
+    class CM:
+        def __init__(self, **kw) -> None:
+            self.h = H()
+
+        async def __aenter__(self) -> "H":  # noqa: F821
+            return self.h
+
+        async def __aexit__(self, *a) -> object:
+            return None
+
+    monkeypatch.setattr(ml, "AsyncExchangeHandler", CM)
+    monkeypatch.setattr(ml, "apply_storm_trip_to_risk", lambda r: False)
+
+    async def _run() -> None:
+        with caplog.at_level("WARNING", logger="super_otonom.main"):
+            t = asyncio.create_task(ml_mod.main())
+            await asyncio.wait_for(t, timeout=20.0)
+
+    ml_mod._shutdown.clear()
+    asyncio.run(_run())
+    assert ml_mod._shutdown.is_set()
+
+
+@pytest.mark.filterwarnings(
+    "ignore:coroutine 'Event.wait' was never awaited:RuntimeWarning"
+)
+def test_main_loop_keyboard_interrupt_on_poll_wait(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from super_otonom import main_loop as ml
+    from super_otonom.config import MTF
+
+    mtf = dict(MTF)
+    mtf["enabled"] = False
+    monkeypatch.setattr(ml, "MTF", mtf)
+    ml_mod = _ml_common_engines(tmp_path, monkeypatch, ["KP/USDT"])
+    ts0 = int(time.time() * 1000)
+    row = [float(ts0), 1.0, 1.0, 1.0, 1.0, 1.0]
+    sym0 = ml_mod.PAIRS[0]
+
+    class H:
+        async def fetch_all_ohlcv(self, **kw) -> dict:
+            return {sym0: [row, row]}
+
+        async def fetch_order_book(self, *a, **k) -> dict:
+            return {"asks": [[1.0, 1.0]], "bids": []}
+
+        def circuit_breaker_status(self) -> dict:
+            return {}
+
+    class CM:
+        def __init__(self, **kw) -> None:
+            self.h = H()
+
+        async def __aenter__(self) -> "H":  # noqa: F821
+            return self.h
+
+        async def __aexit__(self, *a) -> object:
+            return None
+
+    monkeypatch.setattr(ml, "AsyncExchangeHandler", CM)
+    monkeypatch.setattr(ml, "apply_storm_trip_to_risk", lambda r: False)
+
+    class MA:
+        def analyze(self, sym: str, c: list) -> dict:
+            return {
+                "signal": "HOLD",
+                "regime": "RANGING",
+                "hurst": 0.5,
+                "volatility": 0.1,
+            }
+
+        def apply_liquidity_context(self, *a, **k) -> None:
+            pass
+
+    monkeypatch.setattr(ml, "MarketAnalyzer", MA)
+
+    calls = [0]
+    orig_wait = ml_mod.asyncio.wait_for
+
+    async def wait_wrapper(*args: Any, **kwargs: Any) -> Any:
+        calls[0] += 1
+        if calls[0] >= 2:
+            raise KeyboardInterrupt()
+        return await orig_wait(*args, **kwargs)
+
+    async def _run() -> None:
+        with patch.object(ml_mod.asyncio, "wait_for", wait_wrapper):
+            with caplog.at_level("WARNING", logger="super_otonom.main"):
+                t = asyncio.create_task(ml_mod.main())
+                await asyncio.wait_for(t, timeout=25.0)
+
+    ml_mod._shutdown.clear()
+    asyncio.run(_run())
+    assert ml_mod._shutdown.is_set()
+
+
+def test_engine_shutdown_error_logged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from super_otonom import main_loop as ml
+    from super_otonom.bot_engine import BotEngine
+    from super_otonom.config import MTF
+
+    mtf = dict(MTF)
+    mtf["enabled"] = False
+    monkeypatch.setattr(ml, "MTF", mtf)
+    ml_mod = _ml_common_engines(tmp_path, monkeypatch, ["SD/USDT"])
+    ts0 = int(time.time() * 1000)
+    row = [float(ts0), 1.0, 1.0, 1.0, 1.0, 1.0]
+    sym0 = ml_mod.PAIRS[0]
+
+    class H:
+        async def fetch_all_ohlcv(self, **kw) -> dict:
+            return {sym0: [row, row]}
+
+        async def fetch_order_book(self, *a, **k) -> dict:
+            return {"asks": [[1.0, 1.0]], "bids": []}
+
+        def circuit_breaker_status(self) -> dict:
+            return {}
+
+    class CM:
+        def __init__(self, **kw) -> None:
+            self.h = H()
+
+        async def __aenter__(self) -> "H":  # noqa: F821
+            return self.h
+
+        async def __aexit__(self, *a) -> object:
+            return None
+
+    monkeypatch.setattr(ml, "AsyncExchangeHandler", CM)
+    monkeypatch.setattr(ml, "apply_storm_trip_to_risk", lambda r: False)
+
+    class MA:
+        def analyze(self, sym: str, c: list) -> dict:
+            return {
+                "signal": "HOLD",
+                "regime": "RANGING",
+                "hurst": 0.5,
+                "volatility": 0.1,
+            }
+
+        def apply_liquidity_context(self, *a, **k) -> None:
+            pass
+
+    monkeypatch.setattr(ml, "MarketAnalyzer", MA)
+
+    async def _run() -> None:
+        with patch.object(BotEngine, "shutdown", side_effect=RuntimeError("x")):
+            with caplog.at_level("WARNING", logger="super_otonom.main"):
+                t = asyncio.create_task(ml_mod.main())
+                await asyncio.sleep(0.1)
+                ml_mod._shutdown.set()
+                await asyncio.wait_for(t, timeout=20.0)
+
+    asyncio.run(_run())
+    assert "engine.shutdown hata" in caplog.text
