@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import importlib
+import os
 import sys
 import types
-from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
@@ -124,16 +124,22 @@ def test_ailayer_warns_when_lstm_enabled_but_file_missing(
 def test_ailayer_starts_modelserver_when_enabled(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """66-68."""
-    monkeypatch.setitem(cfg.AI, "lstm_enabled", True)
+    """66-68: ModelServer yolu — modül nesnesi üzerinden patch (3.10/3.12 uyumu)."""
+    import super_otonom.ai_layer as al
+
+    monkeypatch.setitem(al.AI, "lstm_enabled", True)
     p = tmp_path / "w.pt"
     p.write_bytes(b"1")
+    model_path = os.fspath(p.resolve())
+    assert os.path.isfile(model_path)
+
     fake_ms = MagicMock()
-    with mock.patch("super_otonom.ai_layer._MODEL_SERVER_AVAILABLE", True), mock.patch(
-        "super_otonom.ai_layer.ModelServer", fake_ms
-    ):
-        AILayer(model_path=str(p))
-    fake_ms.assert_called_once()
+    monkeypatch.setattr(al, "_MODEL_SERVER_AVAILABLE", True)
+    monkeypatch.setattr(al, "ModelServer", fake_ms)
+
+    al.AILayer(model_path=model_path)
+
+    fake_ms.assert_called_once_with(model_path=model_path)
     fake_ms.return_value.start.assert_called_once()
 
 
