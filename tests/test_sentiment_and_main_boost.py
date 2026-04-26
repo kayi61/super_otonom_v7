@@ -140,7 +140,6 @@ def test_main_loop_mtf_storm_and_analyzer_error(
             return None
 
     monkeypatch.setattr(ml, "AsyncExchangeHandler", CM)
-    n = [0]
 
     class MA:
         def __init__(self) -> None:

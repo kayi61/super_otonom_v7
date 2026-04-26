@@ -11,7 +11,6 @@ import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from super_otonom.config import RISK as CONFIG_RISK
 
 
@@ -35,8 +34,9 @@ def test_tick_updates_peak_equity(
     e = be.BotEngine(1000.0, paper=True)
     e._peak_equity = 500.0
     e.equity = 2000.0
-    from super_otonom import bot_engine as bmod
     from unittest.mock import patch as p2
+
+    from super_otonom import bot_engine as bmod
 
     async def _hi(*a, **k) -> None:
         pass
@@ -192,7 +192,6 @@ def test_entry_ob_safe_size_invalid_parses_none(
     with patch.object(be, "compute_signal_quality", return_value=(90, [], {}, "m")), patch.object(
         be, "compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")
     ), patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")):
-        dctx = __import__("super_otonom.decision_context", fromlist=["DecisionContext"]).DecisionContext
         out = asyncio.run(e.tick("ObBad", a, c))
     ctx = out.get("decision_context")
     if ctx and isinstance(ctx, dict) and "ob_safe_size_input" in str(ctx) or out:
@@ -344,7 +343,6 @@ def test_handle_exit_stop_loss(
         "peak": 100.0,
         "hold_bars": 0,
     }
-    a = {"volatility": 0.1, "avg_volume": 1_000.0, "strategist": "t", "regime": "R"}
     c = [{"close": 80.0, "volume": 1.0}]
 
     async def _r() -> None:
@@ -378,7 +376,6 @@ def test_handle_exit_trailing_and_signal_sell(
         "peak": 100.0,
         "hold_bars": 0,
     }
-    a = {"volatility": 0.1, "avg_volume": 1_000.0, "strategist": "t", "regime": "R"}
     c1 = [{"close": 100.0, "volume": 1.0}]
     with patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")), patch.object(
         be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")
@@ -439,7 +436,6 @@ def test_live_sell_uses_slippage_not_sim(
         "hold_bars": 0,
     }
     e.slippage.adjusted_price = MagicMock(return_value=99.0)
-    a = {"volatility": 0.1, "avg_volume": 1_000.0, "strategist": "t", "regime": "R"}
     c = [{"close": 99.0, "volume": 1.0}]
 
     async def _r() -> None:
@@ -450,19 +446,15 @@ def test_live_sell_uses_slippage_not_sim(
         ), patch.object(
             e.ai, "validate_signal", return_value=("HOLD", 0.5, "")
         ):
-            pnl = (100.0 - 100.0) / 100.0
-            pass
-        out = await e.tick(
-            "L", {"signal": "HOLD", "volatility": 0.1, "regime": "R", "strategist": "t"}, c
-        )
+            out = await e.tick(
+                "L", {"signal": "HOLD", "volatility": 0.1, "regime": "R", "strategist": "t"}, c
+            )
         assert out is not None
 
     with patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")), patch.object(
         be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")
     ), patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")), patch.object(
         e.risk, "check_risk", return_value=True
-    ), patch.object(
-        e.risk, "should_trailing_stop", return_value=True
     ), patch.object(
         e.risk, "should_trailing_stop", return_value=True
     ):

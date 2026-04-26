@@ -16,7 +16,7 @@ import pytest
 
 
 def test_position_sizer_set_weights_and_kelly_sized() -> None:
-    from super_otonom.position_sizer import PositionSizer, _KELLY_MIN_TRADES
+    from super_otonom.position_sizer import _KELLY_MIN_TRADES, PositionSizer
 
     s = PositionSizer(max_position_pct=0.2, min_notional=0.1)
     s.set_portfolio_weights({"A": 0.3, "B": 0.7})
@@ -316,9 +316,9 @@ def test_status_emergency_line_variants(tmp_path: Path, monkeypatch: pytest.Monk
 
 
 def test_tick_price_spike_with_open_ignores() -> None:
-    from super_otonom import bot_engine as be
-    from super_otonom.bot_engine import BotEngine
     from unittest.mock import patch
+
+    from super_otonom.bot_engine import BotEngine
 
     e = BotEngine(1000.0, paper=True)
     e.open_positions["B"] = {"entry": 1.0, "qty": 1.0, "size": 1.0, "peak": 1.0}

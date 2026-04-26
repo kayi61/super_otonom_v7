@@ -6,8 +6,8 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-import super_otonom.main_loop as ml
 import super_otonom.health_summary as hs
+import super_otonom.main_loop as ml
 
 
 def test_handle_signal_sets_shutdown() -> None:

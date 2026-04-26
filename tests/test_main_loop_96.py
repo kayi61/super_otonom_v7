@@ -16,9 +16,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 import super_otonom.config as _cfg
-
 
 # ---------------------------------------------------------------------------
 # 38–44: canlı + onay yok -> sys.exit(1) (importlib.reload)

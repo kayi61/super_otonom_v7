@@ -8,7 +8,6 @@ import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from super_otonom.config import RISK as CONFIG_RISK
 from super_otonom.position_sizer import PositionSizer
 from super_otonom.pre_trade_gate import gate_buy_size_and_exposure
