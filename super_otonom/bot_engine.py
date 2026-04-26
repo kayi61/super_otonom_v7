@@ -1,16 +1,11 @@
 from __future__ import annotations
 
 """
-BotEngine v6.2
+BotEngine v8.0 (davranış v6.2 ile uyumlu; mimari genişletme)
 ─────────────────────────────────────────────────────────────────────────────
-v6   → CorrelationManager + SentimentLayer entegrasyonu
-v6.1 → analyze_v5_1, validate_and_calculate, log düzeltmeleri
-v6.2 → DÜZELTMELER:
-         1. OrderTracker async/await uyumsuzluğu giderildi (check_status → async def)
-         2. OrderTracker BotEngine.__init__() içinde örneklendi ve tick()'e bağlandı
-         3. _close() içinde pos["entry"] ve pos["qty"] .get() ile korundu
-         4. ExecutionSimulator entegre edildi (latency + partial fill)
-         5. TradeLogger çift kayıt sistemi (bellekte + satır bazlı dosya)
+v6.2 → OrderTracker, ExecutionSimulator, TradeLogger (önceki notlar)
+v8   → tick → process_signal / apply_filters / calculate_position / execute_trade;
+         pipelines (risk, signal, execution); state_machine görünümü; AI explain / TRADE_WHY
 """
 
 import asyncio
@@ -22,23 +17,23 @@ import time
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
-from super_otonom.ai_confidence_bridge import blend_omega_confidence
 from super_otonom.ai_layer import AILayer
 from super_otonom.config import METRICS, RISK
 from super_otonom.correlation_manager import CorrelationManager
 from super_otonom.decision_context import DecisionContext, DecisionStage
 from super_otonom.kill_switch import HardLimitTracker, get_rate_limit_storm_tracker
 from super_otonom.metrics_exporter import MetricsExporter
-from super_otonom.ml_client import get_ml_client
-from super_otonom.omega_regime import compute_omega_regime
+from super_otonom.omega_regime import compute_omega_regime  # noqa: F401 — test patch hedefi
+from super_otonom.pipelines import execution_pipeline, risk_pipeline, signal_pipeline
 from super_otonom.pre_trade_gate import (
     gate_buy_signal_and_slots,
     gate_buy_size_and_exposure,
-    gate_global_trade_disable,
+    gate_global_trade_disable,  # noqa: F401 — test patch
     merge_entry_notional,
 )
 from super_otonom.sentiment_layer import SentimentLayer
-from super_otonom.signal_quality_scorer import compute_signal_quality
+from super_otonom.signal_quality_scorer import compute_signal_quality  # noqa: F401 — test patch
+from super_otonom.state_machine import compute_trading_state
 
 log = logging.getLogger("super_otonom.engine")
 
@@ -241,16 +236,9 @@ class OrderTracker:
 
 class BotEngine:
     """
-    v6.2 — Tüm kritik hatalar giderildi.
+    v8 — Tick; aşamalar pipelines + BotEngine üzerindeki faz metodlarıyla aynı sıra.
 
-    Tick akışı:
-      1. Risk kontrolü
-      2. AI sinyal doğrulama
-      3. Sentiment veto
-      4. Korelasyon çarpanı
-      5. Pozisyon boyutu
-      6. Giriş / çıkış kararı
-      7. OrderTracker güncelleme  ← v6.2 YENİ
+    Özet: risk ön kontrol → process_signal → apply_filters → calculate_position → execute_trade
     """
 
     def __init__(
@@ -381,7 +369,51 @@ class BotEngine:
         vols = [float(c.get("volume") or 0.0) for c in tail]
         return max(1.0, sum(vols) / max(len(vols), 1))
 
-    # ── Ana tick ─────────────────────────────────────────────────────────────
+    # ── v8: faz bölünmüş tick (pipelines + durum makinesi) ───────────────────
+
+    async def process_signal(
+        self,
+        symbol: str,
+        analysis: Dict[str, Any],
+        candles: List[Dict[str, float]],
+        dctx: DecisionContext,
+        out: Dict[str, Any],
+    ) -> None:
+        await signal_pipeline.process_signal_phase(
+            self, symbol, analysis, candles, dctx, out
+        )
+
+    async def apply_filters(
+        self,
+        symbol: str,
+        analysis: Dict[str, Any],
+        price: float,
+        dctx: DecisionContext,
+        out: Dict[str, Any],
+    ) -> bool:
+        return await signal_pipeline.apply_filters_phase(
+            self, symbol, analysis, price, dctx, out
+        )
+
+    def calculate_position(self, symbol: str, final_signal: str) -> float:
+        if final_signal == "BUY":
+            return self.correlation_mgr.adjust_risk_exposure(
+                symbol, list(self.open_positions.keys())
+            )
+        return 1.0
+
+    async def execute_trade(
+        self,
+        symbol: str,
+        price: float,
+        analysis: Dict[str, Any],
+        out: Dict[str, Any],
+        corr_multiplier: float,
+        dctx: DecisionContext,
+    ) -> None:
+        await execution_pipeline.execute_trade_phase(
+            self, symbol, price, analysis, out, corr_multiplier, dctx
+        )
 
     async def tick(
         self,
@@ -401,6 +433,7 @@ class BotEngine:
             "sentiment_status":  "UNKNOWN",
             "corr_multiplier":   1.0,
             "decision_context":  None,
+            "ai_explain":        "",
         }
 
         if not candles:
@@ -414,188 +447,39 @@ class BotEngine:
 
         dctx = DecisionContext.start(symbol, self._tick_counter, analysis)
         dctx.add_trace("start", f"close={price:.4f}")
+        dctx.trading_state = compute_trading_state(self, analysis).value
 
         if self.equity > self._peak_equity:
             self._peak_equity = self.equity
 
         self.correlation_mgr.update_returns(symbol, price)
 
-        # ── 0. Kill switch (global, fiyat) — pre_trade_gate.global + sert sınır
-        g_ok, g_code = gate_global_trade_disable()
-        if not g_ok:
-            dctx.risk_passed = False
-            dctx.emergency_code = f"EMERGENCY_STOP:{g_code}"
-            dctx.add_trace("kill_switch", g_code)
-            out["decision_context"] = dctx.to_dict()
-            log.critical("EMERGENCY_STOP | code=%s | symbol=%s", g_code, symbol)
+        if risk_pipeline.tick_kill_switch_and_spike(self, symbol, price, dctx, out):
             return out
 
-        p_spike = self._hard_limits.check_price_tick(symbol, price)
-        if p_spike and symbol not in self.open_positions:
-            self.risk.trigger_emergency(p_spike, silent=True)
-            dctx.risk_passed = False
-            dctx.emergency_code = f"EMERGENCY_STOP:{p_spike}"
-            dctx.add_trace("kill_switch", p_spike)
-            out["decision_context"] = dctx.to_dict()
-            log.critical(
-                "EMERGENCY_STOP | code=%s | symbol=%s | close=%.6f (fiyat_sapma)",
-                p_spike, symbol, price,
-            )
-            return out
-        if p_spike and symbol in self.open_positions:
-            dctx.add_trace("kill_switch", f"{p_spike}_ignored_open_position")
-            log.warning("KILL | %s bariyer yoksay (acik_poz) | %s", p_spike, symbol)
-
-        # ── 1. Risk kontrolü ─────────────────────────────────────────────────
         exposure    = self._open_exposure({symbol: price})
         current_vol = float(analysis.get("volatility", 0.0))
-        if not self.risk.check_risk(self.equity, open_exposure=exposure, current_vol=current_vol):
-            dctx.risk_passed = False
-            den = self.risk.get_last_deny()
-            dctx.add_trace(
-                DecisionStage.RISK.value,
-                den or "check_risk blocked",
-            )
-            dctx.final_signal = "HOLD"
-            if self.risk.emergency_stop and getattr(self.risk, "emergency_reason", None):
-                dctx.emergency_code = f"EMERGENCY_STOP:{self.risk.emergency_reason}"
-            elif self.risk.emergency_stop:
-                dctx.emergency_code = "EMERGENCY_STOP:unknown"
-            out["decision_context"] = dctx.to_dict()
-            if dctx.emergency_code:
-                log.critical(
-                    "EMERGENCY_STOP | context=%s | symbol=%s | eq=%.2f | acik_tutar=%.2f",
-                    dctx.emergency_code, symbol, self.equity, exposure,
-                )
-            else:
-                log.info(
-                    "GIRIS | risk_capali | symbol=%s | eq=%.2f | acik_tutar=%.2f | reason=%s",
-                    symbol, self.equity, exposure, den or "?",
-                )
+        if not risk_pipeline.tick_portfolio_risk(
+            self, symbol, exposure, current_vol, dctx, out
+        ):
             return out
-        dctx.add_trace(DecisionStage.RISK.value, "ok")
 
-        # ── 2. AI sinyal doğrulama ────────────────────────────────────────────
-        self.ai.update_buffer(symbol, candles[-1], analysis)
-        await get_ml_client().enrich_analysis(
-            symbol, analysis, dctx, tick_id=dctx.tick_id
-        )
-        base = analysis.get("signal", "HOLD")
+        await self.process_signal(symbol, analysis, candles, dctx, out)
 
-        if analysis.get("execution_mode") == "TREND_FOLLOW":
-            final  = base
-            conf   = max(_min_entry_confidence(), 0.55)
-            reason = "TREND_FOLLOW_OVERRIDE"
-        else:
-            result_tuple = self.ai.validate_signal(symbol, base, analysis)
-            if len(result_tuple) == 3:
-                final, conf, reason = result_tuple
-            else:
-                final, conf = result_tuple
-                reason = ""
+        if not await self.apply_filters(symbol, analysis, price, dctx, out):
+            return out
 
-        conf, _oml_b = blend_omega_confidence(float(conf or 0.0), analysis)
-        analysis["omega_ml_bridge"] = _oml_b
-
-        out["ai_confidence"]   = conf
-        out["final_signal"]    = final
-        out["decision_reason"] = reason
-        dctx.after_ai_signal   = str(final)
-        dctx.ai_confidence     = float(conf) if conf is not None else None
-        dctx.add_trace(DecisionStage.AI.value, reason or "ok")
-
-        # ── 3. Sentiment Veto ─────────────────────────────────────────────────
-        if final in ("BUY", "SELL"):
-            sentiment = self.sentiment_layer.get_market_sentiment()
-            out["sentiment_status"] = sentiment.get("status", "NEUTRAL")
-
-            final, sent_reason = self.sentiment_layer.validate_with_sentiment(
-                final, sentiment
-            )
-
-            if final == "HOLD":
-                dctx.after_sentiment_signal = "HOLD"
-                dctx.add_trace(DecisionStage.SENTIMENT.value, sent_reason)
-                out["final_signal"]    = "HOLD"
-                out["decision_reason"] = sent_reason
-                dctx.final_signal      = "HOLD"
-                dctx.decision_reason   = sent_reason
-                out["decision_context"] = dctx.to_dict()
-                log.info("SENTIMENT_VETO | symbol=%s | %s", symbol, sent_reason)
-                if symbol in self.open_positions:
-                    await self._handle_exit(symbol, price, "HOLD", out, analysis)
-                self.metrics.update(self.status())
-                self.metrics.record_analysis(analysis)
-                return out
-            dctx.after_sentiment_signal = str(final)
-            dctx.add_trace(DecisionStage.SENTIMENT.value, "ok")
-        else:
-            out["sentiment_status"] = "N/A"
-            dctx.after_sentiment_signal = str(final)
-
-        # ── 3b. Ham kalite + OMEGA rejim çarpanı + etkin eşik — elite BUY
-        _eff = dict(analysis, signal=final)
-        _qs, _pr, _qc, _qmp = compute_signal_quality(_eff)
-        _oreg, _qmult, _sfi, _adj, _omlog = compute_omega_regime(analysis, int(_qs))
-        _effq = self.risk.get_omega_effective_qmin(int(RISK.get("signal_quality_min", 40)))
-
-        dctx.signal_quality     = int(_qs)
-        dctx.adj_signal_quality = int(_adj)
-        dctx.penalty_reasons    = list(_pr)
-        dctx.quality_main_penalty = str(_qmp)
-        dctx.omega_regime        = str(_oreg)
-        dctx.omega_quality_mult  = float(_qmult)
-        dctx.omega_size_factor  = float(_sfi)
-        dctx.effective_quality_min = int(_effq)
-        analysis["quality_score"] = int(_qs)
-        analysis["penalty_reasons"]  = list(_pr)
-        analysis["quality_components"] = _qc
-        analysis["adj_signal_quality"] = int(_adj)
-        analysis["omega_regime"]  = str(_oreg)
-        analysis["omega_size_factor"] = float(_sfi)
-        omlb = str(analysis.get("omega_ml_bridge", "no_external_ml"))
-        ext = dctx.external_ai_log or "—"
-        dctx.omega_ai_log = f"ml={omlb} | ext={ext} | {_omlog}"
-
-        if final == "BUY" and int(_adj) < int(_effq):
-            final = "HOLD"
-            out["final_signal"]     = "HOLD"
-            out["decision_reason"]  = (
-                f"LOW_QUALITY_REJECT(adj={_adj}<{_effq} raw={_qs} regime={_oreg})"
-            )
-            dctx.decision_reason    = out["decision_reason"]
-            dctx.entry_blocked      = "low_quality"
-            dctx.add_trace("quality", f"reject adj={_adj} effmin={_effq} main={_qmp}")
-            log.info(
-                "ELITE-OMEGA | %s | LOW_QUALITY | adj=%d < eff=%d (raw=%d) | %s | %s",
-                symbol, int(_adj), int(_effq), int(_qs), _oreg, _pr[:5],
-            )
-        else:
-            dctx.add_trace("quality", f"raw={_qs} adj={_adj} regime={_oreg} effmin={_effq}")
-
-        # ── 4. Korelasyon Risk Çarpanı ────────────────────────────────────────
-        corr_multiplier = 1.0
-        if final == "BUY":
-            corr_multiplier = self.correlation_mgr.adjust_risk_exposure(
-                symbol, list(self.open_positions.keys())
-            )
+        fs = out["final_signal"]
+        corr_multiplier = self.calculate_position(symbol, fs)
+        if fs == "BUY":
             out["corr_multiplier"] = corr_multiplier
             dctx.corr_multiplier = corr_multiplier
             dctx.add_trace(DecisionStage.CORRELATION.value, f"mult={corr_multiplier:.3f}")
 
-        # ── 5. Pozisyon yönetimi ──────────────────────────────────────────────
-        if symbol in self.open_positions:
-            dctx.add_trace(DecisionStage.EXIT.value, "open_position")
-            await self._handle_exit(symbol, price, final, out, analysis)
-        else:
-            await self._handle_entry(
-                symbol, price, analysis, final, conf, out,
-                corr_multiplier=corr_multiplier,
-                dctx=dctx,
-            )
+        await self.execute_trade(symbol, price, analysis, out, corr_multiplier, dctx)
 
-        dctx.final_signal     = out.get("final_signal", final)
-        dctx.decision_reason  = out.get("decision_reason", dctx.decision_reason)
+        dctx.final_signal    = out.get("final_signal", fs)
+        dctx.decision_reason = out.get("decision_reason", dctx.decision_reason)
         out["decision_context"] = dctx.to_dict()
 
         self.metrics.update(self.status())
@@ -766,6 +650,7 @@ class BotEngine:
             "sizing_source":   dctx.sizing_source if dctx is not None else "",
             "notional_merged": raw_size,
             "notional_tech":   dctx.notional_technical if dctx is not None else None,
+            "ai_explain":      out.get("ai_explain", ""),
         }
         out["actions"].append(action)
         self._hard_limits.record_order()
@@ -777,6 +662,7 @@ class BotEngine:
             dctx.sizing_source if dctx else "?", qty, confidence,
             abs(fill_price - price) / (price + 1e-9) * 100,
         )
+        log.info("TRADE_WHY | BUY | %s | %s", symbol, out.get("ai_explain", ""))
         self._save_state()
 
     # ── Çıkış ────────────────────────────────────────────────────────────────
@@ -866,18 +752,20 @@ class BotEngine:
         self.trade_logger.log_trade(trade_record)
 
         out["actions"].append({
-            "type":   "SELL",
-            "symbol": symbol,
-            "price":  exit_px,
-            "qty":    filled_qty,
-            "pnl":    round(pnl, 4),
-            "reason": reason,
+            "type":       "SELL",
+            "symbol":     symbol,
+            "price":      exit_px,
+            "qty":        filled_qty,
+            "pnl":        round(pnl, 4),
+            "reason":     reason,
+            "ai_explain": out.get("ai_explain", ""),
         })
         log.info(
             "CIKIS | sell | symbol=%s | fiyat=%.6f | pnl=%.4f | reason=%s | slip=%.5f%%",
             symbol, exit_px, pnl, reason,
             abs(exit_px - price) / (price + 1e-9) * 100,
         )
+        log.info("TRADE_WHY | SELL | %s | %s", symbol, out.get("ai_explain", ""))
         self.metrics.record_slippage(symbol, price, exit_px)
         self.metrics.record_trade(pnl=pnl, reason=reason)
         self._save_state()

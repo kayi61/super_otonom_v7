@@ -95,6 +95,9 @@ class DecisionContext:
     external_ai_latency_ms: Optional[float] = None
     external_ai_confidence: Optional[float] = None
     external_ai_log: str = ""
+    # v8: durum makinesi + AI açıklanabilirlik
+    trading_state: str = ""
+    ai_explain: str = ""
     # İzlenebilir adımlar: (aşama, kısa not)
     trace: List[Tuple[str, str]] = field(default_factory=list)
 
@@ -136,6 +139,8 @@ class DecisionContext:
             "external_ai_latency_ms": self.external_ai_latency_ms,
             "external_ai_confidence": self.external_ai_confidence,
             "external_ai_log": self.external_ai_log,
+            "trading_state": self.trading_state,
+            "ai_explain": self.ai_explain,
             "trace": [{"stage": s, "note": n} for s, n in self.trace],
         }
 

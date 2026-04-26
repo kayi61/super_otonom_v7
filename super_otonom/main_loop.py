@@ -13,7 +13,7 @@ import os
 import signal
 import sys
 import time
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, Tuple
 
 from super_otonom import __version__ as _PKG_VERSION
 from super_otonom.analyzer import MarketAnalyzer
@@ -163,15 +163,17 @@ async def main() -> None:
                         "borsa 429/lim firtinasi (kill-switch)",
                     )
 
-                # ── 2. Her parite için analiz + engine tick ───────────────────
-                for symbol in PAIRS:
+                # ── 2. Parite hazırlığı paralel (OB); tick sıralı (tek BotEngine) ─
+                async def _prep_symbol(
+                    symbol: str,
+                ) -> Optional[Tuple[str, Dict[str, Any], List[Dict[str, float]]]]:
                     raw_1h = raw_data_1h.get(symbol)
                     if not raw_1h:
                         log.debug("1H veri yok: %s", symbol)
-                        continue
+                        return None
 
-                    candles_1h  = ohlcv_to_candles(raw_1h)
-                    raw_mtf     = raw_data_mtf.get(symbol, [])
+                    candles_1h = ohlcv_to_candles(raw_1h)
+                    raw_mtf = raw_data_mtf.get(symbol, [])
                     candles_mtf = ohlcv_to_candles(raw_mtf) if raw_mtf else []
 
                     if candles_mtf and MTF["enabled"]:
@@ -199,24 +201,26 @@ async def main() -> None:
 
                     if ob["asks"] and candles_1h:
                         engine.sizer.set_trade_log(engine.trade_log)
-                        last_ts = float(candles_1h[-1].get("timestamp", time.time() * 1000))
+                        last_ts = float(
+                            candles_1h[-1].get("timestamp", time.time() * 1000)
+                        )
                         safe_size = engine.sizer.validate_and_calculate(
-                            symbol         = symbol,
-                            equity         = engine.equity,
-                            order_book     = ob,
-                            last_candle_ts = last_ts,
-                            volatility     = float(analysis.get("volatility", 0.01)),
-                            ai_conf        = float(RISK.get("entry_min_confidence", 0.55)),
+                            symbol=symbol,
+                            equity=engine.equity,
+                            order_book=ob,
+                            last_candle_ts=last_ts,
+                            volatility=float(analysis.get("volatility", 0.01)),
+                            ai_conf=float(RISK.get("entry_min_confidence", 0.55)),
                         )
                         analysis["ob_safe_size"] = safe_size
                     elif ob["asks"]:
                         engine.sizer.set_trade_log(engine.trade_log)
                         analysis["ob_safe_size"] = engine.sizer.calculate_with_slippage(
-                            symbol     = symbol,
-                            equity     = engine.equity,
-                            order_book = ob,
-                            volatility = float(analysis.get("volatility", 0.01)),
-                            ai_conf    = 0.55,
+                            symbol=symbol,
+                            equity=engine.equity,
+                            order_book=ob,
+                            volatility=float(analysis.get("volatility", 0.01)),
+                            ai_conf=0.55,
                         )
 
                     target_notional = engine.sizer.calculate(
@@ -230,6 +234,15 @@ async def main() -> None:
                         analysis.get("ob_safe_size"),
                         target_notional,
                     )
+                    return symbol, analysis, candles_1h
+
+                prepped = await asyncio.gather(
+                    *(_prep_symbol(s) for s in PAIRS)
+                )
+                for row in prepped:
+                    if row is None:
+                        continue
+                    symbol, analysis, candles_1h = row
 
                     result = await engine.tick(symbol, analysis, candles_1h)
 
@@ -247,11 +260,13 @@ async def main() -> None:
                         )
 
                     sent_status = result.get("sentiment_status", "UNKNOWN")
-                    corr_mult   = result.get("corr_multiplier", 1.0)
+                    corr_mult = result.get("corr_multiplier", 1.0)
                     if sent_status not in ("N/A", "UNKNOWN") or corr_mult < 1.0:
                         log.info(
                             "V6 DURUM | %s | sentiment=%s | corr_mult=%.2f",
-                            symbol, sent_status, corr_mult,
+                            symbol,
+                            sent_status,
+                            corr_mult,
                         )
 
                     if result.get("actions"):
@@ -260,8 +275,10 @@ async def main() -> None:
                             act_type = act.get("type", "")
                             if act_type in ("BUY", "SELL") and candles_1h:
                                 expected = float(candles_1h[-1]["close"])
-                                actual   = float(act.get("price", expected))
-                                engine.metrics.record_slippage(symbol, expected, actual)
+                                actual = float(act.get("price", expected))
+                                engine.metrics.record_slippage(
+                                    symbol, expected, actual
+                                )
 
                 # FIX: OrderTracker her 10 döngüde bir çağrılır (async düzgün await edilir)
                 if _loop_counter % 10 == 0:

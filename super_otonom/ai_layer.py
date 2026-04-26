@@ -11,7 +11,7 @@ YENİLİKLER (v5 → v6.1):
 
 import logging
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from super_otonom.config import AI, RISK
 
@@ -137,6 +137,28 @@ class AILayer:
 
         # Varsayılan: teknik indikatör ağırlıklı karar
         return "TECHNICAL_INDICATOR_DOMINANCE"
+
+    def explain(
+        self,
+        symbol: str,
+        base_signal: str,
+        analysis: Dict[str, Any],
+        final_signal: str,
+        confidence: float,
+        reason: str,
+    ) -> str:
+        """
+        Tek satırlık insan-okur AI özeti (log / decision_context).
+        """
+        regime = str(analysis.get("regime", "NOISY")).upper()
+        hurst = float(analysis.get("hurst", 0.5) or 0.5)
+        vol = float(analysis.get("volatility", 0.0) or 0.0)
+        model_on = bool(self.enabled and self._server)
+        return (
+            f"symbol={symbol} path={base_signal!r}→{final_signal!r} "
+            f"conf={float(confidence):.3f} reason={reason!r} regime={regime} "
+            f"hurst={hurst:.3f} vol={vol:.4f} lstm={'on' if model_on else 'off'}"
+        )
 
     # ── Sinyal doğrulama (v5: üçlü döndürür) ─────────────────────────────────
 
