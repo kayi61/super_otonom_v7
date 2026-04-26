@@ -407,3 +407,12 @@
 {"symbol": "BTC/USDT", "entry": 100.0, "exit": 104.0, "qty": 2.0, "pnl": 8.0, "reason": "TAKE_PROFIT", "strategist": "trend", "logged_at": 1777227620.9742246}
 {"symbol": "S", "entry": 100.0, "exit": 199.93811261007224, "qty": 0.9098088331818917, "pnl": 90.9246, "reason": "TAKE_PROFIT", "strategist": "trend", "logged_at": 1777227621.4933243}
 {"symbol": "P", "entry": 100.0, "exit": 109.93631173183815, "qty": 0.8346834726951565, "pnl": 8.2937, "reason": "TAKE_PROFIT", "strategist": "trend", "logged_at": 1777227622.6395428}
+{"symbol": "L", "entry": 100.0, "exit": 80.0, "qty": 1.0, "pnl": -20.0, "reason": "STOP_LOSS", "strategist": "trend", "logged_at": 1777229574.2509975}
+{"symbol": "T", "entry": 100.0, "exit": 99.0, "qty": 1.0, "pnl": -1.0, "reason": "TRAILING_STOP", "strategist": "trend", "logged_at": 1777229574.2817986}
+{"symbol": "S", "entry": 100.0, "exit": 100.0, "qty": 1.0, "pnl": 0.0, "reason": "SIGNAL_EXIT", "strategist": "trend", "logged_at": 1777229574.287377}
+{"symbol": "L", "entry": 100.0, "exit": 99.0, "qty": 1.0, "pnl": -1.0, "reason": "TRAIL", "strategist": "t", "logged_at": 1777229574.3411431}
+{"symbol": "R", "entry": 10.0, "exit": 10.0, "qty": 1.0, "pnl": 0.0, "reason": "T", "strategist": "t", "logged_at": 1777229574.3823757}
+{"symbol": "A", "entry": 1.0, "exit": 0.9993059827095134, "qty": 0.8463826383160136, "pnl": -0.0006, "reason": "STRATEGY_CHANGE", "strategist": "t", "logged_at": 1777229574.6900485}
+{"symbol": "BTC/USDT", "entry": 100.0, "exit": 104.0, "qty": 2.0, "pnl": 8.0, "reason": "TAKE_PROFIT", "strategist": "trend", "logged_at": 1777229574.8231301}
+{"symbol": "S", "entry": 100.0, "exit": 199.86296995364916, "qty": 0.7826136907768575, "pnl": 78.1541, "reason": "TAKE_PROFIT", "strategist": "trend", "logged_at": 1777229575.0722334}
+{"symbol": "P", "entry": 100.0, "exit": 109.88212152363344, "qty": 0.9009378909830197, "pnl": 8.9032, "reason": "TAKE_PROFIT", "strategist": "trend", "logged_at": 1777229576.2846098}

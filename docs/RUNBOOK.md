@@ -1,6 +1,6 @@
 # super_otonom — Faz 3–4: Gözlem, güven, runbook
 
-Bu belge, botu **güvenle izlemek**, **doğrulamak** ve **canlıya geçerken** kontrol listesini kullanmak içindir. **Hedef:** operasyonel güven / runbook olgunluğu **+9.8** üzeri (Faz 5: kanıt paketi, SLO imzası, dış inceleme ayrı çalışma).
+Bu belge, botu **güvenle izlemek**, **doğrulamak** ve **canlıya geçerken** kontrol listesini kullanmak içindir. **Hedef:** operasyonel güven **+9.9** üzeri. **Faz 5** kanıt / SLO / denetim: `docs/EVIDENCE.md`, `docs/SLO.md`, `docs/AUDIT.md`.
 
 ---
 
@@ -345,7 +345,7 @@ Bunlar Faz 5 SLO değil; yalnız “doğru çalışıyor gibi” kontrol listesi
 
 **Kapanış işareti:** Üstteki **“Faz 3-4 tamamlandı işareti ve checklist”** bölümü bu fazın runbook tarafını resmi olarak işaretler.
 
-Faz 5 için: metrik bütçeleri, denetim izi, imzalanmış SLO, isteğe bağlı dış review — ayrı çalışma.
+**Faz 5:** Kanıt paketi ve kurumsal kalite özeti `docs/EVIDENCE.md`; hizmet hedefleri ve SLO ihlal prosedürü `docs/SLO.md`; denetim ve güvenlik kontrolleri `docs/AUDIT.md`.
 
 ---
 
@@ -353,6 +353,9 @@ Faz 5 için: metrik bütçeleri, denetim izi, imzalanmış SLO, isteğe bağlı 
 
 | Dosya | Rol |
 |-------|-----|
+| `docs/EVIDENCE.md` | Sistem kanıt paketi, test/CI özeti, kurumsal kalite beyanı (Faz 5) |
+| `docs/SLO.md` | SLO tanımları, uptime/latency/hata/kurtarma hedefleri, ihlal prosedürü (Faz 5) |
+| `docs/AUDIT.md` | Denetim kontrol listesi, güvenlik kontrolleri (Faz 5) |
 | `super_otonom/main_loop.py` | Ana döngü, health yazımı, `AI KARAR` / `V6 DURUM` logları |
 | `super_otonom/health_summary.py` | `health.log` formatı, `ensure_health_file_logger`, tick/durum metni |
 | `super_otonom/metrics_exporter.py` | Prometheus `/metrics`, slipaj / rejim / circuit breaker göstergeleri |
