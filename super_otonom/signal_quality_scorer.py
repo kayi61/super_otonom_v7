@@ -142,5 +142,10 @@ def compute_signal_quality(
         "mtf":        round(sm, 1),
     }
     min_k = min(components, key=components.get)  # type: ignore[arg-type]
-    main = f"low_{min_k}" if components[min_k] < 50.0 else (all_pen[0] if all_pen else "")
+    if components[min_k] < 50.0:
+        main = f"low_{min_k}"
+    elif all_pen:
+        main = all_pen[0]
+    else:
+        main = ""
     return score, all_pen, components, main

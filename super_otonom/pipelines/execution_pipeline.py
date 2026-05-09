@@ -1,7 +1,7 @@
 """v8 — Pozisyon yönetimi: çıkış veya giriş (BotEngine._handle_*)."""
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from super_otonom.decision_context import DecisionStage
 
@@ -14,6 +14,7 @@ async def execute_trade_phase(
     out: Dict[str, Any],
     corr_multiplier: float,
     dctx: Any,
+    candles: List[Dict[str, Any]],
 ) -> None:
     """Açık pozisyonda çıkış, değilse giriş."""
     final = out["final_signal"]
@@ -32,4 +33,5 @@ async def execute_trade_phase(
             out,
             corr_multiplier=corr_multiplier,
             dctx=dctx,
+            candles=candles,
         )

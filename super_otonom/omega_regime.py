@@ -11,6 +11,21 @@ from typing import Any, Dict, Tuple
 _CRASH_V = float(os.getenv("OMEGA_CRASH_VOL", "0.075") or 0.075)
 
 
+def _classify_regime(
+    reg: str, h: float, vol: float, flash: bool, base_quality: int
+) -> tuple:
+    """Rejim sınıflandırması — (oreg, qm, sf) döner."""
+    if flash or vol > _CRASH_V:
+        return "CRASH_RISK", 0.75, 0.35
+    if h > 0.56 and reg == "TRENDING" and vol < 0.05:
+        sf = 1.0 if base_quality < 90 else 1.1
+        return "TRENDING", 1.05, sf
+    if reg in ("MEAN_REVERTING", "NOISY") or 0.44 <= h <= 0.58:
+        return "RANGING", 0.90, 0.70
+    oreg = "TRENDING" if reg == "TRENDING" else "RANGING"
+    return oreg, 0.95, 0.9
+
+
 def compute_omega_regime(
     analysis: Dict[str, Any], base_quality: int
 ) -> Tuple[str, float, float, int, str]:
@@ -23,22 +38,7 @@ def compute_omega_regime(
     vol   = float(a.get("volatility", 0.02) or 0.02)
     flash = bool(a.get("flash_crash"))
 
-    if flash or vol > _CRASH_V:
-        oreg = "CRASH_RISK"
-        qm   = 0.75
-        sf   = 0.35
-    elif h > 0.56 and reg == "TRENDING" and vol < 0.05:
-        oreg = "TRENDING"
-        qm   = 1.05
-        sf   = 1.0 if base_quality < 90 else 1.1
-    elif reg in ("MEAN_REVERTING", "NOISY") or 0.44 <= h <= 0.58:
-        oreg = "RANGING"
-        qm   = 0.90
-        sf   = 0.70
-    else:
-        oreg = "TRENDING" if reg == "TRENDING" else "RANGING"
-        qm   = 0.95
-        sf   = 0.9
+    oreg, qm, sf = _classify_regime(reg, h, vol, flash, base_quality)
 
     if 40 <= base_quality <= 52 and oreg != "CRASH_RISK":
         sf = min(sf, 0.45)
@@ -49,5 +49,5 @@ def compute_omega_regime(
     qm  = max(0.4, min(1.2, float(qm)))
     bq  = int(max(0, min(100, base_quality)))
     adj = int(max(0, min(100, round(bq * qm))))
-    log = f"[OMEGA-AI] {oreg} | mult={qm:.2f} adjQ={adj} sizeF={sf:.2f} baseQ={bq}"
-    return oreg, qm, sf, adj, log
+    log_line = f"[OMEGA-AI] {oreg} | mult={qm:.2f} adjQ={adj} sizeF={sf:.2f} baseQ={bq}"
+    return oreg, qm, sf, adj, log_line

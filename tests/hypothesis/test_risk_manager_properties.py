@@ -99,8 +99,9 @@ def test_dynamic_risk_fails_when_daily_pct_over_limit(
     rm = RiskManager(cap)
     limit = max(0.02, min(0.05, vol * 2))
     rm.daily_loss = float(loss_frac * cap)
+    daily_pct = rm.daily_loss / cap
     ok = rm.check_dynamic_risk(cap, vol)
-    if loss_frac + 1e-9 >= limit:
+    if daily_pct >= limit:
         assert ok is False
         assert rm.emergency_stop is True
     else:

@@ -1,0 +1,129 @@
+version: "3.9"
+
+# ═══════════════════════════════════════════════════════
+#  SUPER OTONOM v7 — Docker Compose Stack
+# ═══════════════════════════════════════════════════════
+
+services:
+
+  # ───────────────────────────────────────
+  # ANA BOT
+  # ───────────────────────────────────────
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: super_otonom_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DRY_RUN=${DRY_RUN:-true}
+      - PAPER_MODE=${PAPER_MODE:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - METRICS_PORT=8000
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - bot_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ───────────────────────────────────────
+  # GO REDIS BRIDGE (WebSocket → Redis)
+  # ───────────────────────────────────────
+  go_bridge:
+    build:
+      context: ./go_service
+      dockerfile: Dockerfile
+    container_name: super_otonom_go_bridge
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - bot_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ───────────────────────────────────────
+  # REDIS (state, cache, veri köprüsü)
+  # ───────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: super_otonom_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - bot_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ───────────────────────────────────────
+  # PROMETHEUS
+  # ───────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: super_otonom_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - bot_network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+
+  # ───────────────────────────────────────
+  # GRAFANA
+  # ───────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: super_otonom_grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - bot_network
+
+# ═══════════════════════════════════════════════════════
+volumes:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  bot_network:
+    driver: bridge

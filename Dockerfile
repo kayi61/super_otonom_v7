@@ -1,0 +1,32 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip install --upgrade pip --no-cache-dir && \
+    pip install --no-cache-dir \
+        torch==2.2.0+cpu \
+        --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir \
+        ccxt>=4.0.0 \
+        numpy>=1.24.0 \
+        pandas>=2.0.0 \
+        scikit-learn>=1.3.0 \
+        joblib>=1.3.0 \
+        python-dotenv>=1.0.0 \
+        prometheus-client>=0.19.0 redis>=5.0.0
+
+COPY super_otonom/ ./super_otonom/
+COPY pyproject.toml .
+
+EXPOSE 8000
+
+RUN mkdir -p /app/logs /app/data && \
+    useradd -m -u 1000 botuser && \
+    chown -R botuser:botuser /app
+
+USER botuser
+CMD ["python", "-m", "super_otonom.main_loop"]
+

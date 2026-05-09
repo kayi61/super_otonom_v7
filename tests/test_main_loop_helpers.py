@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -121,7 +122,7 @@ def test_prep_symbol_storm_after_order_book(caplog: pytest.LogCaptureFixture) ->
     engine.sizer.set_trade_log = MagicMock()
     engine.risk = MagicMock()
 
-    ts = 1.7e12
+    ts = int(time.time() * 1000)
     raw = {"S/USDT": [[ts, 1.0, 1.1, 0.9, 1.0, 100.0]]}
 
     with patch.object(ml, "apply_storm_trip_to_risk", return_value=True):

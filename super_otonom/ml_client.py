@@ -119,7 +119,7 @@ class MLClient:
         try:
             raw_b, lat_ms = await asyncio.to_thread(self._sync_http_post, payload)
             doc = self._parse_response_body(raw_b)
-        except (urllib.error.URLError, OSError, TimeoutError, ValueError) as e:
+        except (OSError, ValueError) as e:
             log.debug("MLClient: cagri basarisiz | %s", e)
             el = (time.perf_counter() - t0) * 1000.0
             return MLInferenceResult(None, {}, el, error=type(e).__name__)

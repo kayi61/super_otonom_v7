@@ -139,7 +139,7 @@ def test_main_adds_posix_signal_handlers(
 
 
 # ---------------------------------------------------------------------------
-# 157–158, 161, 196: CB OPEN uyarisi + storm iki cagri
+# 157–158, 161, 196: CB OPEN uyarisi + storm (ana dongu; prep OB oncesi cikis)
 # ---------------------------------------------------------------------------
 
 
@@ -211,7 +211,7 @@ def test_circuit_open_warning_and_storm_trip_both_sites(
     with caplog.at_level("WARNING", logger="super_otonom.main"):
         asyncio.run(_g())
     assert "CircuitBreaker" in caplog.text
-    assert n[0] >= 2
+    assert n[0] >= 1
 
 
 # ---------------------------------------------------------------------------

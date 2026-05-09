@@ -323,6 +323,54 @@ class MarketAnalyzer:
 
     # ── v5 tek zaman dilimi analizi (geriye uyumlu) ───────────────────────────
 
+    def _calc_indicators(
+        self, closes: List[float], candles: List[Dict[str, float]]
+    ) -> dict:
+        """Temel göstergeleri hesaplar."""
+        rsi      = _rsi(closes, 14)
+        ema_fast = _ema(closes[-60:],  9)
+        ema_slow = _ema(closes[-120:], 21)
+        ema_diff = 0.0 if ema_slow == 0 else (ema_fast - ema_slow) / ema_slow
+        _, _, _, bb_pct_b = _bollinger(closes, 20, 2.0)
+        atr        = _atr(candles, 14)
+        last_close = closes[-1] if closes else 1.0
+        vol        = atr / (last_close + 1e-9)
+        vol_ratio  = _volume_ratio(candles, 5, 20)
+        hurst_val  = _calculate_hurst(closes[-100:])
+        return {
+            "rsi": rsi, "ema_fast": ema_fast, "ema_slow": ema_slow,
+            "ema_diff": ema_diff, "bb_pct_b": bb_pct_b, "atr": atr,
+            "vol": vol, "vol_ratio": vol_ratio, "hurst_val": hurst_val,
+        }
+
+    def _calc_market_state(
+        self, hurst_val: float, ema_diff: float, vol: float, rsi: float
+    ) -> str:
+        """Market state hesaplar."""
+        if hurst_val > _HURST_TREND_FLOOR or abs(ema_diff) > 0.005 or vol > 0.025:
+            return "TREND"
+        if hurst_val < _HURST_REVERTING_CEIL:
+            return "MEAN_REVERTING"
+        if vol < 0.008 and 40.0 < rsi < 60.0 and abs(ema_diff) < 0.002:
+            return "SIDEWAYS"
+        return "NEUTRAL"
+
+    def _calc_signal(
+        self, regime: str, hurst_val: float, buy_ok: bool, sell_ok: bool
+    ) -> tuple:
+        """Regime'e göre sinyal ve futures_side döner."""
+        if regime == "NOISY":
+            return "HOLD", "FLAT", f"NOISY piyasa (Hurst={hurst_val:.3f}, 0.45-0.55 band)"
+        if regime == "MEAN_REVERTING":
+            return "HOLD", "FLAT", f"MEAN_REVERTING piyasa (Hurst={hurst_val:.3f} < {_HURST_REVERTING_CEIL})"
+        if buy_ok:
+            sig, fs = "BUY", "LONG"
+        elif sell_ok:
+            sig, fs = "SELL", "SHORT"
+        else:
+            sig, fs = "HOLD", "FLAT"
+        return sig, fs, f"TRENDING piyasa (Hurst={hurst_val:.3f} > {_HURST_TREND_FLOOR})"
+
     def analyze(self, symbol: str, candles: List[Dict[str, float]]) -> Dict[str, Any]:
         if not candles:
             return _empty(symbol)
@@ -331,59 +379,31 @@ class MarketAnalyzer:
         if len(closes) < _MIN_CLOSES:
             return _empty(symbol)
 
-        # ── Temel göstergeler ──────────────────────────────────────────────
-        rsi      = _rsi(closes, 14)
-        ema_fast = _ema(closes[-60:],  9)
-        ema_slow = _ema(closes[-120:], 21)
-        ema_diff = 0.0 if ema_slow == 0 else (ema_fast - ema_slow) / ema_slow
+        ind       = self._calc_indicators(closes, candles)
+        rsi       = ind["rsi"]
+        ema_fast  = ind["ema_fast"]
+        ema_slow  = ind["ema_slow"]
+        ema_diff  = ind["ema_diff"]
+        bb_pct_b  = ind["bb_pct_b"]
+        atr       = ind["atr"]
+        vol       = ind["vol"]
+        vol_ratio = ind["vol_ratio"]
+        hurst_val = ind["hurst_val"]
 
-        _, _, _, bb_pct_b = _bollinger(closes, 20, 2.0)
+        regime       = detect_market_regime(hurst_val)
+        market_state = self._calc_market_state(hurst_val, ema_diff, vol, rsi)
 
-        atr        = _atr(candles, 14)
-        last_close = closes[-1] if closes else 1.0
-        vol        = atr / (last_close + 1e-9)
-
-        vol_ratio = _volume_ratio(candles, 5, 20)
-
-        # ── Hurst Exponent ─────────────────────────────────────────────────
-        hurst_val = _calculate_hurst(closes[-100:])
-
-        # ── v5: Regime tespiti ─────────────────────────────────────────────
-        regime = detect_market_regime(hurst_val)
-
-        # Eski market_state mantığını koruyoruz (geriye dönük uyumluluk)
-        if hurst_val > _HURST_TREND_FLOOR or abs(ema_diff) > 0.005 or vol > 0.025:
-            market_state = "TREND"
-        elif hurst_val < _HURST_REVERTING_CEIL:
-            market_state = "MEAN_REVERTING"
-        elif vol < 0.008 and 40.0 < rsi < 60.0 and abs(ema_diff) < 0.002:
-            market_state = "SIDEWAYS"
-        else:
-            market_state = "NEUTRAL"
-
-        # ── v5: Rejime bağlı sinyal mantığı ───────────────────────────────
         up      = ema_fast > ema_slow
         down    = ema_fast < ema_slow
         rising  = _rising_last_two_closes(closes)
         falling = _falling_last_two_closes(closes)
-
         buy_ok  = up   and (_BUY_RSI_LO  < rsi < _BUY_RSI_HI)  and rising
         sell_ok = down and (_SELL_RSI_LO < rsi < _SELL_RSI_HI) and falling
 
-        if regime == "NOISY":
-            signal        = "HOLD"
-            futures_side  = "FLAT"
-            regime_reason = f"NOISY piyasa (Hurst={hurst_val:.3f}, 0.45-0.55 band)"
-        elif regime == "MEAN_REVERTING":
-            signal        = "HOLD"
-            futures_side  = "FLAT"
-            regime_reason = f"MEAN_REVERTING piyasa (Hurst={hurst_val:.3f} < {_HURST_REVERTING_CEIL})"
-        else:
-            signal        = "BUY"  if buy_ok  else ("SELL" if sell_ok  else "HOLD")
-            futures_side  = "LONG" if buy_ok  else ("SHORT" if sell_ok else "FLAT")
-            regime_reason = f"TRENDING piyasa (Hurst={hurst_val:.3f} > {_HURST_TREND_FLOOR})"
+        signal, futures_side, regime_reason = self._calc_signal(
+            regime, hurst_val, buy_ok, sell_ok
+        )
 
-        # ── Flash crash tespiti ────────────────────────────────────────────
         flash_crash = False
         if len(closes) >= 3:
             drop = (closes[-3] - closes[-1]) / (closes[-3] + 1e-9)
@@ -408,7 +428,6 @@ class MarketAnalyzer:
             "regime_reason": regime_reason,
             "momentum":      bool(buy_ok),
             "sentiment_score": 0.0,
-            # MTF alanları — analyze_v5_1 tarafından doldurulur, yoksa None
             "high_tf_trend": None,
             "mtf_filtered":  False,
             "mtf_reason":    "",

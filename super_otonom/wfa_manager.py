@@ -167,7 +167,7 @@ class WFAManager:
         if len(test_scores) > 1 and len(train_scores) > 1:
             avg_train = sum(train_scores) / len(train_scores)
             avg_test  = sum(test_scores)  / len(test_scores)
-            if avg_train != 0:
+            if abs(avg_train) > 1e-9:
                 overfit_ratio = round((avg_train - avg_test) / abs(avg_train), 4)
 
         return {

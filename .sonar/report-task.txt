@@ -1,0 +1,6 @@
+projectKey=super_otonom_v7
+serverUrl=http://localhost:9000
+serverVersion=26.4.0.121862
+dashboardUrl=http://localhost:9000/dashboard?id=super_otonom_v7
+ceTaskId=148b80f7-38eb-40cf-88cc-0a312abd2aeb
+ceTaskUrl=http://localhost:9000/api/ce/task?id=148b80f7-38eb-40cf-88cc-0a312abd2aeb

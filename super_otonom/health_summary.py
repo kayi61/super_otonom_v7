@@ -57,24 +57,13 @@ def format_durum_line(st: Dict[str, Any]) -> str:
     )
 
 
-def format_tick_health(
-    st: Dict[str, Any],
-    dctx: Optional[Dict[str, Any]],
-) -> str:
-    """
-    Örnek: [OK] PnL: +0.2% | Exp: 15% | Lim: 0/10 | Status: Active | tick=42 BTC/USDT
-    """
-    hl = st.get("hard_limits") or {}
-    oin  = int(hl.get("orders_in_window", 0))
-    olim = int(hl.get("order_limit", 1))
-    pnl  = float(st.get("pnl_pct", 0.0))
-    exp  = float(st.get("exposure_pct", 0.0))
+def _get_tag_and_label(
+    st: Dict[str, Any], dctx: Optional[Dict[str, Any]]
+) -> tuple:
+    """Tag ([OK]/[HALT]) ve durum etiketi döner."""
     emerg = bool(st.get("emergency_stop"))
-    d_em = (dctx or {}).get("emergency_code")
-    if d_em or emerg:
-        tag = "[HALT]"
-    else:
-        tag = "[OK]"
+    d_em  = (dctx or {}).get("emergency_code")
+    tag   = "[HALT]" if (d_em or emerg) else "[OK]"
 
     reason = st.get("emergency_reason") or ""
     if dctx and dctx.get("emergency_code"):
@@ -87,22 +76,51 @@ def format_tick_health(
     else:
         st_label = "Active"
 
-    sym  = (dctx or {}).get("symbol", "—")
-    t_id = (dctx or {}).get("tick_id", "—")
-    pnl_s = f"{pnl:+.1f}%"
-    scale  = (dctx or {}).get("entry_scale") or "—"
+    return tag, st_label
+
+
+def _get_quality_strings(dctx: Optional[Dict[str, Any]]) -> tuple:
+    """Signal quality değerlerini string'e çevirir."""
+    d = dctx or {}
+    qv   = d.get("signal_quality")
+    qadj = d.get("adj_signal_quality")
+    effq = d.get("effective_quality_min")
+    return (
+        f"{int(qv)}" if qv is not None else "—",
+        f"{int(qadj)}" if qadj is not None else "—",
+        f"{int(effq)}" if effq is not None else "—",
+    )
+
+
+def format_tick_health(
+    st: Dict[str, Any],
+    dctx: Optional[Dict[str, Any]],
+) -> str:
+    """
+    Örnek: [OK] PnL: +0.2% | Exp: 15% | Lim: 0/10 | Status: Active | tick=42 BTC/USDT
+    """
+    hl   = st.get("hard_limits") or {}
+    oin  = int(hl.get("orders_in_window", 0))
+    olim = int(hl.get("order_limit", 1))
+    pnl  = float(st.get("pnl_pct", 0.0))
+    exp  = float(st.get("exposure_pct", 0.0))
+
+    tag, st_label = _get_tag_and_label(st, dctx)
+
+    d    = dctx or {}
+    sym  = d.get("symbol", "—")
+    t_id = d.get("tick_id", "—")
+    sig  = d.get("final_signal", "HOLD")
+    pnl_s   = f"{pnl:+.1f}%"
+    scale   = d.get("entry_scale") or "—"
     scale_u = str(scale).upper() if scale != "—" else "—"
-    liq_r  = (dctx or {}).get("liquidity_ratio")
-    liq_s  = f"{float(liq_r):.2f}" if liq_r is not None else "—"
-    sig = (dctx or {}).get("final_signal", "HOLD")
-    qv  = (dctx or {}).get("signal_quality")
-    qadj = (dctx or {}).get("adj_signal_quality")
-    effq = (dctx or {}).get("effective_quality_min")
-    qstr = f"{int(qv)}" if qv is not None else "—"
-    qadj_s = f"{int(qadj)}" if qadj is not None else "—"
-    effq_s = f"{int(effq)}" if effq is not None else "—"
-    olog = (dctx or {}).get("omega_ai_log") or ""
-    oshort = (olog[:120] + "…") if len(olog) > 120 else olog
+    liq_r   = d.get("liquidity_ratio")
+    liq_s   = f"{float(liq_r):.2f}" if liq_r is not None else "—"
+    olog    = d.get("omega_ai_log") or ""
+    oshort  = (olog[:120] + "…") if len(olog) > 120 else olog
+
+    qstr, qadj_s, effq_s = _get_quality_strings(dctx)
+
     return (
         f"{tag} {sig} | Qraw:{qstr} Qadj:{qadj_s} | effective_qmin:{effq_s} | Scale:{scale_u} | "
         f"PnL: {pnl_s} | Exp: {exp:.0f}% | Lim: {oin}/{olim} | Liq:{liq_s} | "

@@ -1,23 +1,24 @@
 from __future__ import annotations
 
 """
-RiskManager v5.1
+RiskManager v5.2
 ─────────────────────────────────────────────────────────────────────────────
-v5   → Volatility Spike + Günlük/Haftalık kayıp limiti + VaR + Trailing Stop
-v5.1 → check_dynamic_risk(): statik %3 günlük limit yerine oynaklığa duyarlı limit
-         Formül: dynamic_limit = clamp(market_volatility × 2, 0.02, 0.05)
-         Düşük vol → %2 (sıkı), yüksek vol → %5 (gevşek)
-       check_risk() artık dinamik limiti çağırıyor
-       status_dict()'e dynamic_daily_limit_pct eklendi (monitoring)
+v5.2 → check_risk() artık RiskOntology'den okur (tek NAV kaynağı)
+         daily_loss/sod_nav · weekly_loss/sow_nav · drawdown/peak_nav
+         Tutarlı denominators — inconsistent baz sorunu kapandı
+         Geriye dönük uyumluluk korundu (onto=None → eski davranış)
 """
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import numpy as np
 
 from super_otonom.config import RISK
+
+if TYPE_CHECKING:
+    from super_otonom.risk_ontology import RiskOntology
 
 log = logging.getLogger("super_otonom.risk")
 
@@ -51,6 +52,9 @@ class RiskManager:
         self._last_dynamic_limit: float = RISK.get("max_daily_loss_pct", 0.05)
         # OMEGA: kapanan işlemlerden feedback — etkin SIGNAL_QUALITY_MIN sıkılaşması
         self._omega_qmin_tighten: int = 0
+        # v5.2 — RiskOntology referansı (bot_engine tarafından set edilir)
+        self._onto: Optional["RiskOntology"] = None
+        self._onto_warned: bool = False   # log flood önlemi
 
     def record_omega_trade_outcome(self, pnl: float) -> None:
         """
@@ -70,12 +74,33 @@ class RiskManager:
         b = int(max(0, min(95, base_min)))
         return int(max(0, min(90, b + self._omega_qmin_tighten)))
 
+    def set_ontology(self, onto: "RiskOntology") -> None:
+        """BotEngine __init__ sonrası çağrılır — tek NAV kaynağını bağlar."""
+        self._onto = onto
+        log.info("RiskManager: RiskOntology baglandi — tutarli denominatorlar aktif")
+
+    def _warn_if_onto_missing(self) -> None:
+        """
+        FIX-6: onto bağlı değilse uyarı ver — sadece bir kez.
+        Her tick'te tekrar etmez (log flood önlemi).
+        """
+        if self._onto is None and not self._onto_warned:
+            self._onto_warned = True
+            log.warning(
+                "RiskManager | onto=None | eski inconsistent baz kullaniliyor "
+                "(set_ontology() cagirilmadi mi?)"
+            )
+
     def trigger_emergency(self, code: str, *, silent: bool = False) -> None:
         """
         Sert kilit: tekrar trading için reset_emergency gerekir (veya proses + env).
+        İlk tetikleyen kod reason olarak saklanır — sonraki çağrılar reason'ı değiştirmez.
         """
-        self.emergency_stop = True
-        self.emergency_reason = code
+        if not self.emergency_stop:
+            # İlk tetikleme — reason kaydet
+            self.emergency_stop = True
+            self.emergency_reason = code
+        # Zaten kilitli — reason korunur (latch)
         if not silent:
             log.critical("EMERGENCY_STOP | code=%s", code)
 
@@ -98,6 +123,12 @@ class RiskManager:
     # ── PnL kayıt ─────────────────────────────────────────────────────────────
 
     def record_pnl(self, pnl: float) -> None:
+        """
+        PnL kaydı — hem RiskManager hem RiskOntology'ye iletilir.
+        FIX-1: Çift state sorunu: daily_loss sadece burada birikiyordu,
+        RiskOntology'deki daily_loss_pct ise nav farkından hesaplanıyordu.
+        İkisi artık senkronize — onto varsa VaR geçmişi de onto'ya gider.
+        """
         self._maybe_reset()
         self._pnl_history.append(float(pnl))
         if len(self._pnl_history) > 500:
@@ -106,6 +137,12 @@ class RiskManager:
             loss = abs(float(pnl))
             self.daily_loss  += loss
             self.weekly_loss += loss
+        # FIX-1: onto varsa VaR geçmişini onto'ya da ilet
+        if self._onto is not None:
+            self._onto._pnl_history.append(float(pnl))
+            if len(self._onto._pnl_history) > 500:
+                self._onto._pnl_history = self._onto._pnl_history[-500:]
+            self._onto.var_1d = self._onto._calc_var()
 
     def update_peak(self, current_equity: float) -> None:
         """BotEngine her tick'te çağırmalı — gerçek drawdown için."""
@@ -176,20 +213,23 @@ class RiskManager:
         if self.initial_capital <= 0:
             return False
 
-        # Dinamik limit hesabı — oynaklık düşükse %2, çok yüksekse max %5
         dynamic_limit = max(0.02, min(0.05, market_volatility * 2))
         self._last_dynamic_limit = dynamic_limit
 
-        daily_pct = self.daily_loss / self.initial_capital
+        # FIX-2: current_equity payda olarak kullan — initial_capital değil
+        # Büyük kâr sonrası initial_capital bazlı oran riski küçümser
+        base = current_equity if current_equity > 0 else self.initial_capital
+        daily_pct = self.daily_loss / base
 
         if daily_pct >= dynamic_limit:
             self.trigger_emergency("dynamic_daily_loss", silent=True)
             log.critical(
                 "EMERGENCY_STOP | code=dynamic_daily_loss | "
-                "gunluk_kayip=%.2f%% >= dinamik_limit=%.2f%% | vol=%.6f",
+                "gunluk_kayip=%.2f%% >= dinamik_limit=%.2f%% | vol=%.6f | base=%.2f",
                 daily_pct * 100,
                 dynamic_limit * 100,
                 market_volatility,
+                base,
             )
             return False
 
@@ -200,6 +240,107 @@ class RiskManager:
         return True
 
     # ── Ana risk kontrolü (v5.1: dinamik limit entegre) ──────────────────────
+
+    def _check_risk_with_onto(self) -> Optional[str]:
+        """onto bağlıyken risk kontrolleri. Deny reason veya None döner."""
+        if self._onto.is_daily_limit_breached():
+            self.trigger_emergency("dynamic_daily_loss", silent=True)
+            log.critical(
+                "EMERGENCY_STOP | code=dynamic_daily_loss | "
+                "gunluk_kayip=%.2f%% >= dinamik_limit=%.2f%% [onto]",
+                self._onto.daily_loss_pct * 100,
+                self._onto.dynamic_daily_limit * 100,
+            )
+            return "dynamic_daily_loss"
+
+        if self._onto.is_weekly_limit_breached(RISK["max_weekly_loss_pct"]):
+            self.trigger_emergency("weekly_loss", silent=True)
+            log.critical(
+                "EMERGENCY_STOP | code=weekly_loss | %.2f%% >= %.2f%% [onto]",
+                self._onto.weekly_loss_pct * 100,
+                RISK["max_weekly_loss_pct"] * 100,
+            )
+            return "weekly_loss"
+
+        if self._onto.is_drawdown_breached(RISK["max_total_drawdown"]):
+            self.trigger_emergency("max_drawdown", silent=True)
+            log.critical(
+                "EMERGENCY_STOP | code=max_drawdown | dd=%.2f%% [onto]",
+                self._onto.intraday_dd_pct * 100,
+            )
+            return "max_drawdown"
+
+        return None
+
+    def _check_risk_without_onto(
+        self, current_equity: float, current_vol: float
+    ) -> Optional[str]:
+        """onto yoksa geriye dönük uyumluluk kontrolleri. Deny reason veya None döner."""
+        if current_vol > 0:
+            if not self.check_dynamic_risk(current_equity, current_vol):
+                return "dynamic_daily_loss"
+        else:
+            daily_pct = self.daily_loss / self.initial_capital
+            if daily_pct >= RISK["max_daily_loss_pct"]:
+                self.trigger_emergency("static_daily_loss", silent=True)
+                log.critical(
+                    "EMERGENCY_STOP | code=static_daily_loss | %.2f%% >= %.2f%%",
+                    daily_pct * 100, RISK["max_daily_loss_pct"] * 100,
+                )
+                return "static_daily_loss"
+
+        weekly_pct = self.weekly_loss / self.initial_capital
+        if weekly_pct >= RISK["max_weekly_loss_pct"]:
+            self.trigger_emergency("weekly_loss", silent=True)
+            log.critical(
+                "EMERGENCY_STOP | code=weekly_loss | %.2f%% >= %.2f%%",
+                weekly_pct * 100, RISK["max_weekly_loss_pct"] * 100,
+            )
+            return "weekly_loss"
+
+        self.update_peak(current_equity)
+        if self._peak_equity > 0:
+            real_dd = (self._peak_equity - current_equity) / self._peak_equity
+            if real_dd >= RISK["max_total_drawdown"]:
+                self.trigger_emergency("max_drawdown", silent=True)
+                log.critical(
+                    "EMERGENCY_STOP | code=max_drawdown | peak=%.2f current=%.2f dd=%.2f%%",
+                    self._peak_equity, current_equity, real_dd * 100,
+                )
+                return "max_drawdown"
+
+        return None
+
+    def _check_exposure_and_vol(
+        self, current_equity: float, open_exposure: float, current_vol: float
+    ) -> Optional[str]:
+        """Exposure ve volatility spike kontrolleri. Deny reason veya None döner."""
+        equity_for_exposure = self._onto.nav if self._onto is not None else current_equity
+        if equity_for_exposure > 0:
+            exposure_pct = open_exposure / equity_for_exposure
+            if exposure_pct > RISK["max_exposure_pct"]:
+                if RISK.get("exposure_breach_emergency"):
+                    self.trigger_emergency("max_exposure", silent=True)
+                    log.critical(
+                        "EMERGENCY_STOP | code=max_exposure | %.2f%% > %.2f%%",
+                        exposure_pct * 100, RISK["max_exposure_pct"] * 100,
+                    )
+                else:
+                    log.warning(
+                        "GIRIS | exposure_limit | %.2f%% > %.2f%%",
+                        exposure_pct * 100, RISK["max_exposure_pct"] * 100,
+                    )
+                return "max_exposure"
+
+        if current_vol > 0:
+            self.record_volatility(current_vol)
+            if not self.check_volatility_spike(current_vol):
+                log.warning(
+                    "GIRIS | volatility_spike | vol=%.6f | islem engellendi", current_vol
+                )
+                return "volatility_spike"
+
+        return None
 
     def check_risk(
         self,
@@ -220,6 +361,7 @@ class RiskManager:
           6. Volatility spike
         """
         self._last_risk_deny = None
+        self._warn_if_onto_missing()
 
         if self.emergency_stop:
             self._last_risk_deny = self.emergency_reason or "emergency_latched"
@@ -231,88 +373,36 @@ class RiskManager:
             self._last_risk_deny = "invalid_capital"
             return False
 
-        # 1. Dinamik günlük kayıp limiti (v5.1)
-        if current_vol > 0:
-            if not self.check_dynamic_risk(current_equity, current_vol):
-                self._last_risk_deny = "dynamic_daily_loss"
-                return False
+        # Loss/drawdown kontrolleri
+        if self._onto is not None:
+            deny = self._check_risk_with_onto()
         else:
-            # Volatilite bilgisi yoksa statik limite dön (güvenlik)
-            daily_pct = self.daily_loss / self.initial_capital
-            if daily_pct >= RISK["max_daily_loss_pct"]:
-                self._last_risk_deny = "static_daily_loss"
-                self.trigger_emergency("static_daily_loss", silent=True)
-                log.critical(
-                    "EMERGENCY_STOP | code=static_daily_loss | "
-                    "gunluk_kayip=%.2f%% >= %.2f%%",
-                    daily_pct * 100,
-                    RISK["max_daily_loss_pct"] * 100,
-                )
-                return False
+            deny = self._check_risk_without_onto(current_equity, current_vol)
 
-        # 2. Haftalık kayıp limiti (statik)
-        weekly_pct = self.weekly_loss / self.initial_capital
-        if weekly_pct >= RISK["max_weekly_loss_pct"]:
-            self._last_risk_deny = "weekly_loss"
-            self.trigger_emergency("weekly_loss", silent=True)
-            log.critical(
-                "EMERGENCY_STOP | code=weekly_loss | %.2f%% >= %.2f%%",
-                weekly_pct * 100,
-                RISK["max_weekly_loss_pct"] * 100,
-            )
+        if deny:
+            self._last_risk_deny = deny
             return False
 
-        # 3. Peak-to-trough drawdown
-        self.update_peak(current_equity)
-        if self._peak_equity > 0:
-            real_dd = (self._peak_equity - current_equity) / self._peak_equity
-            if real_dd >= RISK["max_total_drawdown"]:
-                self._last_risk_deny = "max_drawdown"
-                self.trigger_emergency("max_drawdown", silent=True)
-                log.critical(
-                    "EMERGENCY_STOP | code=max_drawdown | peak=%.2f current=%.2f dd=%.2f%%",
-                    self._peak_equity, current_equity, real_dd * 100,
-                )
-                return False
-
-        # 4. Exposure limiti
-        if current_equity > 0:
-            exposure_pct = open_exposure / current_equity
-            if exposure_pct > RISK["max_exposure_pct"]:
-                if RISK.get("exposure_breach_emergency"):
-                    self.trigger_emergency("max_exposure", silent=True)
-                    self._last_risk_deny = "max_exposure"
-                    log.critical(
-                        "EMERGENCY_STOP | code=max_exposure | %.2f%% > %.2f%%",
-                        exposure_pct * 100,
-                        RISK["max_exposure_pct"] * 100,
-                    )
-                else:
-                    self._last_risk_deny = "max_exposure"
-                    log.warning(
-                        "GIRIS | exposure_limit | %.2f%% > %.2f%%",
-                        exposure_pct * 100,
-                        RISK["max_exposure_pct"] * 100,
-                    )
-                return False
-
-        # 5. Volatility spike
-        if current_vol > 0:
-            self.record_volatility(current_vol)
-            if not self.check_volatility_spike(current_vol):
-                self._last_risk_deny = "volatility_spike"
-                log.warning(
-                    "GIRIS | volatility_spike | vol=%.6f | islem engellendi", current_vol
-                )
-                return False
+        # Exposure ve volatility
+        deny = self._check_exposure_and_vol(current_equity, open_exposure, current_vol)
+        if deny:
+            self._last_risk_deny = deny
+            return False
 
         return True
 
     # ── VaR & Trailing Stop ───────────────────────────────────────────────────
 
     def calculate_var(self) -> float:
-        """Value at Risk (95. percentile)."""
-        if len(self._pnl_history) < 20:
+        """
+        Value at Risk (95. percentile).
+        onto aktifse tek kaynak: onto._calc_var() — duplikasyon yok.
+        onto yoksa kendi _pnl_history'den hesapla (min 100 örnek).
+        """
+        if self._onto is not None:
+            return self._onto._calc_var()
+        # FIX: min_history 20 → 100 (istatistiksel anlam için)
+        if len(self._pnl_history) < 100:
             return 0.0
         conf = RISK["var_confidence"]
         return round(float(np.percentile(self._pnl_history, (1 - conf) * 100)), 2)
@@ -344,7 +434,7 @@ class RiskManager:
             if len(self._vol_history) >= 10
             else None
         )
-        return {
+        d = {
             "daily_loss":              round(self.daily_loss, 2),
             "weekly_loss":             round(self.weekly_loss, 2),
             "var_95":                  self.calculate_var(),
@@ -354,6 +444,23 @@ class RiskManager:
             "peak_equity":             round(self._peak_equity, 2),
             "peak_drawdown_pct":       round(peak_dd, 2),
             "avg_vol_recent":          round(avg_vol_recent, 6) if avg_vol_recent else None,
-            "dynamic_daily_limit_pct": round(self._last_dynamic_limit * 100, 2),  # v5.1
+            "dynamic_daily_limit_pct": round(self._last_dynamic_limit * 100, 2),
             "omega_qmin_tighten":      self._omega_qmin_tighten,
+            "onto_active":             self._onto is not None,  # v5.2
         }
+        # v5.2 — onto varsa tutarlı metrikleri üzerine yaz
+        if self._onto is not None:
+            d.update({
+                "nav":               round(self._onto.nav, 2),
+                "sod_nav":           round(self._onto.sod_nav, 2),
+                "peak_nav":          round(self._onto.peak_nav, 2),
+                "daily_loss_pct":    round(self._onto.daily_loss_pct * 100, 2),
+                "weekly_loss_pct":   round(self._onto.weekly_loss_pct * 100, 2),
+                "intraday_dd_pct":   round(self._onto.intraday_dd_pct * 100, 2),
+                "dynamic_limit_pct": round(self._onto.dynamic_daily_limit * 100, 2),
+                "gross_exp":         round(self._onto.gross_exp, 2),
+                "net_exp":           round(self._onto.net_exp, 2),
+                "exp_pct":           round(self._onto.exp_pct * 100, 2),
+                "var_1d":            self._onto.var_1d,
+            })
+        return d

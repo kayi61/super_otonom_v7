@@ -73,7 +73,7 @@ class AILayer:
 
     def _extract_features(self, candle: Dict, analysis: Dict) -> List[float]:
         c = float(candle.get("close") or 1.0)
-        if c == 0:
+        if abs(c) < 1e-9:
             c = 1.0
         rsi_norm        = float(analysis.get("rsi", 50.0)) / 100.0
         ema_diff        = float(analysis.get("ema_diff", 0.0))

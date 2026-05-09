@@ -81,7 +81,7 @@ def test_check_risk_matrix_dynamic_daily_branch(
     vol = 0.009
     dyn_limit = max(0.02, min(0.05, vol * 2))
     ok = rm.check_risk(eq, ox, current_vol=vol)
-    daily_pct = rm.daily_loss / IC
+    daily_pct = rm.daily_loss / eq
     weekly_pct = rm.weekly_loss / IC
     dd = (rm._peak_equity - eq) / rm._peak_equity if rm._peak_equity > 0 else 0.0
     ex_pct = ox / eq if eq > 0 else 1.0
@@ -113,7 +113,7 @@ def test_check_risk_matrix_vol_spike_after_clean_limits(
         rm.record_volatility(0.008)
     vol = 0.07
     dyn_limit = max(0.02, min(0.05, vol * 2))
-    daily_pct = rm.daily_loss / IC
+    daily_pct = rm.daily_loss / eq
     weekly_pct = rm.weekly_loss / IC
     dd = (rm._peak_equity - eq) / rm._peak_equity if rm._peak_equity > 0 else 0.0
     ex_pct = ox / eq if eq > 0 else 1.0

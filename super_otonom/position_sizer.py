@@ -23,7 +23,7 @@ _KELLY_MAX         = 0.30
 _KELLY_FALLBACK    = 0.15
 
 # v5.1 sabitleri
-_MAX_CANDLE_AGE_MS = 500    # ms cinsinden max mum yaşı
+_MAX_CANDLE_AGE_MS = 5000    # ms cinsinden max mum yaşı
 _MIN_BID_IMBALANCE = 0.3    # bid/ask hacim oranı eşiği
 _KELLY_SAFETY_MULT = 0.70   # Fractional Kelly çarpanı
 _IMBALANCE_DEPTH   = 5      # Kaç order book katmanı değerlendirilsin
@@ -185,7 +185,10 @@ class PositionSizer:
 
         # ── KATMAN 1: Zaman Senkronizasyonu Kontrolü ─────────────────────────
         current_ts = time.time() * 1000
-        candle_age = current_ts - float(last_candle_ts)
+        ts = float(last_candle_ts)
+        if ts < 1e12:
+            ts = ts * 1000
+        candle_age = current_ts - ts
 
         if candle_age > max_candle_age_ms:
             log.error(
@@ -324,3 +327,5 @@ class PositionSizer:
     ) -> bool:
         current = self.total_exposure(open_positions)
         return (current + new_size) <= equity * max_total_pct
+
+

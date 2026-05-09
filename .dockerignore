@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.hypothesis/
+.ruff_cache/
+.coverage
+*.egg-info/
+.env
+.git/
+.gitignore
+logs/
+x_logs/
+*.zip
+test_*.py
+docs/
