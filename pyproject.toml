@@ -38,7 +38,7 @@ include = ["super_otonom*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "src"]
 addopts = "-q"
 markers = [
     "hypothesis: property-based veya stateful Hypothesis testleri",
