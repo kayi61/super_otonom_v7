@@ -98,6 +98,8 @@ class DecisionContext:
     # v8: durum makinesi + AI açıklanabilirlik
     trading_state: str = ""
     ai_explain: str = ""
+    # Faz zinciri (71+ gibi) — pipeline içi observability
+    phase_chain: Dict[str, Any] = field(default_factory=dict)
     # İzlenebilir adımlar: (aşama, kısa not)
     trace: List[Tuple[str, str]] = field(default_factory=list)
 
@@ -141,6 +143,7 @@ class DecisionContext:
             "external_ai_log": self.external_ai_log,
             "trading_state": self.trading_state,
             "ai_explain": self.ai_explain,
+            "phase_chain": dict(self.phase_chain),
             "trace": [{"stage": s, "note": n} for s, n in self.trace],
         }
 

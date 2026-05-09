@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 from super_otonom.ai_confidence_bridge import blend_omega_confidence
 from super_otonom.config import RISK
 from super_otonom.decision_context import DecisionStage
-from super_otonom.ml_client import get_ml_client
+from super_otonom.ml_prediction import run_ml_enrichment_phase
 
 from .risk_pipeline import force_all_close_requested
 
@@ -42,9 +42,7 @@ async def process_signal_phase(
     out / dctx güncellenir.
     """
     engine.ai.update_buffer(symbol, candles[-1], analysis)
-    await get_ml_client().enrich_analysis(
-        symbol, analysis, dctx, tick_id=dctx.tick_id
-    )
+    await run_ml_enrichment_phase(symbol, analysis, dctx, tick_id=dctx.tick_id)
     base = analysis.get("signal", "HOLD")
 
     if analysis.get("execution_mode") == "TREND_FOLLOW":
@@ -133,52 +131,8 @@ async def apply_filters_phase(
         out["sentiment_status"] = "N/A"
         dctx.after_sentiment_signal = str(out["final_signal"])
 
-    fs = out["final_signal"]
-    _eff = dict(analysis, signal=fs)
-    import super_otonom.bot_engine as be_mod
+    from super_otonom.unified_alpha_core import run_unified_alpha_phase
 
-    _qs, _pr, _qc, _qmp = be_mod.compute_signal_quality(_eff)
-    _oreg, _qmult, _sfi, _adj, _omlog = be_mod.compute_omega_regime(
-        analysis, int(_qs)
-    )
-    _effq = engine.risk.get_omega_effective_qmin(int(RISK.get("signal_quality_min", 40)))
-
-    dctx.signal_quality = int(_qs)
-    dctx.adj_signal_quality = int(_adj)
-    dctx.penalty_reasons = list(_pr)
-    dctx.quality_main_penalty = str(_qmp)
-    dctx.omega_regime = str(_oreg)
-    dctx.omega_quality_mult = float(_qmult)
-    dctx.omega_size_factor = float(_sfi)
-    dctx.effective_quality_min = int(_effq)
-    analysis["quality_score"] = int(_qs)
-    analysis["penalty_reasons"] = list(_pr)
-    analysis["quality_components"] = _qc
-    analysis["adj_signal_quality"] = int(_adj)
-    analysis["omega_regime"] = str(_oreg)
-    analysis["omega_size_factor"] = float(_sfi)
-    omlb = str(analysis.get("omega_ml_bridge", "no_external_ml"))
-    ext = dctx.external_ai_log or "—"
-    dctx.omega_ai_log = f"ml={omlb} | ext={ext} | {_omlog}"
-
-    if fs == "BUY" and int(_adj) < int(_effq):
-        out["final_signal"] = "HOLD"
-        out["decision_reason"] = (
-            f"LOW_QUALITY_REJECT(adj={_adj}<{_effq} raw={_qs} regime={_oreg})"
-        )
-        dctx.decision_reason = out["decision_reason"]
-        dctx.entry_blocked = "low_quality"
-        dctx.add_trace("quality", f"reject adj={_adj} effmin={_effq} main={_qmp}")
-        log.info(
-            "ELITE-OMEGA | %s | LOW_QUALITY | adj=%d < eff=%d (raw=%d) | %s | %s",
-            symbol,
-            int(_adj),
-            int(_effq),
-            int(_qs),
-            _oreg,
-            _pr[:5],
-        )
-    else:
-        dctx.add_trace("quality", f"raw={_qs} adj={_adj} regime={_oreg} effmin={_effq}")
+    run_unified_alpha_phase(engine, symbol, analysis, out, dctx)
 
     return True

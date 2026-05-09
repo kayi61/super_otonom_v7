@@ -1,0 +1,22 @@
+{
+  "date_str": "2026-05-09",
+  "generated_at": 1778329554.687711,
+  "sod_nav": 100.0,
+  "eod_nav_expected": 100.0,
+  "eod_nav_actual": 1000.0,
+  "nav_diff": 900.0,
+  "nav_diff_pct": 900.0,
+  "nav_ok": false,
+  "total_trades": 0,
+  "winning_trades": 0,
+  "losing_trades": 0,
+  "total_realized_pnl": 0,
+  "total_fees": 0,
+  "open_positions": [],
+  "open_positions_count": 0,
+  "pnl_by_symbol": {},
+  "warnings": [
+    "NAV FARKI: beklenen=100.00 gerçekleşen=1000.00 fark=900.00 (900.00%)"
+  ],
+  "passed": false
+}

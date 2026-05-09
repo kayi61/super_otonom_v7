@@ -3,7 +3,7 @@ from __future__ import annotations
 """
 OrderEngine v1.0
 ─────────────────────────────────────────────────────────────────────────────
-Faz 4 — Execution Safety: Idempotency + State Machine
+Faz 4a — Execution Safety: Idempotency + State Machine (emir gönderimi)
 
 SORUN (önceki durum):
     Emir borsaya gönderilirken sistem çökerse ne oldu bilinmez.

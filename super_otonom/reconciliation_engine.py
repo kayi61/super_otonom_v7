@@ -3,7 +3,7 @@ from __future__ import annotations
 """
 ReconciliationEngine v1.0
 ─────────────────────────────────────────────────────────────────────────────
-Faz 4 — Execution Safety: Borsa ↔ Yerel Ledger Mutabakatı
+Faz 4b — Execution Safety: Borsa ↔ Yerel Ledger Mutabakatı (4a = OrderEngine)
 
 SORUN:
     CapitalEngine yerel gerçeği tutar (niyet).

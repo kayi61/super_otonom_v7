@@ -28,6 +28,7 @@ from super_otonom.health_summary import (
 )
 from super_otonom.kill_switch import apply_storm_trip_to_risk
 from super_otonom.omega_regime import compute_omega_regime
+from super_otonom.signal_fusion_engine import record_analyzer_snapshot
 
 log = logging.getLogger("super_otonom.main")
 logging.basicConfig(
@@ -165,6 +166,8 @@ async def prep_symbol_for_tick(
         analysis.get("mtf_filtered", False),
     )
 
+    record_analyzer_snapshot(symbol, analysis)
+
     ob = await handler.fetch_order_book(symbol, limit=ASYNC_EXCHANGE["ob_limit"])
     if apply_storm_trip_to_risk(engine.risk):
         log.critical("EMERGENCY_STOP | code=rate_limit_storm | order_book sonrasi")
@@ -186,6 +189,8 @@ async def prep_symbol_for_tick(
         analysis.get("ob_safe_size"),
         technical_notional,
     )
+    # Faz 71-80 zinciri (execution_pipeline) OB'yi analysis üzerinden okur
+    analysis["order_book"] = ob
     return symbol, analysis, candles_1h
 
 

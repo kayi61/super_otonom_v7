@@ -26,7 +26,10 @@ from super_otonom.decision_context import DecisionContext, DecisionStage
 from super_otonom.kill_switch import HardLimitTracker, get_rate_limit_storm_tracker
 from super_otonom.metrics_exporter import MetricsExporter
 from super_otonom.omega_regime import compute_omega_regime  # noqa: F401 — test patch hedefi
-from super_otonom.pipelines import execution_pipeline, risk_pipeline, signal_pipeline
+from super_otonom.pipelines import execution_pipeline, signal_pipeline
+from super_otonom.signal_fusion_engine import run_signal_fusion_phase
+from super_otonom.unified_system_core import run_system_gate_phase
+from super_otonom.pipelines.override_phase_bridge import attach_override_phases_to_analysis
 from super_otonom.pre_trade_gate import (
     fat_finger_check,
     gate_buy_signal_and_slots,
@@ -123,7 +126,7 @@ except ImportError:
             def __init__(self, capital: float = 0.0, *_a, **_k):  # noqa: stub
                 pass  # intentionally empty — stub implementation
 
-            def trigger_emergency(self, code, _silent=False):  # noqa: stub
+            def trigger_emergency(self, code, silent=True, **_kw):  # noqa: stub
                 self.emergency_stop = True
                 self.emergency_reason = code
 
@@ -569,9 +572,7 @@ class BotEngine:
         dctx: DecisionContext,
         out: Dict[str, Any],
     ) -> None:
-        await signal_pipeline.process_signal_phase(
-            self, symbol, analysis, candles, dctx, out
-        )
+        await run_signal_fusion_phase(self, symbol, analysis, candles, dctx, out)
 
     async def apply_filters(
         self,
@@ -764,14 +765,10 @@ class BotEngine:
 
         self.correlation_mgr.update_returns(symbol, price)
 
-        if risk_pipeline.tick_kill_switch_and_spike(self, symbol, price, dctx, out):
+        gate = run_system_gate_phase(self, symbol, price, dctx, out, analysis)
+        if gate == "kill":
             return out
-
-        exposure    = self._open_exposure({symbol: price})
-        current_vol = float(analysis.get("volatility", 0.0))
-        if not risk_pipeline.tick_portfolio_risk(
-            self, symbol, exposure, current_vol, dctx, out
-        ):
+        if gate == "risk":
             self._tick_handle_risk_block(symbol, out)
             return out
 
@@ -799,6 +796,10 @@ class BotEngine:
                 )
                 _exit_analysis = {"avg_volume": 1.0, "volatility": 0.01, "fee": 0.0}
                 await self._close(_sym, _cur, out, "TRAILING_STOP", _exit_analysis)
+
+        attach_override_phases_to_analysis(
+            analysis, engine=self, dctx=dctx, out=out, symbol=symbol
+        )
 
         await self.execute_trade(
             symbol, price, analysis, out, corr_multiplier, dctx, candles
@@ -1056,7 +1057,7 @@ class BotEngine:
 
         # Pozisyon kaydı
         order_id = f"{symbol}_{int(time.time()*1000)}"
-        self.open_positions[symbol] = {
+        pos: Dict[str, Any] = {
             "entry":     fill_price,
             "qty":       qty,
             "size":      size,
@@ -1064,6 +1065,13 @@ class BotEngine:
             "hold_bars": 0,
             "order_id":  order_id,
         }
+        _ds = out.get("dynamic_stop")
+        if _ds is not None:
+            try:
+                pos["dynamic_stop"] = float(_ds)
+            except (TypeError, ValueError):
+                pass
+        self.open_positions[symbol] = pos
         # CapitalEngine ledger
         self.capital.release_reservation(_order_id_attempt, size)
         self.capital.open_position(
