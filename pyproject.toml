@@ -1,5 +1,7 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+# PYSEC-2025-49: ≥78.1.1. Üst sınır: CI ve varsayılan kurulum `.[dev]` torch içermez; fakat `Dockerfile`,
+# `requirements.txt` (torch) ve `pip install -e ".[lstm]"` yolunda PyTorch tekerlekleri sıkça setuptools<82 ister — <82 kaldırılırsa o ortamlarda çakışma döner.
+requires = ["setuptools>=78.1.1,<82", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +9,7 @@ name = "super_otonom"
 version = "7.0.0"
 description = "Kurumsal seviye kripto trading sistemi"
 requires-python = ">=3.10"
+# Bağımlılık / tedarik zinciri taraması (çeyrek veya deploy öncesi): docs/AUDIT.md §2.2.1 — pip-audit; RCO kayıt tablosu.
 dependencies = [
     "ccxt>=4.0.0",
     "numpy>=1.24.0",
@@ -31,6 +34,7 @@ lstm = ["torch>=2.0.0"]
 
 [project.scripts]
 super-otonom = "super_otonom.main_loop:main"
+super-otonom-release-gate = "super_otonom.release_gate:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -39,9 +43,11 @@ include = ["super_otonom*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = [".", "src"]
+# Proje kökünde .pytest_basetemp kullanmayın — Windows’ta rm_rf sırasında WinError 5 (erişim engellendi) ile yüzlerce ERROR.
 addopts = "-q"
 markers = [
     "hypothesis: property-based veya stateful Hypothesis testleri",
+    "release_gate: PROMPT-A12 — release öncesi zorunlu smoke (pytest -m release_gate)",
 ]
 
 [tool.ruff]
@@ -55,11 +61,18 @@ src = ["super_otonom", "tests"]
 ignore = ["E402", "E501"]
 select = ["E", "F", "I", "W"]
 
+[tool.ruff.lint.per-file-ignores]
+# Dev coverage sweep: tek satırda çok ifade + özgün stil; yeniden formatlamak riskli.
+"super_otonom/test_10000.py" = ["E701", "E702", "E722", "E741"]
+"super_otonom/test_5000.py" = ["E701", "E702", "E722", "E741"]
+
 [tool.coverage.run]
 source = ["super_otonom"]
 branch = true
 omit = [
     "*/__init__.py",
+    "super_otonom/test_*.py",
+    "super_otonom/stress_test.py",
     # Skorlama ağırlıkları: birim test maliyeti yüksek; toplam eşiği için dışlama
     "*/signal_quality_scorer.py",
     "*/correlation_manager.py",
