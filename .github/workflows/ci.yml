@@ -54,7 +54,7 @@ jobs:
       - name: Ruff
         run: ruff check super_otonom tests
 
-      - name: Pytest + coverage (paralel; eşik %99; sweep ignore)
+      - name: Pytest + coverage (paralel; eşik %100; sweep ignore)
         run: >
           pytest tests/ -q -n auto
           --cov=super_otonom
@@ -62,4 +62,4 @@ jobs:
           --ignore=tests/test_sweep_45k_to_50k.py
           --ignore=tests/test_sweep_ext_4500.py
           --ignore=tests/test_sweep_matrix_500.py
-          --cov-fail-under=99
+          --cov-fail-under=100
