@@ -20,7 +20,7 @@ from pathlib import Path
 
 
 def main() -> int:
-    from super_otonom.config import EXCHANGES, GENERAL
+    from super_otonom.config import EXCHANGES, GENERAL, RISK
     from super_otonom.meta_regime_orchestrator import advisory_ack_path_for_gate
 
     mode = (os.getenv("META_REGIME_MODE") or "shadow").strip().lower()
@@ -67,6 +67,11 @@ def main() -> int:
             "deploy_env_check: A9 / canlı .env — engelleyici sorun yok "
             f"(META_REGIME_MODE={mode!r}, paper_mode={paper}, "
             f"LIVE_CONFIRM={GENERAL.get('live_confirm')!r})."
+        )
+        # CI / minimal env: .env yokken de config.RISK (env varsayılanları) stdout'da görünsün.
+        print(
+            "deploy_env_check: P0 - INSTITUTIONAL sect.1 alignment (resolved RISK; no .env required): "
+            f"max_daily_loss_pct={RISK.get('max_daily_loss_pct')!r}"
         )
         ex_id = str(GENERAL.get("default_exchange") or "")
         ex_cfg = EXCHANGES.get(ex_id, {})
