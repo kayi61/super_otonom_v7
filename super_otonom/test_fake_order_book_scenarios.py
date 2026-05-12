@@ -22,4 +22,3 @@ def test_flash_crash_has_high_vol_and_flag() -> None:
     _ob, a = make_scenario(scenario="flash_crash", mid_price=100.0, seed=1)
     assert a.get("flash_crash") is True
     assert float(a.get("volatility", 0.0)) >= 0.08
-

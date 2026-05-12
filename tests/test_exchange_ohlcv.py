@@ -1,4 +1,5 @@
 """exchange_async: OHLCV dönüştürme ve sahte veri yolu."""
+
 from __future__ import annotations
 
 from super_otonom.exchange_async import ohlcv_to_candles

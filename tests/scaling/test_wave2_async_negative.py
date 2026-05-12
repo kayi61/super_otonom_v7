@@ -1,4 +1,5 @@
 """Async hata yolları + bozuk/negatif girdiler (74)."""
+
 from __future__ import annotations
 
 import asyncio

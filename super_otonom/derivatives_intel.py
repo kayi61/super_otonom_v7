@@ -246,12 +246,7 @@ def analyze_derivatives_intel(
     signal_hint = str(a.get("signal", "HOLD"))
     alpha_01 = _directional_alpha(signal_hint, funding, oi_tag, ls_ratio)
 
-    risk_01 = _clamp01(
-        0.24 * crowd_fr
-        + 0.26 * ls_risk
-        + 0.26 * basis_r
-        + 0.24 * liq_score
-    )
+    risk_01 = _clamp01(0.24 * crowd_fr + 0.26 * ls_risk + 0.26 * basis_r + 0.24 * liq_score)
 
     fields_ok = sum(
         1

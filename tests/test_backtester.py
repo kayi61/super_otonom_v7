@@ -1,5 +1,8 @@
 """backtester — rapor ve kısa koşum."""
+
 from __future__ import annotations
+
+import asyncio
 
 import numpy as np
 import super_otonom.bot_engine as bemod
@@ -53,6 +56,26 @@ def test_build_backtest_report_sharpe_and_dd() -> None:
     assert isinstance(r.sharpe_ratio, float)
 
 
+def test_run_backtest_final_signal_histo(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(bemod, "_STATE_FILE", str(tmp_path / "st_hist.json"))
+    monkeypatch.setattr(bemod, "_TRADE_LOG_FILE", str(tmp_path / "tr_hist.log"))
+    hist: dict = {}
+    candles = _synthetic_candles(50)
+    r = asyncio.run(
+        run_backtest_async(
+            candles,
+            symbol="BTC/USDT",
+            initial_capital=50_000.0,
+            min_bars=35,
+            final_signal_histo=hist,
+        )
+    )
+    assert r.bars_simulated == 15
+    assert sum(hist.values()) == 15
+    assert "HOLD" in hist or "BUY" in hist or "SELL" in hist
+
+
 def test_run_backtest_minimal(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(bemod, "_STATE_FILE", str(tmp_path / "st.json"))
@@ -67,13 +90,7 @@ def test_run_backtest_async_too_few_bars(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(bemod, "_STATE_FILE", str(tmp_path / "s2.json"))
     monkeypatch.setattr(bemod, "_TRADE_LOG_FILE", str(tmp_path / "t2.log"))
-    import asyncio
-
-    r = asyncio.run(
-        run_backtest_async(
-            _synthetic_candles(10), initial_capital=1000.0, min_bars=35
-        )
-    )
+    r = asyncio.run(run_backtest_async(_synthetic_candles(10), initial_capital=1000.0, min_bars=35))
     assert r.bars_simulated == 0
 
 

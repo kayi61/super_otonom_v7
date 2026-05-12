@@ -12,11 +12,8 @@ Amaç:
 - analysis: pipeline içinde kullanılan temel alanlar (regime, volatility, liquidity_ratio, mtf, venues, flash_crash flag)
 """
 
-import math
-import random
 import time
 from typing import Any, Dict, List, Literal, Tuple
-
 
 OrderBook = Dict[str, List[List[float]]]
 Scenario = Literal["normal", "flash_crash", "pump_dump", "low_liquidity"]
@@ -99,7 +96,6 @@ def make_scenario(
     Returns (order_book, analysis).
     Deterministic for a given seed.
     """
-    rnd = random.Random(seed)
     ts = int(event_ts if event_ts is not None else _now_ms())
 
     # Baseline parameters
@@ -164,8 +160,22 @@ def make_scenario(
         _inject_wall(bids, idx=1, mult=4.0)
         _inject_wall(asks, idx=6, mult=7.0)
         # Slightly widen tick ladder to look jumpy
-        asks = _mk_ladder(mid=mid * 1.002, levels=levels, tick=tick * 1.3, base_qty=base_qty * 0.9, side="ask", px_widen_mult=1.2)
-        bids = _mk_ladder(mid=mid, levels=levels, tick=tick * 1.3, base_qty=base_qty * 1.3, side="bid", px_widen_mult=1.2)
+        asks = _mk_ladder(
+            mid=mid * 1.002,
+            levels=levels,
+            tick=tick * 1.3,
+            base_qty=base_qty * 0.9,
+            side="ask",
+            px_widen_mult=1.2,
+        )
+        bids = _mk_ladder(
+            mid=mid,
+            levels=levels,
+            tick=tick * 1.3,
+            base_qty=base_qty * 1.3,
+            side="bid",
+            px_widen_mult=1.2,
+        )
         _inject_wall(bids, idx=0, mult=8.0)
         analysis["signal"] = "BUY"
         analysis["regime"] = "VOLATILE"
@@ -183,8 +193,24 @@ def make_scenario(
     elif scenario == "low_liquidity":
         # Very thin book: small quantities and wider ticks
         base_qty_thin = 0.45
-        bids = _mk_ladder(mid=mid, levels=levels, tick=tick * 2.5, base_qty=base_qty_thin, side="bid", qty_decay=0.88, px_widen_mult=1.25)
-        asks = _mk_ladder(mid=mid, levels=levels, tick=tick * 2.5, base_qty=base_qty_thin, side="ask", qty_decay=0.88, px_widen_mult=1.25)
+        bids = _mk_ladder(
+            mid=mid,
+            levels=levels,
+            tick=tick * 2.5,
+            base_qty=base_qty_thin,
+            side="bid",
+            qty_decay=0.88,
+            px_widen_mult=1.25,
+        )
+        asks = _mk_ladder(
+            mid=mid,
+            levels=levels,
+            tick=tick * 2.5,
+            base_qty=base_qty_thin,
+            side="ask",
+            qty_decay=0.88,
+            px_widen_mult=1.25,
+        )
         analysis["signal"] = "HOLD"
         analysis["regime"] = "NOISY"
         analysis["volatility"] = 0.035
@@ -212,4 +238,3 @@ def make_scenario(
 
     order_book: OrderBook = {"bids": bids, "asks": asks}
     return order_book, analysis
-

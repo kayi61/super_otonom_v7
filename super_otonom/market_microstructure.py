@@ -63,10 +63,7 @@ def _parse_trade_row(row: Any) -> Optional[Tuple[int, float, float]]:
     """
     if isinstance(row, dict):
         raw_side = str(
-            row.get("side")
-            or row.get("aggressor")
-            or row.get("taker_side")
-            or ""
+            row.get("side") or row.get("aggressor") or row.get("taker_side") or ""
         ).lower()
         qty = float(row.get("qty") or row.get("amount") or row.get("size") or 0.0)
         price = float(row.get("price") or row.get("px") or 0.0)
@@ -261,12 +258,7 @@ def analyze_market_microstructure(
     else:
         alpha_01 = alpha_ofi
 
-    risk_01 = _clamp01(
-        0.22 * kyle
-        + 0.28 * amihud
-        + 0.28 * adverse
-        + 0.22 * ignition
-    )
+    risk_01 = _clamp01(0.22 * kyle + 0.28 * amihud + 0.28 * adverse + 0.22 * ignition)
 
     n = len(parsed)
     conf = _clamp01(0.28 + 0.55 * min(1.0, n / 25.0) + (0.12 if obi_signed is not None else 0.0))

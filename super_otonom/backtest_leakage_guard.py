@@ -24,7 +24,6 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional
 
-
 TradePermission = Literal["HALT", "BLOCK", "ALLOW"]
 
 
@@ -76,7 +75,11 @@ def evaluate_backtest_leakage_guard(
     Faz 69 — sızıntı / look-ahead koruma özeti.
     """
     a = analysis or {}
-    ts = int(event_ts) if isinstance(event_ts, (int, float)) and int(event_ts) > 0 else int(a.get("event_ts") or _now_ms())
+    ts = (
+        int(event_ts)
+        if isinstance(event_ts, (int, float)) and int(event_ts) > 0
+        else int(a.get("event_ts") or _now_ms())
+    )
     hl = int(a.get("half_life_ms") or half_life_ms)
     hl = max(2_000, min(600_000, hl))
 
@@ -110,8 +113,7 @@ def evaluate_backtest_leakage_guard(
         trade_permission = "BLOCK"
 
     risk_score = _clamp100(
-        float(leakage_risk_score) * 0.88
-        + 8.0 * (1.0 if integrity_breach else 0.0)
+        float(leakage_risk_score) * 0.88 + 8.0 * (1.0 if integrity_breach else 0.0)
     )
 
     alpha_score = _clamp100(

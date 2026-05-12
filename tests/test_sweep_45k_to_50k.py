@@ -1,6 +1,7 @@
 """
 +45.000 parametreli case: toplam 50.000 test hedefi (mevcut 5k + 45k).
 """
+
 from __future__ import annotations
 
 import math

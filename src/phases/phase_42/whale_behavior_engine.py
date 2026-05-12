@@ -7,7 +7,7 @@ Sadece NumPy.
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Tuple
 
 import numpy as np
 
@@ -250,16 +250,14 @@ def analyze(market_data: dict | None) -> dict:
 
     ph = [float(x) for x in d["price_history"]]
     vh = [float(x) for x in d["volume_history"]]
-    wyckoff_signal, accumulation_score = compute_wyckoff(ph, vh, whale_direction, whale_cluster_score)
+    wyckoff_signal, accumulation_score = compute_wyckoff(
+        ph, vh, whale_direction, whale_cluster_score
+    )
 
     alpha_score = _clip01(
-        0.5 * whale_cluster_score
-        + 0.3 * accumulation_score
-        + 0.2 * (1.0 - wash_trade_score)
+        0.5 * whale_cluster_score + 0.3 * accumulation_score + 0.2 * (1.0 - wash_trade_score)
     )
-    risk_score = _clip01(
-        0.6 * wash_trade_score + 0.4 * (1.0 - whale_cluster_score)
-    )
+    risk_score = _clip01(0.6 * wash_trade_score + 0.4 * (1.0 - whale_cluster_score))
 
     n_tr = len(trades)
     data_health = float(np.clip(n_tr / 50.0, 0.1, 1.0))

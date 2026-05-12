@@ -16,14 +16,13 @@ import pandas as pd
 
 log = logging.getLogger("super_otonom.correlation")
 
-_MIN_PERIODS   = 30
+_MIN_PERIODS = 30
 _PRICE_HISTORY = 200
 
 
 class CorrelationManager:
-
     def __init__(self, threshold: float = 0.75, min_periods: int = _MIN_PERIODS):
-        self.threshold   = threshold
+        self.threshold = threshold
         self.min_periods = min_periods
         self._price_history: Dict[str, deque] = {}
 
@@ -38,7 +37,7 @@ class CorrelationManager:
         for s in syms:
             hist = self._price_history.get(s)
             if hist and len(hist) >= 2:
-                prices  = list(hist)
+                prices = list(hist)
                 returns = [
                     (prices[i] - prices[i - 1]) / (prices[i - 1] + 1e-9)
                     for i in range(1, len(prices))
@@ -51,9 +50,7 @@ class CorrelationManager:
             data[k] = data[k][-min_len:]
         return pd.DataFrame(data)
 
-    def get_correlated_pairs(
-        self, returns_df: Optional[pd.DataFrame] = None
-    ) -> List[Set[str]]:
+    def get_correlated_pairs(self, returns_df: Optional[pd.DataFrame] = None) -> List[Set[str]]:
         df = returns_df if returns_df is not None else self.get_returns_df()
         if df.empty or len(df) < self.min_periods:
             return []
@@ -100,7 +97,11 @@ class CorrelationManager:
                 log.warning(
                     "KORELASYON_UYARISI: %s vs %s | corr=%.3f > threshold=%.2f | "
                     "risk azaltiliyor multiplier=%.2f",
-                    symbol, pos_sym, corr, self.threshold, multiplier,
+                    symbol,
+                    pos_sym,
+                    corr,
+                    self.threshold,
+                    multiplier,
                 )
 
         return max(multiplier, 0.2)
@@ -115,8 +116,6 @@ class CorrelationManager:
     def summary(self) -> Dict[str, Any]:
         return {
             "tracked_symbols": len(self._price_history),
-            "min_history_len": min(
-                (len(v) for v in self._price_history.values()), default=0
-            ),
-            "threshold": self.threshold,   # float — önceki Dict[str,int] yanlıştı
+            "min_history_len": min((len(v) for v in self._price_history.values()), default=0),
+            "threshold": self.threshold,  # float — önceki Dict[str,int] yanlıştı
         }

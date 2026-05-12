@@ -1,4 +1,5 @@
 """main_loop modülü— yardımcı fonksiyonlar (ağır async döngü yok)."""
+
 from __future__ import annotations
 
 import asyncio
@@ -58,9 +59,7 @@ def test_prep_symbol_returns_none_when_cb_open() -> None:
     raw = {"BTC/USDT": [[0, 1, 1, 1, 1, 1]]}
 
     async def _run() -> None:
-        out = await ml.prep_symbol_for_tick(
-            "BTC/USDT", handler, A(), engine, raw, {}
-        )
+        out = await ml.prep_symbol_for_tick("BTC/USDT", handler, A(), engine, raw, {})
         assert out is None
 
     asyncio.run(_run())
@@ -85,9 +84,7 @@ def test_prep_symbol_cb_open_empty_raw_logs(caplog: pytest.LogCaptureFixture) ->
 
     async def _run() -> None:
         with caplog.at_level("WARNING", logger="super_otonom.main"):
-            out = await ml.prep_symbol_for_tick(
-                "Z/USDT", handler, A(), engine, {}, {}
-            )
+            out = await ml.prep_symbol_for_tick("Z/USDT", handler, A(), engine, {}, {})
         assert out is None
 
     asyncio.run(_run())
@@ -97,9 +94,7 @@ def test_prep_symbol_cb_open_empty_raw_logs(caplog: pytest.LogCaptureFixture) ->
 def test_prep_symbol_storm_after_order_book(caplog: pytest.LogCaptureFixture) -> None:
     handler = MagicMock()
     handler.circuit_breaker_status.return_value = {}
-    handler.fetch_order_book = AsyncMock(
-        return_value={"asks": [[1.0, 1.0]], "bids": [[0.9, 1.0]]}
-    )
+    handler.fetch_order_book = AsyncMock(return_value={"asks": [[1.0, 1.0]], "bids": [[0.9, 1.0]]})
 
     class A:
         def analyze(self, *a, **k):
@@ -127,9 +122,7 @@ def test_prep_symbol_storm_after_order_book(caplog: pytest.LogCaptureFixture) ->
 
     with patch.object(ml, "apply_storm_trip_to_risk", return_value=True):
         with caplog.at_level("CRITICAL", logger="super_otonom.main"):
-            asyncio.run(
-                ml.prep_symbol_for_tick("S/USDT", handler, A(), engine, raw, {})
-            )
+            asyncio.run(ml.prep_symbol_for_tick("S/USDT", handler, A(), engine, raw, {}))
 
     assert "EMERGENCY_STOP" in caplog.text
 

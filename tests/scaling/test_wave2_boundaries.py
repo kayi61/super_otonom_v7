@@ -1,4 +1,5 @@
 """Sınır değerleri ve ince edge — regime, OMEGA, merge, blend, gate (72)."""
+
 from __future__ import annotations
 
 import pytest

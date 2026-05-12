@@ -1,4 +1,5 @@
 """v8 — Sinyal işleme: ML zenginleştirme + AI doğrulama + omega blend."""
+
 from __future__ import annotations
 
 import logging
@@ -106,9 +107,7 @@ async def apply_filters_phase(
         sentiment = engine.sentiment_layer.get_market_sentiment()
         out["sentiment_status"] = sentiment.get("status", "NEUTRAL")
 
-        final, sent_reason = engine.sentiment_layer.validate_with_sentiment(
-            final, sentiment
-        )
+        final, sent_reason = engine.sentiment_layer.validate_with_sentiment(final, sentiment)
 
         if final == "HOLD":
             dctx.after_sentiment_signal = "HOLD"

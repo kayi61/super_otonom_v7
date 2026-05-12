@@ -8,8 +8,14 @@ test_capital_engine_v2_fixes.py
   FIX-3: Partial fill muhasebesi (orantılı notional)
   FIX-4: update_unrealized float drift önlemi
 """
+
 from __future__ import annotations
-import os, sys, tempfile, pytest
+
+import os
+import sys
+
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from capital_engine import CapitalEngine
 
@@ -20,18 +26,14 @@ def make_engine(capital=10_000.0):
     return CapitalEngine(
         initial_capital=capital,
         journal_file="/tmp/test_ce_v2.jsonl",
-        reserve_pct=0.0,   # testlerde rezerv 0 — hesap basitleşsin
+        reserve_pct=0.0,  # testlerde rezerv 0 — hesap basitleşsin
         max_position_pct=1.0,
     )
 
 
 def invariant_ok(e: CapitalEngine) -> bool:
     expected = (
-        e.initial_capital
-        + e._net_deposits
-        + e._realized_pnl
-        + e._unrealized_pnl
-        - e._fees_paid
+        e.initial_capital + e._net_deposits + e._realized_pnl + e._unrealized_pnl - e._fees_paid
     )
     return abs(e.nav - expected) <= _TOLERANCE
 
@@ -40,8 +42,8 @@ def invariant_ok(e: CapitalEngine) -> bool:
 # FIX-1: Deposit / Withdrawal invariant
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestDepositWithdrawalInvariant:
 
+class TestDepositWithdrawalInvariant:
     def test_deposit_invariant_holds(self):
         e = make_engine(10_000)
         e.deposit(2_000)
@@ -104,8 +106,8 @@ class TestDepositWithdrawalInvariant:
 # FIX-2: _reserved_margin serileştirme
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestReservedMarginSerialization:
 
+class TestReservedMarginSerialization:
     def test_reserved_margin_in_to_dict(self):
         e = make_engine(10_000)
         e.reserve_margin("ord-1", 3_000)
@@ -146,7 +148,7 @@ class TestReservedMarginSerialization:
 
         d = e1.to_dict()
         e2 = CapitalEngine.from_dict(d, journal_file="/tmp/test_ce_v2_load3.jsonl")
-        assert e2.available_cash == pytest.approx(2_000.0)   # çift harcama yok
+        assert e2.available_cash == pytest.approx(2_000.0)  # çift harcama yok
 
     def test_net_deposits_restored(self):
         e1 = make_engine(10_000)
@@ -161,8 +163,8 @@ class TestReservedMarginSerialization:
 # FIX-3: Partial fill muhasebesi
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestPartialFillAccounting:
 
+class TestPartialFillAccounting:
     def test_full_fill_closes_position(self):
         e = make_engine(10_000)
         e.open_position("BTC/USDT", "ord-1", 50_000, 0.1, 5_000)
@@ -176,7 +178,7 @@ class TestPartialFillAccounting:
         """Kısmi fill: pozisyon silinmemeli, qty güncellenmeli."""
         e = make_engine(10_000)
         e.open_position("BTC/USDT", "ord-1", 50_000, 0.1, 5_000)
-        pnl = e.close_position("BTC/USDT", "ord-2", 52_000, 0.05)  # yarısı
+        _pnl = e.close_position("BTC/USDT", "ord-2", 52_000, 0.05)  # yarısı
         # Pozisyon hâlâ açık olmalı
         assert "BTC/USDT" in e._positions
         pos = e._positions["BTC/USDT"]
@@ -226,7 +228,7 @@ class TestPartialFillAccounting:
     def test_cash_never_negative_on_loss(self):
         e = make_engine(10_000)
         e.open_position("BTC/USDT", "ord-1", 50_000, 0.1, 5_000)
-        e.close_position("BTC/USDT", "ord-2", 0.0, 0.1)   # fiyat sıfır
+        e.close_position("BTC/USDT", "ord-2", 0.0, 0.1)  # fiyat sıfır
         assert e._cash >= 0.0
 
 
@@ -234,8 +236,8 @@ class TestPartialFillAccounting:
 # FIX-4: Float drift — update_unrealized
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestUnrealizedFloatDrift:
 
+class TestUnrealizedFloatDrift:
     def test_unrealized_exact_after_many_ticks(self):
         """1000 tick sonrası _unrealized_pnl pozisyondan hesaplananla eşleşmeli."""
         e = make_engine(10_000)
@@ -246,7 +248,7 @@ class TestUnrealizedFloatDrift:
             e.update_unrealized({"BTC/USDT": p})
 
         # Son fiyat: 50_000 + 999*10 = 59_990
-        expected_unrealized = (59_990 - 50_000) * 0.1   # 999.0
+        expected_unrealized = (59_990 - 50_000) * 0.1  # 999.0
         assert e._unrealized_pnl == pytest.approx(expected_unrealized, abs=_TOLERANCE)
 
     def test_unrealized_zero_after_all_closed(self):
@@ -292,8 +294,8 @@ class TestUnrealizedFloatDrift:
 # Kombinasyon: tüm fix'ler birlikte
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestCombinedFixes:
 
+class TestCombinedFixes:
     def test_full_scenario(self):
         """
         Gerçekçi senaryo:

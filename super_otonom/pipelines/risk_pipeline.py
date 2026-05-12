@@ -1,4 +1,5 @@
 """v8 — Risk ön kontrolleri (kill switch, fiyat spike, portföy risk, FORCE_ALL_CLOSE)."""
+
 from __future__ import annotations
 
 import logging
@@ -70,9 +71,7 @@ def tick_portfolio_risk(
     """
     import super_otonom.bot_engine as be_mod
 
-    if not engine.risk.check_risk(
-        engine.equity, open_exposure=exposure, current_vol=current_vol
-    ):
+    if not engine.risk.check_risk(engine.equity, open_exposure=exposure, current_vol=current_vol):
         dctx.risk_passed = False
         den = engine.risk.get_last_deny()
         dctx.add_trace(

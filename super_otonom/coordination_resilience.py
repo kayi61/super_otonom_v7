@@ -7,6 +7,7 @@ Tick içi EMERGENCY / circuit breaker / kill-switch davranışı değiştirilmez
 
 Gerçek güvenlik eylemleri: ``GLOBAL_TRADE_DISABLE``, Faz 50, ``risk_pipeline``, ``main_loop`` CB — mevcut kodda kalır.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

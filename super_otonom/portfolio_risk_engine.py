@@ -252,13 +252,7 @@ def _aggregate_risk_01(
     corr_r: float,
     stress: float,
 ) -> float:
-    return _clamp01(
-        0.22 * var_max
-        + 0.22 * cvar
-        + 0.18 * hhi
-        + 0.18 * corr_r
-        + 0.20 * stress
-    )
+    return _clamp01(0.22 * var_max + 0.22 * cvar + 0.18 * hhi + 0.18 * corr_r + 0.20 * stress)
 
 
 def _alpha_diversification(hhi: float, corr_r: float) -> float:

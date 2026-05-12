@@ -84,7 +84,9 @@ def compute_ofi_score(total_bid_depth: float, total_ask_depth: float) -> Tuple[f
     return ofi, ofi_score
 
 
-def compute_black_hole_score(order_books: List[Dict[str, Any]], depth_levels: int) -> Tuple[float, float]:
+def compute_black_hole_score(
+    order_books: List[Dict[str, Any]], depth_levels: int
+) -> Tuple[float, float]:
     """
     Borsa başına max/mean oranı; global black_hole_ratio = max(oranlar).
     black_hole_score = clip((ratio - 5) / 15, 0, 1).
@@ -98,7 +100,9 @@ def compute_black_hole_score(order_books: List[Dict[str, Any]], depth_levels: in
         asks = ob.get("asks") or []
         _, sz_b = _parse_levels(bids, depth)
         _, sz_a = _parse_levels(asks, depth)
-        all_sz = np.concatenate([sz_b, sz_a]) if sz_b.size + sz_a.size > 0 else np.zeros(0, dtype=float)
+        all_sz = (
+            np.concatenate([sz_b, sz_a]) if sz_b.size + sz_a.size > 0 else np.zeros(0, dtype=float)
+        )
         all_sz = np.maximum(all_sz, 0.0)
         if all_sz.size == 0:
             continue
@@ -114,7 +118,9 @@ def compute_black_hole_score(order_books: List[Dict[str, Any]], depth_levels: in
     return black_hole_ratio, bh_score
 
 
-def compute_vacuum_score(order_books: List[Dict[str, Any]], current_price: float) -> Tuple[float, float]:
+def compute_vacuum_score(
+    order_books: List[Dict[str, Any]], current_price: float
+) -> Tuple[float, float]:
     """Borsa başına göreli spread ortalaması → vacuum_score."""
     cp = float(current_price)
     if cp <= _EPS:
@@ -219,15 +225,9 @@ def analyze(market_data: dict | None) -> dict:
     _, vacuum_score = compute_vacuum_score(obs, float(d["current_price"]))
 
     alpha_score = _clip01(
-        0.5 * ofi_score
-        + 0.3 * (1.0 - vacuum_score)
-        + 0.2 * (1.0 - black_hole_score)
+        0.5 * ofi_score + 0.3 * (1.0 - vacuum_score) + 0.2 * (1.0 - black_hole_score)
     )
-    risk_score = _clip01(
-        0.5 * black_hole_score
-        + 0.3 * vacuum_score
-        + 0.2 * (1.0 - ofi_score)
-    )
+    risk_score = _clip01(0.5 * black_hole_score + 0.3 * vacuum_score + 0.2 * (1.0 - ofi_score))
 
     data_health = float(np.clip(len(d["order_books"]) / 5.0, 0.2, 1.0))
     confidence = _clip01(data_health * (1.0 - 0.3 * risk_score))

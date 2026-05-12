@@ -1,4 +1,5 @@
 """Faz 45 — Alpha / decay / omega yığını: kalite skoru + omega + decay izi."""
+
 from __future__ import annotations
 
 import logging
@@ -94,9 +95,7 @@ def run_unified_alpha_phase(
 
     if fs == "BUY" and int(_adj) < int(_effq):
         out["final_signal"] = "HOLD"
-        out["decision_reason"] = (
-            f"LOW_QUALITY_REJECT(adj={_adj}<{_effq} raw={_qs} regime={_oreg})"
-        )
+        out["decision_reason"] = f"LOW_QUALITY_REJECT(adj={_adj}<{_effq} raw={_qs} regime={_oreg})"
         dctx.decision_reason = out["decision_reason"]
         dctx.entry_blocked = "low_quality"
         dctx.add_trace("quality", f"reject adj={_adj} effmin={_effq} main={_qmp}")

@@ -1,4 +1,5 @@
 """RiskManager — property-based testler (kurumsal QA)."""
+
 from __future__ import annotations
 
 import math
@@ -62,9 +63,7 @@ def test_record_omega_trade_outcome_tighten_bounded(pnl: float) -> None:
     ),
     mult=st.floats(min_value=1.5, max_value=4.0, allow_nan=False),
 )
-def test_volatility_spike_detects_high_current_vs_avg(
-    hist: list[float], mult: float
-) -> None:
+def test_volatility_spike_detects_high_current_vs_avg(hist: list[float], mult: float) -> None:
     rm = RiskManager(20_000.0)
     avg = sum(hist) / len(hist)
     # spike_multiplier=2.0: current > 2*avg olmali; mult min 1.5 tek basina yetmez

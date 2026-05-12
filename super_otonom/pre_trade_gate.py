@@ -1,16 +1,21 @@
 """
 Giriş (BUY) öncesi tek kontrol hattı — risk motoru dışındaki 'hayır' koşulları.
 
+Hard safety: AILayer / strateji skorları bu modüldeki eşikleri gevşetemez; yalnızca
+``config.RISK`` ve ortam değişkenleri (bkz. ``hard_safety_contract``) uygulanır.
+
 risk.check_risk() BotEngine.tick başında çalışmaya devam eder (portföy/Acil).
 Bu modül, yalnızca BUY açılışındaki sinyal / boyut / bakiye / can_open birleşimidir.
 
 `merge_entry_notional()`: `sizer.calculate` (teknik) ile `analysis["ob_safe_size"]`
 (emir defteri + validate_and_calculate) — tek tavan: min(ikisi), ob≤0 → giriş yok.
 """
+
 from __future__ import annotations
 
 import logging
 import os
+import time
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 from super_otonom.config import RISK
@@ -25,8 +30,8 @@ _MAX_OPEN = RISK.get("max_open_positions", 1)
 
 # ── Faz 3 sabitleri ────────────────────────────────────────────────────────
 _MAX_NOTIONAL_PER_ORDER: float = float(RISK.get("max_notional_per_order", 50_000.0))
-_MAX_SPREAD_PCT:         float = float(RISK.get("max_spread_pct", 0.005))   # %0.5
-_MIN_OB_DEPTH:           float = float(RISK.get("min_ob_depth", 1_000.0))   # USDT
+_MAX_SPREAD_PCT: float = float(RISK.get("max_spread_pct", 0.005))  # %0.5
+_MIN_OB_DEPTH: float = float(RISK.get("min_ob_depth", 1_000.0))  # USDT
 
 
 def gate_global_trade_disable() -> tuple[bool, str]:
@@ -46,8 +51,7 @@ def _min_entry_confidence() -> float:
 
     try:
         v = float(
-            os.getenv("ENTRY_MIN_CONFIDENCE", str(RISK.get("entry_min_confidence", 0.55)))
-            or 0.55
+            os.getenv("ENTRY_MIN_CONFIDENCE", str(RISK.get("entry_min_confidence", 0.55))) or 0.55
         )
     except ValueError:
         v = 0.55
@@ -94,6 +98,7 @@ def merge_entry_notional(technical_notional: float, ob_safe_size: Any) -> Tuple[
 
 # ── Faz 3: Fat-finger check ───────────────────────────────────────────────
 
+
 def fat_finger_check(
     size: float,
     max_notional: Optional[float] = None,
@@ -108,13 +113,15 @@ def fat_finger_check(
     if size >= limit:
         log.warning(
             "FAT_FINGER | size=%.2f > max_notional=%.2f | emir engellendi",
-            size, limit,
+            size,
+            limit,
         )
         return False, f"fat_finger_max_notional:{limit:.0f}"
     return True, ""
 
 
 # ── Faz 3: Spread threshold ───────────────────────────────────────────────
+
 
 def spread_check(
     order_book: Dict[str, Any],
@@ -131,24 +138,28 @@ def spread_check(
         best_bid = float(order_book["bids"][0][0])
         best_ask = float(order_book["asks"][0][0])
     except (KeyError, IndexError, TypeError, ValueError):
-        return True, ""   # OB verisi yoksa geç — engelleme
+        return True, ""  # OB verisi yoksa geç — engelleme
 
     if best_bid <= 0 or best_ask <= 0:
         return True, ""
 
-    mid   = (best_bid + best_ask) / 2.0
+    mid = (best_bid + best_ask) / 2.0
     spread_pct = (best_ask - best_bid) / mid
 
     if spread_pct > limit:
         log.warning(
             "SPREAD_WIDE | bid=%.6f ask=%.6f spread=%.4f%% > limit=%.4f%% | engellendi",
-            best_bid, best_ask, spread_pct * 100, limit * 100,
+            best_bid,
+            best_ask,
+            spread_pct * 100,
+            limit * 100,
         )
         return False, f"spread_too_wide:{spread_pct:.4f}"
     return True, ""
 
 
 # ── Faz 3: OB depth check ─────────────────────────────────────────────────
+
 
 def ob_depth_check(
     order_book: Dict[str, Any],
@@ -165,7 +176,7 @@ def ob_depth_check(
     try:
         asks = order_book.get("asks", [])
         if not asks:
-            return True, ""   # veri yoksa geç
+            return True, ""  # veri yoksa geç
         total_ask_depth = sum(float(p) * float(q) for p, q in asks[:20])
     except (TypeError, ValueError):
         return True, ""
@@ -175,13 +186,60 @@ def ob_depth_check(
     if total_ask_depth < required:
         log.warning(
             "OB_DEPTH_LOW | depth=%.2f < required=%.2f | emir=%0.2f | engellendi",
-            total_ask_depth, required, order_size,
+            total_ask_depth,
+            required,
+            order_size,
         )
         return False, f"ob_depth_insufficient:{total_ask_depth:.0f}"
     return True, ""
 
 
 # ── Faz 3: Same-bar duplicate koruması ───────────────────────────────────
+
+
+def gate_entry_cooldown(
+    symbol: str,
+    last_entry_mono: Dict[str, float],
+    cooldown_sec: float,
+) -> Tuple[bool, str]:
+    """
+    Son başarılı girişten bu yana ``cooldown_sec`` saniye geçmeden yeni BUY engellenir.
+    ``last_entry_mono``: ``{symbol: time.monotonic()}`` — BotEngine tutar.
+    ``cooldown_sec`` <= 0 → devre dışı.
+    """
+    cd = float(cooldown_sec)
+    if cd <= 0.0:
+        return True, ""
+    last = last_entry_mono.get(symbol)
+    if last is None:
+        return True, ""
+    elapsed = time.monotonic() - float(last)
+    if elapsed < cd:
+        return False, f"entry_cooldown_active:{elapsed:.1f}s<{cd:.1f}s"
+    return True, ""
+
+
+def gate_leverage_notional(
+    equity: float,
+    order_notional: float,
+    max_position_pct: float,
+    max_leverage: float,
+) -> Tuple[bool, str]:
+    """
+    Notional tavan: ``equity * max_position_pct * max_leverage`` üstünde BUY reddi.
+    AI veya omega çarpanından bağımsız son emniyet kemeri (``BotEngine`` giriş yolunda).
+    """
+    eq = max(0.0, float(equity))
+    mpp = max(0.0, min(float(max_position_pct), 1.0))
+    ml = max(0.01, min(float(max_leverage), 50.0))
+    cap = eq * mpp * ml
+    notional = max(0.0, float(order_notional))
+    if cap <= 0.0:
+        return False, "leverage_cap_zero_equity"
+    if notional > cap + 1e-6:
+        return False, f"leverage_cap_exceeded:{notional:.2f}>{cap:.2f}"
+    return True, ""
+
 
 def same_bar_guard(
     symbol: str,
@@ -199,7 +257,8 @@ def same_bar_guard(
     if last == bar_timestamp_ms:
         log.warning(
             "SAME_BAR_GUARD | %s | bar_ts=%.0f | duplicate emir engellendi",
-            symbol, bar_timestamp_ms,
+            symbol,
+            bar_timestamp_ms,
         )
         return False, "same_bar_duplicate"
     return True, ""
@@ -221,9 +280,7 @@ def gate_buy_size_and_exposure(
         return False, "size_below_min_notional"
     if size_after_corr > free_capital:
         return False, "insufficient_free_capital"
-    if not sizer.can_open(
-        size_after_corr, equity, open_positions, max_total_pct=0.80
-    ):
+    if not sizer.can_open(size_after_corr, equity, open_positions, max_total_pct=0.80):
         return False, "exposure_cap"
     if raw_size <= 0:
         return False, "raw_size_zero"

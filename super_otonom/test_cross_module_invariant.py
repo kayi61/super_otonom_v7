@@ -14,39 +14,45 @@ Beklenen: TEST FAIL → bug gerçek
 Düzeltme sonrası: TEST PASS
 """
 
-import sys, os, types, logging
+import logging
+import os
+import sys
+import types
+
 logging.disable(logging.CRITICAL)
 
 # ── Ortam hazırlığı ──────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, '/mnt/user-data/uploads')
+sys.path.insert(0, "/mnt/user-data/uploads")
 
 sys.modules.setdefault("super_otonom", types.ModuleType("super_otonom"))
 cfg = types.ModuleType("super_otonom.config")
 cfg.RISK = {
-    "max_daily_loss_pct":       0.03,
-    "max_weekly_loss_pct":      0.10,
-    "max_total_drawdown":       0.15,   # %15 drawdown → emergency
-    "max_exposure_pct":         0.95,
-    "var_confidence":           0.95,
-    "trailing_stop_pct":        0.02,
+    "max_daily_loss_pct": 0.03,
+    "max_weekly_loss_pct": 0.10,
+    "max_total_drawdown": 0.15,  # %15 drawdown → emergency
+    "max_exposure_pct": 0.95,
+    "var_confidence": 0.95,
+    "trailing_stop_pct": 0.02,
     "exposure_breach_emergency": False,
-    "max_notional_per_order":   50000.0,
-    "max_spread_pct":           0.005,
-    "min_ob_depth":             1000.0,
+    "max_notional_per_order": 50000.0,
+    "max_spread_pct": 0.005,
+    "min_ob_depth": 1000.0,
 }
 sys.modules["super_otonom.config"] = cfg
 
 import numpy as np
+
 sys.modules.setdefault("numpy", np)
 
 from capital_engine import CapitalEngine
-from risk_manager   import RiskManager
+from risk_manager import RiskManager
 
 # ── Sayaçlar ─────────────────────────────────────────────────────────────────
 PASS = 0
 FAIL = 0
 FAILURES = []
+
 
 def check(label, ok, detail=""):
     global PASS, FAIL
@@ -59,8 +65,10 @@ def check(label, ok, detail=""):
         FAILURES.append(msg)
         print(msg)
 
+
 # ── Fabrikalar ────────────────────────────────────────────────────────────────
 import tempfile
+
 
 def make_ce(cap=10000.0):
     t = tempfile.mkdtemp()
@@ -71,8 +79,10 @@ def make_ce(cap=10000.0):
         max_position_pct=1.0,
     )
 
+
 def make_rm(cap=10000.0):
     return RiskManager(initial_capital=cap)
+
 
 # ════════════════════════════════════════════════════════════════════════════
 # TEST 1: onto=None durumunda peak_equity desynk
@@ -86,7 +96,7 @@ rm = make_rm(10000.0)
 # Adım 1: pozisyon aç, NAV yükselsin
 oid = "test_order_1"
 ce.open_position("BTC/USDT", oid, 50000.0, 0.1, 5000.0)
-ce.update_unrealized({"BTC/USDT": 55000.0})   # +500 kar
+ce.update_unrealized({"BTC/USDT": 55000.0})  # +500 kar
 
 nav_peak = ce.nav  # ~10500
 check(
@@ -105,14 +115,14 @@ check(
 )
 
 # Adım 3: NAV sert düşsün — %20 drawdown
-ce.update_unrealized({"BTC/USDT": 35000.0})   # büyük zarar
+ce.update_unrealized({"BTC/USDT": 35000.0})  # büyük zarar
 nav_now = ce.nav
 real_dd = (nav_peak - nav_now) / nav_peak
 
 check(
     "T1.3 gerçek drawdown %15 üstünde",
     real_dd > 0.15,
-    f"real_dd={real_dd*100:.1f}%",
+    f"real_dd={real_dd * 100:.1f}%",
 )
 
 # Adım 4: RiskManager drawdown'ı doğru görüyor mu?
@@ -132,7 +142,7 @@ else:
 check(
     "T1.4 rm drawdown hesabı gerçek peak'e göre YANLIŞ",
     abs(rm_dd - real_dd) > 0.01,
-    f"rm_dd={rm_dd*100:.1f}% real_dd={real_dd*100:.1f}% fark={abs(rm_dd-real_dd)*100:.1f}%",
+    f"rm_dd={rm_dd * 100:.1f}% real_dd={real_dd * 100:.1f}% fark={abs(rm_dd - real_dd) * 100:.1f}%",
 )
 
 # Adım 5: Emergency tetiklenmeli miydi?
@@ -169,7 +179,7 @@ check(
 # entry=2000, qty=1 → unrealized = (price-2000)*1
 # nav = cash(8000) + margin(2000) + unrealized
 # nav < 8840 → unrealized < -1160 → price < 840
-ce2.update_unrealized({"ETH/USDT": 700.0})   # büyük zarar, %15+ dd garantili
+ce2.update_unrealized({"ETH/USDT": 700.0})  # büyük zarar, %15+ dd garantili
 nav_now2 = ce2.nav
 real_dd2 = (nav_peak2 - nav_now2) / nav_peak2
 
@@ -184,7 +194,7 @@ risk_result2 = rm2.check_risk(
 check(
     "T2.2 update_peak sonrası emergency doğru tetiklendi",
     not risk_result2,
-    f"risk_result={risk_result2} real_dd={real_dd2*100:.1f}%",
+    f"risk_result={risk_result2} real_dd={real_dd2 * 100:.1f}%",
 )
 
 check(
@@ -275,7 +285,7 @@ check(
 risk_ok = rm4.check_risk(
     current_equity=ce4.nav,
     open_exposure=ce4._margin_used,
-    current_vol=0.0,   # vol=0 → static limit kullanılır, %3 günlük kayıp
+    current_vol=0.0,  # vol=0 → static limit kullanılır, %3 günlük kayıp
 )
 
 # NAV hala pozitif, drawdown küçük → risk geçmeli
@@ -289,11 +299,11 @@ check(
 # SONUÇ
 # ════════════════════════════════════════════════════════════════════════════
 total = PASS + FAIL
-print(f"\n{'='*60}")
+print(f"\n{'=' * 60}")
 print(f"TOPLAM : {total}")
 print(f"GEÇEN  : {PASS}")
 print(f"FAIL   : {FAIL}")
-print(f"{'='*60}")
+print(f"{'=' * 60}")
 
 if FAILURES:
     print(f"\nBAŞARISIZ {len(FAILURES)} TEST:")

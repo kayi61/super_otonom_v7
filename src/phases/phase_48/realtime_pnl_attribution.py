@@ -126,9 +126,7 @@ def analyze(market_data: dict | None) -> dict:
     enabled_count = sum(1 for r in records if bool(r["enabled"]))
     disabled_count = len(records) - enabled_count
 
-    attributed_pnl = float(
-        sum(_weighted_pnl(r) for r in enabled_records)
-    )
+    attributed_pnl = float(sum(_weighted_pnl(r) for r in enabled_records))
     denom_total = max(abs(total_pnl), 1e-9)
     attribution_ratio = attributed_pnl / denom_total
 
@@ -139,15 +137,11 @@ def analyze(market_data: dict | None) -> dict:
         contrib_rows.append((int(r["phase"]), wpnl))
 
     contrib_rows.sort(key=lambda x: x[1], reverse=True)
-    top_contributors = [
-        {"phase": ph, "contribution": float(c)} for ph, c in contrib_rows[:5]
-    ]
+    top_contributors = [{"phase": ph, "contribution": float(c)} for ph, c in contrib_rows[:5]]
 
     # En düşük weighted PnL (en kötü katkı); negatifler doğal olarak önce gelir
     contrib_rows.sort(key=lambda x: x[1])
-    top_detractors = [
-        {"phase": ph, "contribution": float(c)} for ph, c in contrib_rows[:3]
-    ]
+    top_detractors = [{"phase": ph, "contribution": float(c)} for ph, c in contrib_rows[:3]]
 
     ablation_coverage = enabled_count / max(len(records), 1)
 

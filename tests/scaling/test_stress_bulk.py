@@ -1,4 +1,5 @@
 """Hafif stres — tekrarlı analyze, büyük mum setleri (6×10 = 60)."""
+
 from __future__ import annotations
 
 import pytest

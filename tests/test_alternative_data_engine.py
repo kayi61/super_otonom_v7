@@ -1,8 +1,8 @@
 """Faz 27 — alternative_data_engine (opsiyon akışı, dev, adoption, tokenomics)."""
+
 from __future__ import annotations
 
 import numpy as np
-
 from super_otonom.alternative_data_engine import (
     analyze_alternative_data,
     run_alternative_data_phase,
@@ -57,7 +57,10 @@ def test_alt_high_put_call_raises_skew_and_risk() -> None:
     r_low = analyze_alternative_data("L/USDT", low, {}, attach_to_analysis=False)
     r_high = analyze_alternative_data("H/USDT", high, {}, attach_to_analysis=False)
 
-    assert r_high["alternative_data"]["options_flow"]["options_skew_risk"] > r_low["alternative_data"]["options_flow"]["options_skew_risk"]
+    assert (
+        r_high["alternative_data"]["options_flow"]["options_skew_risk"]
+        > r_low["alternative_data"]["options_flow"]["options_skew_risk"]
+    )
     assert r_high["risk_score"] > r_low["risk_score"]
 
 
@@ -76,7 +79,10 @@ def test_alt_low_developer_confidence_penalty() -> None:
     r_s = analyze_alternative_data("DS/USDT", strong_dev, {}, attach_to_analysis=False)
     r_w = analyze_alternative_data("DW/USDT", weak_dev, {}, attach_to_analysis=False)
 
-    assert r_w["alternative_data"]["developer"]["low_activity_confidence_penalty"] > r_s["alternative_data"]["developer"]["low_activity_confidence_penalty"]
+    assert (
+        r_w["alternative_data"]["developer"]["low_activity_confidence_penalty"]
+        > r_s["alternative_data"]["developer"]["low_activity_confidence_penalty"]
+    )
     assert r_w["confidence"] < r_s["confidence"]
 
 
@@ -133,7 +139,10 @@ def test_alt_strong_adoption_raises_alpha() -> None:
     r_w = analyze_alternative_data("AW/USDT", weak, {}, attach_to_analysis=False)
     r_s = analyze_alternative_data("AS/USDT", strong, {}, attach_to_analysis=False)
 
-    assert r_s["alternative_data"]["adoption"]["adoption_score"] > r_w["alternative_data"]["adoption"]["adoption_score"]
+    assert (
+        r_s["alternative_data"]["adoption"]["adoption_score"]
+        > r_w["alternative_data"]["adoption"]["adoption_score"]
+    )
     assert r_s["alpha_score"] > r_w["alpha_score"]
 
 

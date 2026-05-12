@@ -24,7 +24,6 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional
 
-
 TradePermission = Literal["HALT", "BLOCK", "ALLOW"]
 
 
@@ -85,7 +84,11 @@ def evaluate_safety_policy(
     Faz 68 — güvenlik politikası özeti.
     """
     a = analysis or {}
-    ts = int(event_ts) if isinstance(event_ts, (int, float)) and int(event_ts) > 0 else int(a.get("event_ts") or _now_ms())
+    ts = (
+        int(event_ts)
+        if isinstance(event_ts, (int, float)) and int(event_ts) > 0
+        else int(a.get("event_ts") or _now_ms())
+    )
     hl = int(a.get("half_life_ms") or half_life_ms)
     hl = max(2_000, min(300_000, hl))
 

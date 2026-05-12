@@ -4,26 +4,35 @@ test_core_modules.py
 bot_engine, analyzer, main_loop coverage testleri
 Çalıştırma: python test_core_modules.py
 """
-import sys, os, asyncio, time
+
+import asyncio
+import os
+import sys
+import time
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 PASS = 0
 FAIL = 0
+
 
 def ok(label):
     global PASS
     PASS += 1
     print(f"  ✓ {label}")
 
+
 def fail(label, err):
     global FAIL
     FAIL += 1
     print(f"  ✗ {label} → {err}")
 
+
 def section(title):
     print(f"\n── {title} ──")
+
 
 def make_candles(n=60, base_price=100.0):
     candles = []
@@ -34,13 +43,13 @@ def make_candles(n=60, base_price=100.0):
         h = p * 1.005
         lo = p * 0.995
         c = p * (1 + (0.002 if i % 3 == 0 else -0.001))
-        candles.append({
-            "timestamp": ts, "open": o, "high": h,
-            "low": lo, "close": c, "volume": 100.0 + i
-        })
+        candles.append(
+            {"timestamp": ts, "open": o, "high": h, "low": lo, "close": c, "volume": 100.0 + i}
+        )
         p = c
         ts += 300_000
     return candles
+
 
 # ══════════════════════════════════════════════════════════════════
 # 1. ANALYZER — teknik gösterge fonksiyonları
@@ -50,10 +59,17 @@ section("TEST 1: Analyzer — teknik göstergeler")
 
 try:
     from super_otonom.analyzer import (
-        _ema, _rsi, _bollinger, _atr, _volume_ratio,
-        _calculate_hurst, _rising_last_two_closes,
-        _falling_last_two_closes, detect_market_regime,
-        MarketAnalyzer, _empty
+        MarketAnalyzer,
+        _atr,
+        _bollinger,
+        _calculate_hurst,
+        _ema,
+        _empty,
+        _falling_last_two_closes,
+        _rising_last_two_closes,
+        _rsi,
+        _volume_ratio,
+        detect_market_regime,
     )
 
     # T1.1 - _ema
@@ -120,6 +136,7 @@ try:
     # T1.8 - _calculate_hurst
     try:
         import random
+
         random.seed(42)
         ts = [100.0 + i * 0.5 + random.uniform(-2, 2) for i in range(100)]
         h = _calculate_hurst(ts)
@@ -265,7 +282,9 @@ try:
         assert result["executed_price"] > 100.0
         assert 0 < result["fill_ratio"] <= 1.0
         assert result["slippage"] >= 0
-        ok(f"T3.1 BUY sim fill_ratio={result['fill_ratio']:.2f} price={result['executed_price']:.2f}")
+        ok(
+            f"T3.1 BUY sim fill_ratio={result['fill_ratio']:.2f} price={result['executed_price']:.2f}"
+        )
     except Exception as e:
         fail("T3.1", e)
 
@@ -306,12 +325,13 @@ except ImportError as e:
 section("TEST 4: TradeLogger")
 
 try:
-    from super_otonom.bot_engine import TradeLogger
     import tempfile
+
+    from super_otonom.bot_engine import TradeLogger
 
     # T4.1 - log_trade
     try:
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.log', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
             tmp_path = f.name
         logger = TradeLogger(filepath=tmp_path)
         logger.log_trade({"symbol": "BTC/USDT", "pnl": 10.5, "reason": "TAKE_PROFIT"})
@@ -347,7 +367,6 @@ try:
 
     # T5.1 - oluşturma
     try:
-        import shutil
         if os.path.exists("data/bot_state.json"):
             os.remove("data/bot_state.json")
         engine = BotEngine(capital=10000.0, paper=True)
@@ -379,8 +398,12 @@ try:
     # T5.4 - _calc_wr_rr veri var
     try:
         engine.trade_log = [
-            {"pnl": 10.0}, {"pnl": -5.0}, {"pnl": 8.0},
-            {"pnl": -3.0}, {"pnl": 12.0}, {"pnl": 6.0},
+            {"pnl": 10.0},
+            {"pnl": -5.0},
+            {"pnl": 8.0},
+            {"pnl": -3.0},
+            {"pnl": 12.0},
+            {"pnl": 6.0},
         ]
         wr2, rr2, guven2 = engine._calc_wr_rr()
         assert wr2 is not None
@@ -434,8 +457,14 @@ try:
     try:
         engine2 = BotEngine(capital=10000.0, paper=True)
         candles = make_candles(60)
-        analysis = {"signal": "HOLD", "regime": "NOISY", "volatility": 0.02,
-                    "hurst": 0.5, "rsi": 50.0, "avg_volume": 100.0}
+        analysis = {
+            "signal": "HOLD",
+            "regime": "NOISY",
+            "volatility": 0.02,
+            "hurst": 0.5,
+            "rsi": 50.0,
+            "avg_volume": 100.0,
+        }
         result2 = asyncio.run(engine2.tick("BTC/USDT", analysis, candles))
         assert result2["symbol"] == "BTC/USDT"
         assert "final_signal" in result2
@@ -521,9 +550,12 @@ section("TEST 6: MainLoop yardımcı fonksiyonlar")
 
 try:
     from super_otonom.main_loop import (
-        _circuit_breaker_open, _is_stale_data,
-        _apply_ob_safe_size, _process_tick_result,
-        _check_heartbeat, _update_adaptive_throttle
+        _apply_ob_safe_size,
+        _check_heartbeat,
+        _circuit_breaker_open,
+        _is_stale_data,
+        _process_tick_result,
+        _update_adaptive_throttle,
     )
 
     # T6.1 - _circuit_breaker_open False
@@ -577,16 +609,26 @@ try:
     try:
         mock_engine = MagicMock()
         mock_engine.status.return_value = {
-            "equity": 10000.0, "pnl_pct": 1.0, "exposure_pct": 10.0,
-            "emergency_stop": False, "hard_limits": {"orders_in_window": 0, "order_limit": 5, "window_sec": 1.0},
-            "rate_limit": {"rl_streak": 0, "rl_trip": 5}, "peak_drawdown_pct": 0.5,
-            "total_trades": 5, "total_pnl": 100.0, "emergency_code_line": "—"
+            "equity": 10000.0,
+            "pnl_pct": 1.0,
+            "exposure_pct": 10.0,
+            "emergency_stop": False,
+            "hard_limits": {"orders_in_window": 0, "order_limit": 5, "window_sec": 1.0},
+            "rate_limit": {"rl_streak": 0, "rl_trip": 5},
+            "peak_drawdown_pct": 0.5,
+            "total_trades": 5,
+            "total_pnl": 100.0,
+            "emergency_code_line": "—",
         }
         mock_engine.metrics = MagicMock()
         result6 = {
-            "final_signal": "BUY", "decision_reason": "test",
-            "ai_confidence": 0.7, "sentiment_status": "NEUTRAL",
-            "corr_multiplier": 1.0, "actions": [], "decision_context": None
+            "final_signal": "BUY",
+            "decision_reason": "test",
+            "ai_confidence": 0.7,
+            "sentiment_status": "NEUTRAL",
+            "corr_multiplier": 1.0,
+            "actions": [],
+            "decision_context": None,
         }
         _process_tick_result("BTC/USDT", result6, make_candles(10), mock_engine)
         ok("T6.6 _process_tick_result çalışıyor")
@@ -608,7 +650,9 @@ try:
         mock_engine3.trade_log = []
         ob_empty = {"asks": [], "bids": []}
         analysis = {}
-        _apply_ob_safe_size(mock_engine3, "BTC/USDT", ob_empty, make_candles(10), analysis, 0.02, 0.6)
+        _apply_ob_safe_size(
+            mock_engine3, "BTC/USDT", ob_empty, make_candles(10), analysis, 0.02, 0.6
+        )
         assert "ob_safe_size" not in analysis
         ok("T6.8 _apply_ob_safe_size boş ob → ob_safe_size yok")
     except Exception as e:
@@ -629,10 +673,16 @@ try:
     try:
         mock_engine5 = MagicMock()
         mock_engine5.status.return_value = {
-            "equity": 10000.0, "pnl_pct": 1.0, "exposure_pct": 10.0,
-            "emergency_stop": False, "hard_limits": {"orders_in_window": 0, "order_limit": 5, "window_sec": 1.0},
-            "rate_limit": {"rl_streak": 0, "rl_trip": 5}, "peak_drawdown_pct": 0.0,
-            "total_trades": 1, "total_pnl": 50.0, "emergency_code_line": "—"
+            "equity": 10000.0,
+            "pnl_pct": 1.0,
+            "exposure_pct": 10.0,
+            "emergency_stop": False,
+            "hard_limits": {"orders_in_window": 0, "order_limit": 5, "window_sec": 1.0},
+            "rate_limit": {"rl_streak": 0, "rl_trip": 5},
+            "peak_drawdown_pct": 0.0,
+            "total_trades": 1,
+            "total_pnl": 50.0,
+            "emergency_code_line": "—",
         }
         mock_engine5.metrics = MagicMock()
         result10 = {
@@ -642,7 +692,7 @@ try:
             "sentiment_status": "N/A",
             "corr_multiplier": 0.8,
             "actions": [{"type": "BUY", "price": 100.0, "symbol": "BTC/USDT"}],
-            "decision_context": None
+            "decision_context": None,
         }
         _process_tick_result("BTC/USDT", result10, make_candles(10), mock_engine5)
         ok("T6.10 _process_tick_result actions ile çalışıyor")
@@ -747,12 +797,12 @@ except ImportError as e:
 
 total = PASS + FAIL
 print(f"""
-{'='*60}
+{"=" * 60}
 TOPLAM : {total}
 GEÇEN  : {PASS}
 FAIL   : {FAIL}
-{'='*60}
-{'✓ TÜM TESTLER GEÇTİ' if FAIL == 0 else f'✗ {FAIL} TEST BAŞARISIZ'}
+{"=" * 60}
+{"✓ TÜM TESTLER GEÇTİ" if FAIL == 0 else f"✗ {FAIL} TEST BAŞARISIZ"}
 """)
 
 if FAIL > 0:

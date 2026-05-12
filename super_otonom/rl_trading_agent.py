@@ -306,7 +306,7 @@ def analyze_rl_agent(
 
     # Uzman üçlü anlaşmazlığı (trend, mr, bo)
     tri = [v_trend, v_mr, v_bo]
-    tc = { -1: tri.count(-1), 0: tri.count(0), 1: tri.count(1)}
+    tc = {-1: tri.count(-1), 0: tri.count(0), 1: tri.count(1)}
     pt = np.array([tc[-1], tc[0], tc[1]], dtype=float) / 3.0
     pt = np.maximum(pt, _EPS)
     pt /= np.sum(pt)
@@ -344,12 +344,18 @@ def analyze_rl_agent(
         alpha_01 = _clamp01(alpha_01 * 0.32)
 
     conf_base = _clamp01(
-        0.24 + 0.38 * (1.0 - disagree_three) + 0.22 * (1.0 - disagree_experts) + 0.16 * (1.0 - ent_norm)
+        0.24
+        + 0.38 * (1.0 - disagree_three)
+        + 0.22 * (1.0 - disagree_experts)
+        + 0.16 * (1.0 - ent_norm)
     )
     conf = _clamp01(conf_base * (0.42 + 0.58 * (1.0 - disagree_experts)))
 
     dh = _clamp01(
-        0.27 + 0.33 * (1.0 - ent_norm) + 0.22 * (1.0 - disagree_three) + 0.18 * min(1.0, ret.size / 96.0)
+        0.27
+        + 0.33 * (1.0 - ent_norm)
+        + 0.22 * (1.0 - disagree_three)
+        + 0.18 * min(1.0, ret.size / 96.0)
     )
 
     perm: TradePermission = "ALLOW"
@@ -389,7 +395,10 @@ def analyze_rl_agent(
                 "mean_revert": int(v_mr),
                 "breakout": int(v_bo),
             },
-            "vote_labels": {k: action_to_label(v) for k, v in zip(("ppo", "trend", "mean_revert", "breakout"), votes_all)},
+            "vote_labels": {
+                k: action_to_label(v)
+                for k, v in zip(("ppo", "trend", "mean_revert", "breakout"), votes_all)
+            },
             "majority_vote_sign": int(maj_eff),
             "disagreement_all": float(disagree_three),
             "disagreement_experts": float(disagree_experts),

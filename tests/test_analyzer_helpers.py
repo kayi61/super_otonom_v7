@@ -1,4 +1,5 @@
 """Analyzer yardımcı fonksiyonları — veri/gösterge kenar durumları."""
+
 from __future__ import annotations
 
 from unittest import mock
@@ -84,8 +85,8 @@ def test_rsi_avg_loss_zero_returns_100() -> None:
 
 @pytest.mark.filterwarnings("ignore:divide by zero encountered in log:RuntimeWarning")
 def test_calculate_hurst_exception_returns_half() -> None:
-    """136-137."""
-    ts = [float(i) for i in range(40)]
+    """Hurst min uzunluk sonrası polyfit hatası → nötr."""
+    ts = [float(i) for i in range(55)]
     with mock.patch("super_otonom.analyzer.np.polyfit", side_effect=RuntimeError("x")):
         assert _calculate_hurst(ts) == 0.5
 
@@ -138,7 +139,10 @@ def test_analyze_market_state_mean_reverting_and_sideways(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """358-362: MEAN_REVERTING / SIDEWAYS / NEUTRAL."""
-    flat = [{"open": 100.0, "high": 100.02, "low": 99.98, "close": 100.0, "volume": 1.0} for _ in range(50)]
+    flat = [
+        {"open": 100.0, "high": 100.02, "low": 99.98, "close": 100.0, "volume": 1.0}
+        for _ in range(50)
+    ]
 
     monkeypatch.setattr("super_otonom.analyzer._calculate_hurst", lambda ts: 0.40)
     monkeypatch.setattr("super_otonom.analyzer._rsi", lambda c, p=14: 50.0)
@@ -157,7 +161,10 @@ def test_analyze_market_state_mean_reverting_and_sideways(
 
 def test_analyze_regime_mean_reverting_hold_copy() -> None:
     """377-380."""
-    flat = [{"open": 100.0, "high": 100.02, "low": 99.98, "close": 100.0, "volume": 1.0} for _ in range(50)]
+    flat = [
+        {"open": 100.0, "high": 100.02, "low": 99.98, "close": 100.0, "volume": 1.0}
+        for _ in range(50)
+    ]
 
     with mock.patch("super_otonom.analyzer._calculate_hurst", return_value=0.40):
         r = MarketAnalyzer().analyze("S", flat)

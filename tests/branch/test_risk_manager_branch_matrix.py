@@ -3,6 +3,7 @@ RiskManager check_risk — 4×4×4×4 parametrik matris + exposure katmanı (≥
 
 Her eksen 0..3: artan baskı katsayısı (dal kapsamı).
 """
+
 from __future__ import annotations
 
 import pytest
@@ -40,9 +41,7 @@ def _fill_rm(rm: RiskManager, di: int, wi: int, ddi: int, ei: int) -> tuple[floa
 @pytest.mark.parametrize("wi", LEVELS)
 @pytest.mark.parametrize("ddi", LEVELS)
 @pytest.mark.parametrize("ei", LEVELS)
-def test_check_risk_matrix_static_daily_branch(
-    di: int, wi: int, ddi: int, ei: int
-) -> None:
+def test_check_risk_matrix_static_daily_branch(di: int, wi: int, ddi: int, ei: int) -> None:
     """current_vol=0 → statik günlük limit."""
     rm = RiskManager(IC)
     eq, ox = _fill_rm(rm, di, wi, ddi, ei)
@@ -72,9 +71,7 @@ def test_check_risk_matrix_static_daily_branch(
 @pytest.mark.parametrize("wi", LEVELS)
 @pytest.mark.parametrize("ddi", LEVELS)
 @pytest.mark.parametrize("ei", LEVELS)
-def test_check_risk_matrix_dynamic_daily_branch(
-    di: int, wi: int, ddi: int, ei: int
-) -> None:
+def test_check_risk_matrix_dynamic_daily_branch(di: int, wi: int, ddi: int, ei: int) -> None:
     """Düşük vol → dinamik günlük limit (check_dynamic_risk)."""
     rm = RiskManager(IC)
     eq, ox = _fill_rm(rm, di, wi, ddi, ei)

@@ -1,4 +1,5 @@
 """Faz 35 — meta_learning_engine (CUSUM, MAML proxy, rollback, sürüm)."""
+
 from __future__ import annotations
 
 import ast
@@ -6,7 +7,6 @@ import time
 from pathlib import Path
 
 import numpy as np
-
 from super_otonom.meta_learning_engine import analyze_meta_learning, run_meta_learning_phase
 
 
@@ -92,7 +92,9 @@ def test_meta_maml_gain_in_unit_interval() -> None:
     """6. MAML adaptasyon kazancı [0,1]."""
     np.random.seed(42)
     loss = np.abs(np.random.randn(80) * 0.05 + 0.2).tolist()
-    r = analyze_meta_learning("M/USDT", {"loss_series": loss, "deployed_at_ms": time.time() * 1000}, {})
+    r = analyze_meta_learning(
+        "M/USDT", {"loss_series": loss, "deployed_at_ms": time.time() * 1000}, {}
+    )
 
     g = r["meta_learning"]["maml_adaptation_gain"]
     assert isinstance(g, float)

@@ -22,7 +22,6 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional
 
-
 TradePermission = Literal["HALT", "BLOCK", "ALLOW"]
 FinalAction = Literal["ENTER", "WAIT", "EXIT", "HEDGE", "HALT"]
 ExecutionProfile = Literal["maker", "taker", "twap"]
@@ -239,7 +238,7 @@ def decide_autonomously(
 
     exec_pref = str(_get(phase76, "preferred_order_type", "unknown"))
     slippage_risk = _clamp100(_get(phase76, "slippage_risk", 0))
-    urgency = _clamp100(_get(phase76, "urgency_score", 0))
+    _urgency = _clamp100(_get(phase76, "urgency_score", 0))
 
     hunt_risk = _clamp100(_get(phase77, "hunt_risk_score", 0))
     stop_hint = str(_get(phase77, "stop_placement_hint", "unknown"))
@@ -345,7 +344,13 @@ def decide_autonomously(
     if risk_gate < 48:
         size_mult *= 0.72
     # small boost if very clean
-    if alpha_score >= 70 and risk_score <= 40 and confidence_01 >= 0.70 and freshness >= 65 and not mtf_conflict:
+    if (
+        alpha_score >= 70
+        and risk_score <= 40
+        and confidence_01 >= 0.70
+        and freshness >= 65
+        and not mtf_conflict
+    ):
         size_mult *= 1.10
     position_size_multiplier = float(max(0.0, min(1.50, round(size_mult, 3))))
 
@@ -431,4 +436,3 @@ def decide_autonomously(
         leader_venue=leader_v,
         block_reason=block_reason,
     )
-

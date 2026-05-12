@@ -219,7 +219,9 @@ def _nlp_sentiment_01(d: Dict[str, Any], text: str) -> float:
 
 
 def _macro_risk_score(text: str, categories: Set[str]) -> float:
-    hit = bool(_MACRO_FED_CPI.search(text)) or bool(categories & {"fed", "cpi", "macro", "fomc", "inflation"})
+    hit = bool(_MACRO_FED_CPI.search(text)) or bool(
+        categories & {"fed", "cpi", "macro", "fomc", "inflation"}
+    )
     return 0.72 if hit else 0.22
 
 

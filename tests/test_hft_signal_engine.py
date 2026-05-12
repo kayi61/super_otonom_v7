@@ -1,11 +1,11 @@
 """Faz 28 — hft_signal_engine (tick/OHLCV, VWAP, fat-tail, mikro momentum)."""
+
 from __future__ import annotations
 
 import ast
 from pathlib import Path
 
 import numpy as np
-
 import super_otonom.hft_signal_engine as hft_mod
 from super_otonom.hft_signal_engine import analyze_hft_signal, run_hft_signal_phase
 
@@ -40,7 +40,9 @@ def test_hft_fat_tail_blocks() -> None:
     base = np.random.randn(90) * 0.0008
     base = np.concatenate([base, np.array([0.06, -0.055, 0.052, -0.048, 0.05])])
     prices = 100 * np.exp(np.cumsum(np.concatenate([[0], base])))
-    ticks = [{"price": float(prices[i]), "ts": float(i * 80), "size": 1.0} for i in range(len(prices))]
+    ticks = [
+        {"price": float(prices[i]), "ts": float(i * 80), "size": 1.0} for i in range(len(prices))
+    ]
     r = analyze_hft_signal("FT/USDT", {"ticks": ticks}, {}, attach_to_analysis=False)
 
     assert r["hft_signal"]["queue_tail_risk"]["fat_tail_detected"] is True
@@ -61,7 +63,9 @@ def test_hft_high_vwap_deviation_raises_risk() -> None:
     ticks_high = [{"price": float(p_spike[i]), "ts": float(i * 100), "size": 1.0} for i in range(n)]
     r_high = analyze_hft_signal("V2/USDT", {"ticks": ticks_high}, {}, attach_to_analysis=False)
 
-    assert r_high["hft_signal"]["vwap_deviation_score"] > r_low["hft_signal"]["vwap_deviation_score"]
+    assert (
+        r_high["hft_signal"]["vwap_deviation_score"] > r_low["hft_signal"]["vwap_deviation_score"]
+    )
     assert r_high["risk_score"] > r_low["risk_score"]
 
 
@@ -71,11 +75,15 @@ def test_hft_strong_micro_momentum_high_alpha() -> None:
     n = 120
     flat = 100 + np.random.randn(n) * 0.01
     ticks_flat = [{"price": float(flat[i]), "ts": float(i * 50), "size": 1.0} for i in range(n)]
-    r_flat = analyze_hft_signal("M1/USDT", {"ticks": ticks_flat, "micro_N": 32}, {}, attach_to_analysis=False)
+    r_flat = analyze_hft_signal(
+        "M1/USDT", {"ticks": ticks_flat, "micro_N": 32}, {}, attach_to_analysis=False
+    )
 
     trend = 100 + np.arange(n, dtype=float) * 0.08
     ticks_trend = [{"price": float(trend[i]), "ts": float(i * 50), "size": 1.0} for i in range(n)]
-    r_trend = analyze_hft_signal("M2/USDT", {"ticks": ticks_trend, "micro_N": 32}, {}, attach_to_analysis=False)
+    r_trend = analyze_hft_signal(
+        "M2/USDT", {"ticks": ticks_trend, "micro_N": 32}, {}, attach_to_analysis=False
+    )
 
     assert r_trend["alpha_score"] > r_flat["alpha_score"]
     assert r_trend["hft_signal"]["micro_momentum_heat"] > 0.65

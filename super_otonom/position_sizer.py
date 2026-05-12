@@ -5,28 +5,29 @@ PositionSizer v5.1
 ─────────────────────────────────────────────────────────────────────────────
 v5   → Slippage + Order Book entegrasyonu (calculate_with_slippage)
 v5.1 → 3 Katmanlı Güvenlik Filtresi (validate_and_calculate):
-         1. Zaman Senkronizasyonu  : 500ms'den eski mum = işlem yok
+         1. Zaman Senkronizasyonu  : son mum çok eskiyse işlem yok (POSITION_SIZER_MAX_DATA_AGE_MS, varsayılan 5 dk)
          2. Order Book Imbalance   : bid/ask < 0.3 → flash crash riski = işlem yok
          3. Fractional Kelly       : ham boyutun %70'i kullan (overfitting koruması)
 """
 
 import logging
 import math
+import os
 import time
 from typing import Dict, List, Optional
 
 log = logging.getLogger("super_otonom.position_sizer")
 
-_KELLY_MIN_TRADES  = 5
-_KELLY_FRACTION    = 0.5
-_KELLY_MAX         = 0.30
-_KELLY_FALLBACK    = 0.15
+_KELLY_MIN_TRADES = 5
+_KELLY_FRACTION = 0.5
+_KELLY_MAX = 0.30
+_KELLY_FALLBACK = 0.15
 
-# v5.1 sabitleri
-_MAX_CANDLE_AGE_MS = 5000    # ms cinsinden max mum yaşı
-_MIN_BID_IMBALANCE = 0.3    # bid/ask hacim oranı eşiği
-_KELLY_SAFETY_MULT = 0.70   # Fractional Kelly çarpanı
-_IMBALANCE_DEPTH   = 5      # Kaç order book katmanı değerlendirilsin
+# v5.1 — ZAMAN_KAYMASI: son mum / kline yaşı (ms). 5000ms REST 1H için fazla sıkıydı.
+_MAX_DATA_AGE_MS = float(os.getenv("POSITION_SIZER_MAX_DATA_AGE_MS", "300000"))
+_MIN_BID_IMBALANCE = 0.3  # bid/ask hacim oranı eşiği
+_KELLY_SAFETY_MULT = 0.70  # Fractional Kelly çarpanı
+_IMBALANCE_DEPTH = 5  # Kaç order book katmanı değerlendirilsin
 
 
 class PositionSizer:
@@ -52,9 +53,9 @@ class PositionSizer:
         target_vol: float = 0.015,
     ):
         self.max_position_pct = max_position_pct
-        self.min_notional     = min_notional
-        self.max_leverage     = max_leverage
-        self.target_vol       = target_vol
+        self.min_notional = min_notional
+        self.max_leverage = max_leverage
+        self.target_vol = target_vol
         self._portfolio_weights: Dict[str, float] = {}
         self._trade_log: list = []
 
@@ -76,25 +77,27 @@ class PositionSizer:
         if len(recent) < _KELLY_MIN_TRADES:
             log.debug(
                 "Kelly: yetersiz ornek (%d < %d), fallback=%.2f",
-                len(recent), _KELLY_MIN_TRADES, _KELLY_FALLBACK,
+                len(recent),
+                _KELLY_MIN_TRADES,
+                _KELLY_FALLBACK,
             )
             return _KELLY_FALLBACK
 
-        wins   = [t.get("pnl", 0) for t in recent if t.get("pnl", 0) > 0]
+        wins = [t.get("pnl", 0) for t in recent if t.get("pnl", 0) > 0]
         losses = [abs(t.get("pnl", 0)) for t in recent if t.get("pnl", 0) <= 0]
 
         if not wins or not losses:
             return _KELLY_FALLBACK
 
         win_rate = len(wins) / len(recent)
-        avg_win  = sum(wins) / len(wins)
+        avg_win = sum(wins) / len(wins)
         avg_loss = sum(losses) / len(losses)
 
         if avg_loss <= 0:
             return _KELLY_FALLBACK
 
-        r      = avg_win / avg_loss
-        kelly  = win_rate - (1 - win_rate) / r
+        r = avg_win / avg_loss
+        kelly = win_rate - (1 - win_rate) / r
         result = max(0.0, min(kelly * _KELLY_FRACTION, _KELLY_MAX))
         log.debug("Kelly: wr=%.2f r=%.2f raw=%.3f half=%.3f", win_rate, r, kelly, result)
         return result
@@ -119,23 +122,24 @@ class PositionSizer:
             weight = self._portfolio_weights.get(symbol, 1.0 / n)
         weight = max(0.01, min(weight, 0.60))
 
-        kelly       = self._kelly_fraction()
+        kelly = self._kelly_fraction()
         conf_scalar = 0.5 + ai_conf * 0.5
-        raw         = equity * weight * kelly * conf_scalar
+        raw = equity * weight * kelly * conf_scalar
 
-        vol        = max(volatility, 0.0001)
+        vol = max(volatility, 0.0001)
         vol_scalar = min(1.0, self.target_vol / vol)
-        sized      = raw * vol_scalar
+        sized = raw * vol_scalar
 
-        n            = max(len(self._portfolio_weights), 1)
+        n = max(len(self._portfolio_weights), 1)
         weight_ratio = weight / (1.0 / n)
-        cap          = equity * self.max_position_pct * self.max_leverage * weight_ratio
-        final        = min(sized, cap)
+        cap = equity * self.max_position_pct * self.max_leverage * weight_ratio
+        final = min(sized, cap)
 
         if final < self.min_notional:
             log.debug(
                 "PositionSizer: size=%.2f < min_notional=%.2f, 0 donuyor",
-                final, self.min_notional,
+                final,
+                self.min_notional,
             )
             return 0.0
 
@@ -153,7 +157,7 @@ class PositionSizer:
         equity: float,
         order_book: Dict[str, List],
         last_candle_ts: float,
-        max_candle_age_ms: float = _MAX_CANDLE_AGE_MS,
+        max_candle_age_ms: float = _MAX_DATA_AGE_MS,
         min_bid_imbalance: float = _MIN_BID_IMBALANCE,
         kelly_safety: float = _KELLY_SAFETY_MULT,
         **kwargs,
@@ -175,7 +179,7 @@ class PositionSizer:
 
         Args:
             last_candle_ts    : Son mumun ms cinsinden Unix timestamp'i
-            max_candle_age_ms : Maksimum izin verilen gecikme (varsayılan: 500ms)
+            max_candle_age_ms : Maksimum izin verilen gecikme (varsayılan: env POSITION_SIZER_MAX_DATA_AGE_MS veya 300000 ms)
             min_bid_imbalance : Minimum bid/ask hacim oranı (varsayılan: 0.30)
             kelly_safety      : Fractional Kelly çarpanı (varsayılan: 0.70)
             **kwargs          : calculate() 'e iletilir (volatility, ai_conf vb.)
@@ -194,7 +198,9 @@ class PositionSizer:
             log.error(
                 "ZAMAN_KAYMASI: symbol=%s | veri=%.0fms gecikmeli (limit=%.0fms) "
                 "— islem engellendi.",
-                symbol, candle_age, max_candle_age_ms,
+                symbol,
+                candle_age,
+                max_candle_age_ms,
             )
             return 0.0
 
@@ -204,13 +210,13 @@ class PositionSizer:
 
         if not bids or not asks:
             log.warning(
-                "ORDER_BOOK_EKSIK: symbol=%s bid veya ask listesi bos "
-                "— islem engellendi.", symbol,
+                "ORDER_BOOK_EKSIK: symbol=%s bid veya ask listesi bos — islem engellendi.",
+                symbol,
             )
             return 0.0
 
-        bids_vol  = sum(float(b[1]) for b in bids[:_IMBALANCE_DEPTH])
-        asks_vol  = sum(float(a[1]) for a in asks[:_IMBALANCE_DEPTH])
+        bids_vol = sum(float(b[1]) for b in bids[:_IMBALANCE_DEPTH])
+        asks_vol = sum(float(a[1]) for a in asks[:_IMBALANCE_DEPTH])
         imbalance = bids_vol / (asks_vol + 1e-9)
 
         if imbalance < min_bid_imbalance:
@@ -218,13 +224,20 @@ class PositionSizer:
                 "FLASH_CRASH_RISKI: symbol=%s | imbalance=%.3f < %.3f "
                 "(bid_vol=%.4f ask_vol=%.4f) — Alici derinligi yetersiz, "
                 "islem engellendi.",
-                symbol, imbalance, min_bid_imbalance, bids_vol, asks_vol,
+                symbol,
+                imbalance,
+                min_bid_imbalance,
+                bids_vol,
+                asks_vol,
             )
             return 0.0
 
         log.debug(
             "Imbalance OK: symbol=%s | oran=%.3f bid=%.4f ask=%.4f",
-            symbol, imbalance, bids_vol, asks_vol,
+            symbol,
+            imbalance,
+            bids_vol,
+            asks_vol,
         )
 
         # ── KATMAN 3: Fractional Kelly (Overfitting Koruması) ─────────────────
@@ -240,14 +253,23 @@ class PositionSizer:
             log.debug(
                 "FRACTIONAL_KELLY: symbol=%s raw=%.4f * %.0f%% = %.4f < "
                 "min_notional=%.2f — sifir donuyor.",
-                symbol, raw_size, kelly_safety * 100, safe_size, self.min_notional,
+                symbol,
+                raw_size,
+                kelly_safety * 100,
+                safe_size,
+                self.min_notional,
             )
             return 0.0
 
         log.debug(
             "validate_and_calculate OK: symbol=%s | raw=%.4f safe=%.4f (%.0f%% kelly) "
             "| candle_age=%.0fms imbalance=%.3f",
-            symbol, raw_size, safe_size, kelly_safety * 100, candle_age, imbalance,
+            symbol,
+            raw_size,
+            safe_size,
+            kelly_safety * 100,
+            candle_age,
+            imbalance,
         )
         return safe_size
 
@@ -270,30 +292,28 @@ class PositionSizer:
         if raw_size <= 0 or not order_book.get("asks"):
             return raw_size
 
-        asks     = order_book["asks"]
+        asks = order_book["asks"]
         best_ask = float(asks[0][0])
         if best_ask <= 0:
             return raw_size
 
         available_liquidity = 0.0
-        total_cost          = 0.0
+        total_cost = 0.0
 
         for level in asks:
             if available_liquidity >= raw_size:
                 break
-            price  = float(level[0])
+            price = float(level[0])
             volume = float(level[1])
             needed = min(volume, raw_size - available_liquidity)
             available_liquidity += needed
-            total_cost          += needed * price
+            total_cost += needed * price
 
         if available_liquidity <= 0:
-            log.warning(
-                "PositionSizer: order_book bos veya likidite yok, symbol=%s", symbol
-            )
+            log.warning("PositionSizer: order_book bos veya likidite yok, symbol=%s", symbol)
             return 0.0
 
-        avg_price       = total_cost / available_liquidity
+        avg_price = total_cost / available_liquidity
         actual_slippage = (avg_price - best_ask) / best_ask
 
         if actual_slippage > max_allowed_slippage:
@@ -302,14 +322,19 @@ class PositionSizer:
             log.warning(
                 "PositionSizer: slippage=%.4f%% > limit=%.4f%%, boyut kisiliyor "
                 "%.4f -> %.4f | symbol=%s",
-                actual_slippage * 100, max_allowed_slippage * 100,
-                raw_size, adjusted, symbol,
+                actual_slippage * 100,
+                max_allowed_slippage * 100,
+                raw_size,
+                adjusted,
+                symbol,
             )
             return adjusted if adjusted >= self.min_notional else 0.0
 
         log.debug(
             "PositionSizer: slippage=%.4f%% kabul edildi | symbol=%s size=%.4f",
-            actual_slippage * 100, symbol, raw_size,
+            actual_slippage * 100,
+            symbol,
+            raw_size,
         )
         return raw_size
 
@@ -327,5 +352,3 @@ class PositionSizer:
     ) -> bool:
         current = self.total_exposure(open_positions)
         return (current + new_size) <= equity * max_total_pct
-
-

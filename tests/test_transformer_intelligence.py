@@ -1,11 +1,11 @@
 """Faz 32 — transformer_intelligence (NumPy dikkat, torch yok)."""
+
 from __future__ import annotations
 
 import ast
 from pathlib import Path
 
 import numpy as np
-
 from super_otonom.transformer_intelligence import (
     analyze_transformer_intelligence,
     run_transformer_phase,
@@ -38,7 +38,9 @@ def test_transformer_strong_up_trend() -> None:
     np.random.seed(42)
     ret = 0.02 + np.random.randn(80) * 0.0015
     px = 100 * np.exp(np.cumsum(ret))
-    r = analyze_transformer_intelligence("UP/USDT", {"close": px.tolist()}, {}, attach_to_analysis=False)
+    r = analyze_transformer_intelligence(
+        "UP/USDT", {"close": px.tolist()}, {}, attach_to_analysis=False
+    )
 
     assert r["transformer"]["direction"] == "UP"
     assert r["alpha_score"] >= 0.55
@@ -49,7 +51,9 @@ def test_transformer_strong_down_trend_high_risk() -> None:
     np.random.seed(42)
     ret = -0.018 + np.random.randn(80) * 0.0015
     px = 100 * np.exp(np.cumsum(ret))
-    r = analyze_transformer_intelligence("DN/USDT", {"close": px.tolist()}, {}, attach_to_analysis=False)
+    r = analyze_transformer_intelligence(
+        "DN/USDT", {"close": px.tolist()}, {}, attach_to_analysis=False
+    )
 
     assert r["transformer"]["direction"] == "DOWN"
     assert r["risk_score"] >= 0.75
@@ -60,12 +64,16 @@ def test_transformer_flat_attention_low_confidence() -> None:
     np.random.seed(42)
     ret = np.ones(80, dtype=float) * 0.008
     px = 100 * np.exp(np.cumsum(ret))
-    r = analyze_transformer_intelligence("FL/USDT", {"close": px.tolist()}, {}, attach_to_analysis=False)
+    r = analyze_transformer_intelligence(
+        "FL/USDT", {"close": px.tolist()}, {}, attach_to_analysis=False
+    )
 
     np.random.seed(42)
     ret_u = 0.022 + np.random.randn(80) * 0.001
     px_u = 100 * np.exp(np.cumsum(ret_u))
-    r_up = analyze_transformer_intelligence("CMP/USDT", {"close": px_u.tolist()}, {}, attach_to_analysis=False)
+    r_up = analyze_transformer_intelligence(
+        "CMP/USDT", {"close": px_u.tolist()}, {}, attach_to_analysis=False
+    )
 
     assert r["transformer"]["attention_uniformity"] >= 0.95
     assert r["confidence"] <= 0.22

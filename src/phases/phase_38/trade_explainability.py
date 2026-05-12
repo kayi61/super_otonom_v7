@@ -15,6 +15,8 @@ _EPS = 1e-12
 _HALF_LIFE_MS = 60_000
 
 TradePermission = Literal["ALLOW", "BLOCK", "HALT"]
+
+
 def _clip01(x: float | np.floating) -> float:
     return float(np.clip(np.asarray(x, dtype=float), 0.0, 1.0))
 
@@ -58,7 +60,14 @@ def validate_market_data(data: Any) -> Tuple[bool, str]:
     if str(fd).upper() not in ("ENTER", "WAIT", "EXIT", "HEDGE", "HALT"):
         return False, "final_decision_invalid"
 
-    required = ("phase", "alpha_score", "risk_score", "trade_permission", "confidence", "score_type")
+    required = (
+        "phase",
+        "alpha_score",
+        "risk_score",
+        "trade_permission",
+        "confidence",
+        "score_type",
+    )
     for item in po:
         if not isinstance(item, dict):
             return False, "phase_output_not_dict"
@@ -115,7 +124,9 @@ def compute_contributions(
     )
 
 
-def build_top_contributors(phases: np.ndarray, kontrib: np.ndarray, k: int = 5) -> List[Dict[str, Any]]:
+def build_top_contributors(
+    phases: np.ndarray, kontrib: np.ndarray, k: int = 5
+) -> List[Dict[str, Any]]:
     if phases.size == 0:
         return []
     order = np.argsort(-kontrib)
@@ -125,7 +136,9 @@ def build_top_contributors(phases: np.ndarray, kontrib: np.ndarray, k: int = 5) 
     return out
 
 
-def build_top_blockers(phases: np.ndarray, risk_weighted: np.ndarray, k: int = 3) -> List[Dict[str, Any]]:
+def build_top_blockers(
+    phases: np.ndarray, risk_weighted: np.ndarray, k: int = 3
+) -> List[Dict[str, Any]]:
     if phases.size == 0:
         return []
     order = np.argsort(-risk_weighted)

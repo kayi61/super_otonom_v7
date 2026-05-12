@@ -1,4 +1,5 @@
 """SentimentLayer: API, önbellek, eşikler, veto."""
+
 from __future__ import annotations
 
 import contextlib
@@ -52,9 +53,7 @@ def test_fetch_from_api_score_key() -> None:
 
 def test_fetch_from_api_error_returns_none() -> None:
     s = SentimentLayer(api_url="http://x/s")
-    with mock.patch.object(
-        slm.urllib.request, "urlopen", side_effect=OSError("e")
-    ):
+    with mock.patch.object(slm.urllib.request, "urlopen", side_effect=OSError("e")):
         assert s._fetch_from_api() is None
 
 
@@ -101,7 +100,9 @@ def test_dynamic_fallback_by_utc_hour() -> None:
 
 def test_http_import_error_sets_flag() -> None:
     """48-53: urllib.request yüklenemezse _HTTP_AVAILABLE False."""
-    urllib_stash = {k: sys.modules.pop(k) for k in list(sys.modules) if k == "urllib" or k.startswith("urllib.")}
+    urllib_stash = {
+        k: sys.modules.pop(k) for k in list(sys.modules) if k == "urllib" or k.startswith("urllib.")
+    }
     saved_sl = sys.modules.pop("super_otonom.sentiment_layer", None)
     try:
         sys.modules["urllib"] = types.ModuleType("urllib")

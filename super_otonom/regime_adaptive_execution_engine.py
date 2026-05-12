@@ -18,7 +18,6 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional
 
-
 TradePermission = Literal["HALT", "BLOCK", "ALLOW"]
 OrderType = Literal["maker", "taker", "twap", "unknown"]
 RegimeExecutionMode = Literal["trend", "range", "volatile", "crisis", "unknown"]
@@ -191,7 +190,9 @@ def infer_regime_adaptive_execution(
 
     # Scores: execution phase is mostly RISK/QUALITY; alpha is minimal.
     risk_score = _clamp100(max(slippage_risk, 100.0 * (1.0 - _clamp01(data_health))))
-    alpha_score = _clamp100(max(0.0, 40.0 - slippage_risk * 0.25 + (5.0 if regime_execution_mode == "trend" else 0.0)))
+    alpha_score = _clamp100(
+        max(0.0, 40.0 - slippage_risk * 0.25 + (5.0 if regime_execution_mode == "trend" else 0.0))
+    )
 
     # Confidence: depends on data_health and regime clarity
     confidence = _clamp01(0.25 + 0.65 * _clamp01(data_health) + 0.10 * (1.0 - spread_component))
@@ -222,4 +223,3 @@ def infer_regime_adaptive_execution(
         volatility=vol,
         liquidity_ratio=lr,
     )
-

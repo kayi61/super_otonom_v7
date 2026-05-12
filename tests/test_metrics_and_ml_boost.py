@@ -1,4 +1,5 @@
 """metrics_exporter + ml_client ek dallar (kapsam)."""
+
 from __future__ import annotations
 
 import json
@@ -41,9 +42,7 @@ def test_metrics_record_analysis_regime_branch(monkeypatch: pytest.MonkeyPatch) 
     m = MetricsExporter(port=0, namespace="t_an")
     if not m.is_active:
         pytest.skip("prometheus yok")
-    m.record_analysis(
-        {"symbol": "Z", "hurst": 0.5, "volatility": 0.1, "regime": "WEIRD_NEW"}
-    )
+    m.record_analysis({"symbol": "Z", "hurst": 0.5, "volatility": 0.1, "regime": "WEIRD_NEW"})
     gl = m._gauges.get("regime")
     if gl and hasattr(gl, "labels"):
         with mock.patch.object(gl, "labels", side_effect=RuntimeError("x")):
@@ -60,9 +59,7 @@ def test_ml_client_parse_and_inference_paths(monkeypatch: pytest.MonkeyPatch) ->
     assert b == {}
 
     async def run1():
-        with mock.patch.object(
-            c, "_sync_http_post", return_value=(b'{"score":"x"}', 1.0)
-        ):
+        with mock.patch.object(c, "_sync_http_post", return_value=(b'{"score":"x"}', 1.0)):
             r = await c.fetch_inference("S", {"signal": "HOLD"}, tick_id=1)
         assert r.error == "score_not_float"
 
@@ -71,18 +68,14 @@ def test_ml_client_parse_and_inference_paths(monkeypatch: pytest.MonkeyPatch) ->
     asyncio.run(run1())
 
     async def run2():
-        with mock.patch.object(
-            c, "_sync_http_post", side_effect=OSError("net")
-        ):
+        with mock.patch.object(c, "_sync_http_post", side_effect=OSError("net")):
             r = await c.fetch_inference("S", {"signal": "HOLD"}, tick_id=1)
         assert r.error == "OSError"
 
     asyncio.run(run2())
 
     async def run3():
-        with mock.patch.object(
-            c, "_sync_http_post", return_value=(b'{"foo":1}', 2.0)
-        ):
+        with mock.patch.object(c, "_sync_http_post", return_value=(b'{"foo":1}', 2.0)):
             r = await c.fetch_inference("S", {"signal": "HOLD"}, tick_id=1)
         assert r.error == "no_score_field"
 

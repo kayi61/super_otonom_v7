@@ -1,4 +1,5 @@
 """prometheus_client yokken bile ValueError → REGISTRY yolunu kapsar (shim)."""
+
 from __future__ import annotations
 
 import importlib

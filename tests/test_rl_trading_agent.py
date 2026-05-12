@@ -1,4 +1,5 @@
 """Faz 30 — rl_trading_agent (PPO proxy, çoklu uzman, koordinatör)."""
+
 from __future__ import annotations
 
 import ast
@@ -6,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
 import super_otonom.rl_trading_agent as rl_mod
 from super_otonom.rl_trading_agent import analyze_rl_agent, run_rl_agent_phase
 
@@ -82,13 +82,17 @@ def test_rl_ppo_uncertain_wait_low_alpha(monkeypatch: pytest.MonkeyPatch) -> Non
 
     np.random.seed(42)
     lr = np.random.randn(79) * 0.003
-    r_flat = analyze_rl_agent("WT/USDT", {"close": _closes_from_lr(lr)}, {}, attach_to_analysis=False)
+    r_flat = analyze_rl_agent(
+        "WT/USDT", {"close": _closes_from_lr(lr)}, {}, attach_to_analysis=False
+    )
 
     monkeypatch.setattr(rl_mod.TinyPPOPolicy, "forward", _orig_forward)
 
     np.random.seed(42)
     lr_up = 0.028 + np.random.randn(79) * 0.0008
-    r_buy = analyze_rl_agent("CMP/USDT", {"close": _closes_from_lr(lr_up)}, {}, attach_to_analysis=False)
+    r_buy = analyze_rl_agent(
+        "CMP/USDT", {"close": _closes_from_lr(lr_up)}, {}, attach_to_analysis=False
+    )
 
     assert r_flat["rl_agent"]["coordinated_action"] == "WAIT"
     assert r_flat["rl_agent"]["ppo_policy_uncertain"] is True
@@ -113,12 +117,16 @@ def test_rl_expert_disagreement_lowers_confidence(monkeypatch: pytest.MonkeyPatc
 
     np.random.seed(42)
     lr = np.random.randn(79) * 0.004
-    r_split = analyze_rl_agent("DIS/USDT", {"close": _closes_from_lr(lr)}, {}, attach_to_analysis=False)
+    r_split = analyze_rl_agent(
+        "DIS/USDT", {"close": _closes_from_lr(lr)}, {}, attach_to_analysis=False
+    )
 
     monkeypatch.setattr(rl_mod, "agent_trend", lambda ret: 1)
     monkeypatch.setattr(rl_mod, "agent_mean_revert", lambda ret: 1)
     monkeypatch.setattr(rl_mod, "agent_breakout", lambda ret: 1)
-    r_agree = analyze_rl_agent("AGR/USDT", {"close": _closes_from_lr(lr)}, {}, attach_to_analysis=False)
+    r_agree = analyze_rl_agent(
+        "AGR/USDT", {"close": _closes_from_lr(lr)}, {}, attach_to_analysis=False
+    )
 
     assert r_split["rl_agent"]["disagreement_experts"] > r_agree["rl_agent"]["disagreement_experts"]
     assert r_split["confidence"] < r_agree["confidence"]

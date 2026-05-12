@@ -1,4 +1,5 @@
 """Parametre taraması — detect_market_regime 0.00–0.99 (100 test)."""
+
 from __future__ import annotations
 
 import pytest

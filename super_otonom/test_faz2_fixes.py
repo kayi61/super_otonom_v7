@@ -9,9 +9,16 @@ Faz 2 (RiskOntology + RiskManager) 6 bug fix testleri:
   FIX-5: sod_nav tick gecikmesi — nav önce güncelleniyor
   FIX-6: onto=None sessiz fallback → WARNING log
 """
+
 from __future__ import annotations
-import logging, sys, os, time
+
+import logging
+import os
+import sys
+import time
+
 import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Minimal stub — gerçek modüller olmadan test
@@ -20,32 +27,33 @@ import types
 # Config stub
 cfg = types.ModuleType("super_otonom.config")
 cfg.RISK = {
-    "max_daily_loss_pct":   0.03,
-    "max_weekly_loss_pct":  0.10,
-    "max_total_drawdown":   0.15,
-    "max_exposure_pct":     0.95,
-    "var_confidence":       0.95,
-    "trailing_stop_pct":    0.02,
+    "max_daily_loss_pct": 0.03,
+    "max_weekly_loss_pct": 0.10,
+    "max_total_drawdown": 0.15,
+    "max_exposure_pct": 0.95,
+    "var_confidence": 0.95,
+    "trailing_stop_pct": 0.02,
     "exposure_breach_emergency": False,
 }
 sys.modules["super_otonom"] = types.ModuleType("super_otonom")
 sys.modules["super_otonom.config"] = cfg
 
-import numpy as np
+from risk_manager import RiskManager
 from risk_ontology import RiskOntology
-from risk_manager  import RiskManager
-
 
 # ── Yardımcılar ───────────────────────────────────────────────────────────────
+
 
 def make_onto(nav=10_000.0):
     return RiskOntology(initial_nav=nav)
 
+
 def make_rm(capital=10_000.0):
     return RiskManager(initial_capital=capital)
 
+
 def make_rm_with_onto(capital=10_000.0):
-    rm   = make_rm(capital)
+    rm = make_rm(capital)
     onto = make_onto(capital)
     rm.set_ontology(onto)
     return rm, onto
@@ -55,8 +63,8 @@ def make_rm_with_onto(capital=10_000.0):
 # FIX-5: sod_nav tick gecikmesi
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestSodNavTiming:
 
+class TestSodNavTiming:
     def test_sod_nav_uses_current_nav_on_reset(self):
         """
         Gün sıfırlandığında sod_nav güncel nav'ı almalı, bir tick öncekini değil.
@@ -99,8 +107,8 @@ class TestSodNavTiming:
 # FIX-4: VaR minimum history
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestVaRMinHistory:
 
+class TestVaRMinHistory:
     def test_var_zero_below_100_samples(self):
         """99 örnekle VaR sıfır dönmeli."""
         onto = make_onto(10_000)
@@ -111,7 +119,7 @@ class TestVaRMinHistory:
     def test_var_nonzero_at_100_samples(self):
         """100 örnekle VaR hesaplanmalı."""
         onto = make_onto(10_000)
-        for i in range(1, 101):   # 1'den başla — delta=0 atlanıyor
+        for i in range(1, 101):  # 1'den başla — delta=0 atlanıyor
             onto.update(nav=10_000, realized_pnl_delta=float(-i * 10))
         assert onto.var_1d != 0.0
 
@@ -119,8 +127,8 @@ class TestVaRMinHistory:
         """200 örnekle VaR makul bir negatif değer olmalı."""
         onto = make_onto(10_000)
         losses = [-abs(x) for x in range(1, 201)]
-        for l in losses:
-            onto.update(nav=10_000, realized_pnl_delta=l)
+        for loss in losses:
+            onto.update(nav=10_000, realized_pnl_delta=loss)
         # VaR negatif olmalı (kayıp senaryosu)
         assert onto.var_1d < 0
 
@@ -129,8 +137,8 @@ class TestVaRMinHistory:
 # FIX-2: check_dynamic_risk payda
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestDynamicRiskDenominator:
 
+class TestDynamicRiskDenominator:
     def test_dynamic_risk_uses_current_equity(self):
         """
         initial_capital=10000, current_equity=20000 (büyük kâr sonrası).
@@ -174,8 +182,8 @@ class TestDynamicRiskDenominator:
 # FIX-1: Çift state — record_pnl onto senkronizasyonu
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestDoubleStateFix:
 
+class TestDoubleStateFix:
     def test_record_pnl_feeds_onto_pnl_history(self):
         """record_pnl çağrıldığında onto._pnl_history de dolmalı."""
         rm, onto = make_rm_with_onto(10_000)
@@ -208,8 +216,8 @@ class TestDoubleStateFix:
 # FIX-6: onto=None sessiz fallback → WARNING
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestOntoNoneWarning:
 
+class TestOntoNoneWarning:
     def test_warn_if_onto_missing_logs_warning(self, caplog):
         """onto=None iken check_risk WARNING log üretmeli."""
         rm = make_rm(10_000)
@@ -226,7 +234,7 @@ class TestOntoNoneWarning:
 
     def test_set_ontology_logs_info(self, caplog):
         """set_ontology() INFO log üretmeli."""
-        rm   = make_rm(10_000)
+        rm = make_rm(10_000)
         onto = make_onto(10_000)
         with caplog.at_level(logging.INFO, logger="super_otonom.risk"):
             rm.set_ontology(onto)
@@ -237,13 +245,13 @@ class TestOntoNoneWarning:
 # RiskOntology genel doğruluk
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestRiskOntologyGeneral:
 
+class TestRiskOntologyGeneral:
     def test_daily_loss_pct_never_negative(self):
         """NAV artarsa daily_loss_pct sıfır kalmalı (negatife düşmemeli)."""
         onto = make_onto(10_000)
         onto.update(nav=10_000)
-        onto.update(nav=11_000)   # kâr — kayıp yok
+        onto.update(nav=11_000)  # kâr — kayıp yok
         assert onto.daily_loss_pct == pytest.approx(0.0)
 
     def test_peak_nav_monotonically_increases(self):
@@ -266,30 +274,39 @@ class TestRiskOntologyGeneral:
         onto = make_onto(10_000)
         onto.update(nav=10_000)
         onto.dynamic_daily_limit = 0.03
-        onto.update(nav=9_600)   # %4 kayıp > %3 limit
+        onto.update(nav=9_600)  # %4 kayıp > %3 limit
         assert onto.is_daily_limit_breached() is True
 
     def test_is_drawdown_breached(self):
         """dd >= 0.15 → True."""
         onto = make_onto(10_000)
         onto.update(nav=10_000)
-        onto.update(nav=8_400)   # %16 dd
+        onto.update(nav=8_400)  # %16 dd
         assert onto.is_drawdown_breached(max_dd=0.15) is True
 
     def test_snapshot_keys(self):
         onto = make_onto(10_000)
         snap = onto.snapshot()
-        for key in ["nav", "sod_nav", "peak_nav", "intraday_dd_pct",
-                    "daily_loss_pct", "weekly_loss_pct", "var_1d",
-                    "gross_exp", "net_exp", "exp_pct"]:
+        for key in [
+            "nav",
+            "sod_nav",
+            "peak_nav",
+            "intraday_dd_pct",
+            "daily_loss_pct",
+            "weekly_loss_pct",
+            "var_1d",
+            "gross_exp",
+            "net_exp",
+            "exp_pct",
+        ]:
             assert key in snap
 
     def test_round_trip(self):
         """to_dict / from_dict round-trip."""
         onto = make_onto(10_000)
         onto.update(nav=10_500)
-        d    = onto.to_dict()
+        d = onto.to_dict()
         onto2 = RiskOntology.from_dict(d)
-        assert onto2.nav      == pytest.approx(onto.nav)
-        assert onto2.sod_nav  == pytest.approx(onto.sod_nav)
+        assert onto2.nav == pytest.approx(onto.nav)
+        assert onto2.sod_nav == pytest.approx(onto.sod_nav)
         assert onto2.peak_nav == pytest.approx(onto.peak_nav)

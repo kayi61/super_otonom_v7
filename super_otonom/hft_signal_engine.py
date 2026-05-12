@@ -82,7 +82,9 @@ def _float_list(seq: Sequence[Any], min_len: int) -> Optional[np.ndarray]:
     return np.asarray(out, dtype=float)
 
 
-def _extract_ticks_from_dict(d: Dict[str, Any]) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+def _extract_ticks_from_dict(
+    d: Dict[str, Any],
+) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
     ticks = d.get("ticks") or d.get("tick_stream") or d.get("trades")
     if isinstance(ticks, list) and len(ticks) >= _MIN_SAMPLES:
         ps: List[float] = []
@@ -233,7 +235,9 @@ def _session_fraction(timestamps_ms: np.ndarray) -> np.ndarray:
     return (timestamps_ms - t0) / span
 
 
-def _intraday_pattern_scores(timestamps_ms: np.ndarray, prices: np.ndarray) -> Tuple[float, float, float, float]:
+def _intraday_pattern_scores(
+    timestamps_ms: np.ndarray, prices: np.ndarray
+) -> Tuple[float, float, float, float]:
     """Açılış / öğle / kapanış bölgelerinde ortalama tick getirisi (normalize)."""
     if len(prices) < 3:
         return 0.0, 0.0, 0.0, 0.0
@@ -241,7 +245,11 @@ def _intraday_pattern_scores(timestamps_ms: np.ndarray, prices: np.ndarray) -> T
     frac = _session_fraction(timestamps_ms)
     fr = frac[1:]
     open_m = float(np.mean(ret[fr < 0.15])) if np.any(fr < 0.15) else 0.0
-    lunch_m = float(np.mean(ret[(fr >= 0.35) & (fr <= 0.65)])) if np.any((fr >= 0.35) & (fr <= 0.65)) else 0.0
+    lunch_m = (
+        float(np.mean(ret[(fr >= 0.35) & (fr <= 0.65)]))
+        if np.any((fr >= 0.35) & (fr <= 0.65))
+        else 0.0
+    )
     close_m = float(np.mean(ret[fr > 0.85])) if np.any(fr > 0.85) else 0.0
     zones = np.array([open_m, lunch_m, close_m], dtype=float)
     spread = float(np.max(zones) - np.min(zones))
@@ -278,7 +286,9 @@ def _fat_tail_metrics(returns: np.ndarray) -> Tuple[bool, float, float]:
     mu = float(np.mean(returns))
     z = np.abs(returns - mu) / sig
     exceed = float(np.mean(z > 3.0))
-    tail_prob = _clamp01(max(exceed / max(_TAIL_EXCEED_RATE, _EPS), xs / max(_TAIL_KURT_THRESHOLD, _EPS)) * 0.45)
+    tail_prob = _clamp01(
+        max(exceed / max(_TAIL_EXCEED_RATE, _EPS), xs / max(_TAIL_KURT_THRESHOLD, _EPS)) * 0.45
+    )
     fat = bool(xs > _TAIL_KURT_THRESHOLD or exceed > _TAIL_EXCEED_RATE)
     return fat, xs, tail_prob
 
@@ -334,7 +344,9 @@ def analyze_hft_signal(
     if source == "ohlcv" and d.get("bar_window_ms") is None:
         bar_ms = max(float(len(prices)) * 500.0, _DEFAULT_BAR_MS)
 
-    o, h, lo, c_bar, vwap_bars = aggregate_ticks_to_bars(prices, volumes, timestamps_ms, bar_window_ms=bar_ms)
+    o, h, lo, c_bar, vwap_bars = aggregate_ticks_to_bars(
+        prices, volumes, timestamps_ms, bar_window_ms=bar_ms
+    )
 
     cum_pv = np.cumsum(prices * volumes)
     cum_v = np.cumsum(volumes) + _EPS
@@ -385,10 +397,7 @@ def analyze_hft_signal(
         alpha_01 = _clamp01(alpha_01 * 0.28)
 
     conf = _clamp01(
-        0.26
-        + 0.34 * (1.0 - vwap_dev_risk)
-        + 0.22 * (1.0 - patt_risk_c)
-        + 0.18 * (1.0 - tail_risk)
+        0.26 + 0.34 * (1.0 - vwap_dev_risk) + 0.22 * (1.0 - patt_risk_c) + 0.18 * (1.0 - tail_risk)
     )
 
     n_eff = len(prices)

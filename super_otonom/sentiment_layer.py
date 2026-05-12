@@ -22,7 +22,8 @@ log = logging.getLogger("super_otonom.sentiment")
 
 _BEARISH_THRESHOLD = float(os.getenv("SENTIMENT_BEARISH_THRESHOLD", "0.3") or 0.3)
 _BULLISH_THRESHOLD = float(os.getenv("SENTIMENT_BULLISH_THRESHOLD", "0.7") or 0.7)
-_CACHE_TTL_SEC     = int(os.getenv("SENTIMENT_CACHE_TTL", "300") or 300)
+_CACHE_TTL_SEC = int(os.getenv("SENTIMENT_CACHE_TTL", "300") or 300)
+
 
 def _dynamic_fallback_score() -> float:
     """
@@ -48,26 +49,26 @@ def _dynamic_fallback_score() -> float:
 try:
     import json as _json
     import urllib.request
+
     _HTTP_AVAILABLE = True
 except ImportError:
     _HTTP_AVAILABLE = False
 
 
 class SentimentLayer:
-
     def __init__(
         self,
         api_url: Optional[str] = None,
         api_key: Optional[str] = None,
         mock_score: Optional[float] = None,
     ):
-        self._api_url    = api_url or os.getenv("FEAR_GREED_API_URL", "")
-        self._api_key    = api_key or os.getenv("SENTIMENT_API_KEY", "")
+        self._api_url = api_url or os.getenv("FEAR_GREED_API_URL", "")
+        self._api_key = api_key or os.getenv("SENTIMENT_API_KEY", "")
         self._mock_score = mock_score
 
         # Önbellek — yalnızca gerçek API modu için
-        self._cache:    Optional[Dict] = None
-        self._cache_ts: float          = 0.0
+        self._cache: Optional[Dict] = None
+        self._cache_ts: float = 0.0
 
     def _fetch_from_api(self) -> Optional[float]:
         if not self._api_url or not _HTTP_AVAILABLE:
@@ -91,7 +92,7 @@ class SentimentLayer:
     def get_market_sentiment(self) -> Dict:
         # FIX: Mock modda cache hiç kullanılmaz — saf hesaplama
         if self._mock_score is not None:
-            score  = float(self._mock_score)
+            score = float(self._mock_score)
             source = "mock"
             # Mock modda cache güncellemesi YAPILMAZ (önceki versiyonda gereksiz yapılıyordu)
         else:
@@ -102,10 +103,10 @@ class SentimentLayer:
 
             api_score = self._fetch_from_api()
             if api_score is not None:
-                score  = max(0.0, min(1.0, api_score))
+                score = max(0.0, min(1.0, api_score))
                 source = "api"
             else:
-                score  = _dynamic_fallback_score()
+                score = _dynamic_fallback_score()
                 source = "fallback_dynamic"
 
         if score < _BEARISH_THRESHOLD:
@@ -119,12 +120,14 @@ class SentimentLayer:
 
         # FIX: Önbelleği YALNIZCA gerçek API modunda güncelle
         if self._mock_score is None:
-            self._cache    = result
+            self._cache = result
             self._cache_ts = time.time()
 
         log.debug(
             "SentimentLayer: score=%.3f status=%s source=%s",
-            score, status, source,
+            score,
+            status,
+            source,
         )
         return result
 
@@ -135,7 +138,7 @@ class SentimentLayer:
             sentiment = self.get_market_sentiment()
 
         status = sentiment.get("status", "NEUTRAL")
-        score  = sentiment.get("score", 0.5)
+        score = sentiment.get("score", 0.5)
 
         if signal == "BUY" and status == "BEARISH_PANIC":
             reason = (

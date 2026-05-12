@@ -1,9 +1,9 @@
 """Faz 42 — whale_behavior_engine birim testleri."""
+
 from __future__ import annotations
 
 import numpy as np
 import pytest
-
 from phases.phase_42 import whale_behavior_engine as wb_mod
 from phases.phase_42.whale_behavior_engine import (
     analyze,

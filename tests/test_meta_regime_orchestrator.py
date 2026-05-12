@@ -79,9 +79,7 @@ def test_shadow_mode_does_not_change_confidence():
     """Varsayılan shadow modda güven değişmez; analysis'e meta yazılır."""
     analysis = {"omega_regime": "TRENDING"}
     chain = {"faz71": {"confidence": 0.8}, "faz80": {"confidence": 0.7}}
-    eff, payload = attach_meta_regime(
-        analysis, chain, base_confidence=0.65, mode="shadow"
-    )
+    eff, payload = attach_meta_regime(analysis, chain, base_confidence=0.65, mode="shadow")
     assert eff == pytest.approx(0.65)
     assert payload["mode"] == "shadow"
     assert payload["applied"] is False
@@ -95,9 +93,7 @@ def test_shadow_mode_does_not_change_confidence():
 
 def test_off_mode_writes_nothing_and_keeps_confidence():
     analysis: dict = {"omega_regime": "RANGING"}
-    eff, payload = attach_meta_regime(
-        analysis, {"faz72": {}}, base_confidence=0.77, mode="off"
-    )
+    eff, payload = attach_meta_regime(analysis, {"faz72": {}}, base_confidence=0.77, mode="off")
     assert eff == pytest.approx(0.77)
     assert payload["mode"] == "off"
     assert payload["applied"] is False
@@ -112,9 +108,7 @@ def test_advisory_mode_trending_lifts_within_bounds():
         "faz72": {"confidence": 0.8},  # micro 1.05
         "faz80": {"confidence": 0.7},  # exec 1.10
     }
-    eff, payload = attach_meta_regime(
-        analysis, chain, base_confidence=0.60, mode="advisory"
-    )
+    eff, payload = attach_meta_regime(analysis, chain, base_confidence=0.60, mode="advisory")
     assert payload["mode"] == "advisory"
     assert payload["applied"] is True
     # Ağırlıklı ortalama ≈ (1.05 + 1.05 + 1.10)/3 ≈ 1.0667 → bound içinde
@@ -132,9 +126,7 @@ def test_advisory_mode_crash_dampens_within_bounds():
         "faz77": {"confidence": 0.8},  # exec 0.70
         "faz80": {"confidence": 0.7},  # exec 0.70
     }
-    eff, payload = attach_meta_regime(
-        analysis, chain, base_confidence=0.80, mode="advisory"
-    )
+    eff, payload = attach_meta_regime(analysis, chain, base_confidence=0.80, mode="advisory")
     assert payload["applied"] is True
     # Aritmetik ort = 0.70 → clamp tabanı 0.92
     assert payload["weighted_mult"] == pytest.approx(0.70, abs=1e-3)
@@ -147,9 +139,7 @@ def test_advisory_unknown_regime_neutral_no_apply():
     """UNKNOWN rejim → tüm aileler 1.0 → advisory'da bile değişim yok."""
     analysis = {"omega_regime": "BULL"}  # bilinmeyen → UNKNOWN
     chain = {"faz72": {}, "faz80": {}}
-    eff, payload = attach_meta_regime(
-        analysis, chain, base_confidence=0.70, mode="advisory"
-    )
+    eff, payload = attach_meta_regime(analysis, chain, base_confidence=0.70, mode="advisory")
     assert payload["regime"] == "UNKNOWN"
     assert payload["weighted_mult"] == pytest.approx(1.0)
     assert payload["applied"] is False
@@ -158,9 +148,7 @@ def test_advisory_unknown_regime_neutral_no_apply():
 
 def test_advisory_empty_chain_no_apply():
     analysis = {"omega_regime": "TRENDING"}
-    eff, payload = attach_meta_regime(
-        analysis, {}, base_confidence=0.55, mode="advisory"
-    )
+    eff, payload = attach_meta_regime(analysis, {}, base_confidence=0.55, mode="advisory")
     assert payload["weighted_mult"] is None
     assert payload["applied"] is False
     assert eff == pytest.approx(0.55)
@@ -168,18 +156,14 @@ def test_advisory_empty_chain_no_apply():
 
 def test_compute_pure_no_side_effects():
     analysis = {"omega_regime": "TRENDING"}
-    payload = compute_meta_regime(
-        analysis, {"faz71": {}}, base_confidence=0.6, mode="shadow"
-    )
+    payload = compute_meta_regime(analysis, {"faz71": {}}, base_confidence=0.6, mode="shadow")
     assert META_REGIME_KEY not in analysis
     assert payload["regime"] == "TRENDING"
 
 
 def test_invalid_mode_falls_back_to_shadow():
     analysis = {"omega_regime": "TRENDING"}
-    eff, payload = attach_meta_regime(
-        analysis, {"faz72": {}}, base_confidence=0.6, mode="banana"
-    )
+    eff, payload = attach_meta_regime(analysis, {"faz72": {}}, base_confidence=0.6, mode="banana")
     assert payload["mode"] == "shadow"
     assert eff == pytest.approx(0.6)
 
@@ -187,9 +171,7 @@ def test_invalid_mode_falls_back_to_shadow():
 def test_env_default_mode_is_shadow(monkeypatch):
     monkeypatch.delenv("META_REGIME_MODE", raising=False)
     analysis = {"omega_regime": "CRASH_RISK"}
-    eff, payload = attach_meta_regime(
-        analysis, {"faz80": {}}, base_confidence=0.7
-    )
+    eff, payload = attach_meta_regime(analysis, {"faz80": {}}, base_confidence=0.7)
     assert payload["mode"] == "shadow"
     assert eff == pytest.approx(0.7)
 
@@ -197,9 +179,7 @@ def test_env_default_mode_is_shadow(monkeypatch):
 def test_env_advisory_mode_via_env(monkeypatch):
     monkeypatch.setenv("META_REGIME_MODE", "advisory")
     analysis = {"omega_regime": "TRENDING"}
-    eff, payload = attach_meta_regime(
-        analysis, {"faz72": {}, "faz80": {}}, base_confidence=0.5
-    )
+    eff, payload = attach_meta_regime(analysis, {"faz72": {}, "faz80": {}}, base_confidence=0.5)
     assert payload["mode"] == "advisory"
     assert eff > 0.5
 
@@ -207,9 +187,7 @@ def test_env_advisory_mode_via_env(monkeypatch):
 def test_env_off_mode_via_env(monkeypatch):
     monkeypatch.setenv("META_REGIME_MODE", "off")
     analysis: dict = {"omega_regime": "TRENDING"}
-    eff, payload = attach_meta_regime(
-        analysis, {"faz72": {}}, base_confidence=0.5
-    )
+    eff, payload = attach_meta_regime(analysis, {"faz72": {}}, base_confidence=0.5)
     assert payload["mode"] == "off"
     assert META_REGIME_KEY not in analysis
     assert eff == pytest.approx(0.5)
@@ -250,9 +228,7 @@ def test_advisory_bounds_env_clamp(monkeypatch):
     monkeypatch.setenv("META_ADVISORY_MAX", "1.05")
     analysis = {"omega_regime": "CRASH_RISK"}
     chain = {"faz80": {}}  # exec 0.70
-    eff, payload = attach_meta_regime(
-        analysis, chain, base_confidence=0.80, mode="advisory"
-    )
+    eff, payload = attach_meta_regime(analysis, chain, base_confidence=0.80, mode="advisory")
     # 0.70 < 0.95 → 0.95'e clamplenir
     assert payload["advised_confidence_mult"] == pytest.approx(0.95)
     assert eff == pytest.approx(0.80 * 0.95)
@@ -265,9 +241,7 @@ def test_advisory_blocked_when_ack_file_missing(monkeypatch, tmp_path):
     monkeypatch.setenv("META_ADVISORY_ACK_FILE", str(missing))
     analysis = {"omega_regime": "TRENDING"}
     chain = {"faz72": {}, "faz80": {}}
-    eff, payload = attach_meta_regime(
-        analysis, chain, base_confidence=0.60, mode="advisory"
-    )
+    eff, payload = attach_meta_regime(analysis, chain, base_confidence=0.60, mode="advisory")
     assert eff == pytest.approx(0.60)
     assert payload["applied"] is False
     assert payload["advisory_blocked_reason"] == "missing_measurement_ack_file"
@@ -285,9 +259,7 @@ def test_advisory_allowed_when_ack_file_present(monkeypatch, tmp_path):
         "faz72": {"confidence": 0.8},
         "faz80": {"confidence": 0.7},
     }
-    eff, payload = attach_meta_regime(
-        analysis, chain, base_confidence=0.60, mode="advisory"
-    )
+    eff, payload = attach_meta_regime(analysis, chain, base_confidence=0.60, mode="advisory")
     assert payload["advisory_blocked_reason"] is None
     assert payload["applied"] is True
     assert eff > 0.60
@@ -317,10 +289,12 @@ def test_write_meta_advisory_ack_file_unblocks_strict_advisory(monkeypatch, tmp_
     written = write_meta_advisory_ack_file(path=str(ack), operator_note="pytest A5 ok")
     assert written == str(ack.resolve())
     analysis = {"omega_regime": "TRENDING"}
-    chain = {"faz71": {"confidence": 0.8}, "faz72": {"confidence": 0.8}, "faz80": {"confidence": 0.7}}
-    eff, payload = attach_meta_regime(
-        analysis, chain, base_confidence=0.60, mode="advisory"
-    )
+    chain = {
+        "faz71": {"confidence": 0.8},
+        "faz72": {"confidence": 0.8},
+        "faz80": {"confidence": 0.7},
+    }
+    eff, payload = attach_meta_regime(analysis, chain, base_confidence=0.60, mode="advisory")
     assert payload["advisory_blocked_reason"] is None
     assert payload["applied"] is True
     assert eff > 0.60

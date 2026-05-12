@@ -1,4 +1,5 @@
 """Faz 50 — Sistem kapısı: risk_pipeline + kill_switch davranışını sarar."""
+
 from __future__ import annotations
 
 import time
@@ -50,9 +51,7 @@ def run_system_gate_phase(
     exposure = float(engine._open_exposure({symbol: price}))
     current_vol = float(analysis.get("volatility", 0.0))
 
-    if not risk_pipeline.tick_portfolio_risk(
-        engine, symbol, exposure, current_vol, dctx, out
-    ):
+    if not risk_pipeline.tick_portfolio_risk(engine, symbol, exposure, current_vol, dctx, out):
         perm = _risk_permission_from_engine(engine)
         snap = make_standard_phase_output(
             trade_permission=perm,

@@ -1,4 +1,5 @@
 """PositionSizer validate_and_calculate (Faz 1)."""
+
 from __future__ import annotations
 
 import time

@@ -1,10 +1,12 @@
 """
 bot_engine, main_loop ve paket kapsamı — ek edge-case/branch testleri.
 """
+
 from __future__ import annotations
 
 import asyncio
 import time
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,12 +14,12 @@ from super_otonom.config import RISK as CONFIG_RISK
 from super_otonom.position_sizer import PositionSizer
 from super_otonom.pre_trade_gate import gate_buy_size_and_exposure
 
+from tests.test_main_loop_96 import _MAIN_LOOP_MOCK_USDT, _patch_main_loop_recon_paths
+
 
 def test_pre_trade_raw_size_zero_blocks() -> None:
     s = PositionSizer(min_notional=1.0)
-    ok, block = gate_buy_size_and_exposure(
-        s, "R", 1_000.0, 100.0, 0.0, 1_000.0, {}
-    )
+    ok, block = gate_buy_size_and_exposure(s, "R", 1_000.0, 100.0, 0.0, 1_000.0, {})
     assert ok is False
     assert block == "raw_size_zero"
 
@@ -25,9 +27,7 @@ def test_pre_trade_raw_size_zero_blocks() -> None:
 def test_pre_trade_exposure_cap_blocks() -> None:
     s = PositionSizer(min_notional=1.0)
     heavy = {"P1": {"size": 750.0}}
-    ok, block = gate_buy_size_and_exposure(
-        s, "Z", 1_000.0, 100.0, 100.0, 1_000.0, heavy
-    )
+    ok, block = gate_buy_size_and_exposure(s, "Z", 1_000.0, 100.0, 100.0, 1_000.0, heavy)
     assert ok is False
     assert block == "exposure_cap"
 
@@ -49,9 +49,7 @@ def test_slippage_for_breaks_when_liquidity_reaches_raw() -> None:
 # ── bot_engine.tick dalları ───────────────────────────────────────────
 
 
-def test_tick_global_trade_disable(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_tick_global_trade_disable(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     from super_otonom import bot_engine as be
     from super_otonom.bot_engine import BotEngine
 
@@ -70,9 +68,7 @@ def test_tick_global_trade_disable(
     monkeypatch.delenv("GLOBAL_TRADE_DISABLE", raising=False)
 
 
-def test_tick_price_spike_new_then_emergency(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_tick_price_spike_new_then_emergency(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     from super_otonom import bot_engine as be
     from super_otonom.bot_engine import BotEngine
 
@@ -123,9 +119,7 @@ def test_tick_price_spike_ignored_with_open_position(
     assert "yoksay" in traces or "acik" in traces.lower() or "kill_switch" in traces
 
 
-def test_tick_risk_denied(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_tick_risk_denied(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     from super_otonom import bot_engine as be
     from super_otonom.bot_engine import BotEngine
 
@@ -148,9 +142,7 @@ def test_tick_risk_denied(
     assert out.get("final_signal") == "HOLD"
 
 
-def test_trend_follow_override(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_trend_follow_override(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     from super_otonom import bot_engine as be
     from super_otonom.bot_engine import BotEngine
 
@@ -183,9 +175,7 @@ def test_trend_follow_override(
     )
 
 
-def test_ai_validate_two_tuple(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_ai_validate_two_tuple(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     from super_otonom import bot_engine as be
     from super_otonom.bot_engine import BotEngine
 
@@ -211,9 +201,7 @@ def test_ai_validate_two_tuple(
     assert out.get("decision_reason", "") is not None
 
 
-def test_low_quality_buy_reject(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_low_quality_buy_reject(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     from super_otonom import bot_engine as be
     from super_otonom.bot_engine import BotEngine
 
@@ -244,9 +232,7 @@ def test_low_quality_buy_reject(
     assert "LOW_QUALITY" in (out.get("decision_reason") or "")
 
 
-def test_entry_merge_ob_zero_blocked(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_entry_merge_ob_zero_blocked(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     from super_otonom import bot_engine as be
     from super_otonom.bot_engine import BotEngine
 
@@ -278,9 +264,7 @@ def test_entry_merge_ob_zero_blocked(
     assert out.get("final_signal") in ("BUY", "HOLD")
 
 
-def test_entry_hard_limit_blocks_buy(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_entry_hard_limit_blocks_buy(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     from super_otonom import bot_engine as be
     from super_otonom.bot_engine import BotEngine
 
@@ -310,9 +294,7 @@ def test_entry_hard_limit_blocks_buy(
         return await e.tick("HL", a, c)
 
     out = asyncio.run(_t())
-    assert e.risk.emergency_stop is True or "EMERGENCY" in str(
-        out.get("decision_context") or {}
-    )
+    assert e.risk.emergency_stop is True or "EMERGENCY" in str(out.get("decision_context") or {})
 
 
 def test_reset_daily_if_needed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -337,9 +319,7 @@ def test_reset_daily_if_needed(monkeypatch: pytest.MonkeyPatch) -> None:
     assert e._today == ddate(2020, 1, 2)
 
 
-def test_tick_async_order_check_on_10th_tick(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_tick_async_order_check_on_10th_tick(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     from super_otonom import bot_engine as be
     from super_otonom.bot_engine import BotEngine
 
@@ -369,9 +349,8 @@ def test_tick_async_order_check_on_10th_tick(
     m.assert_awaited_once()
 
 
-def test_live_mode_buy_uses_slippage_not_sim(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_live_mode_buy_uses_slippage_not_sim(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import super_otonom.pre_trade_gate as ptg
     from super_otonom import bot_engine as be
     from super_otonom.bot_engine import BotEngine
 
@@ -385,8 +364,12 @@ def test_live_mode_buy_uses_slippage_not_sim(
     monkeypatch.setattr(be, "compute_omega_regime", _om)
     monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "v.json"))
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "v.log"))
+    monkeypatch.setitem(CONFIG_RISK, "max_notional_per_order", 200_000.0)
+    monkeypatch.setattr(ptg, "_MAX_NOTIONAL_PER_ORDER", 200_000.0)
+    monkeypatch.setitem(CONFIG_RISK, "signal_quality_min", 30)
     e = BotEngine(1_000_000.0, paper=False)
     e.mode = "LIVE"
+    e.risk.get_omega_effective_qmin = MagicMock(return_value=30)
     e.ai.validate_signal = lambda *_a, **_k: ("BUY", 0.99, "go")
     e.slippage.adjusted_price = lambda *_a, **_k: 99.0
     c = [{"close": 100.0, "volume": 1_000.0, "timestamp": 1}]
@@ -421,6 +404,7 @@ def test_main_loop_order_book_slippage_when_no_candles(
     mtf = dict(ml.MTF)
     mtf["enabled"] = False
     monkeypatch.setattr(ml, "MTF", mtf)
+    _patch_main_loop_recon_paths(Path(tmp_path), monkeypatch, ml)
     ts0 = int(time.time() * 1000)
     # len(row) < 6 => ohlcv_to_candles boş; tahta hâlâ var
     bad_row = [float(ts0), 1.0]
@@ -431,6 +415,9 @@ def test_main_loop_order_book_slippage_when_no_candles(
 
         async def fetch_order_book(self, *a, **k):
             return {"asks": [[1.0, 10.0]], "bids": [[0.9, 10.0]]}
+
+        async def fetch_balance(self, *a, **k):
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self):
             return {}
@@ -473,9 +460,7 @@ def test_main_loop_order_book_slippage_when_no_candles(
     asyncio.run(run())
 
 
-def test_main_loop_check_orders_every_10_loops(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_main_loop_check_orders_every_10_loops(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     import super_otonom.bot_engine as be
     import super_otonom.main_loop as ml
 
@@ -488,6 +473,10 @@ def test_main_loop_check_orders_every_10_loops(
     mtf = dict(ml.MTF)
     mtf["enabled"] = False
     monkeypatch.setattr(ml, "MTF", mtf)
+    alt_tf = dict(ml.ALT_TF)
+    alt_tf["enabled"] = False
+    monkeypatch.setattr(ml, "ALT_TF", alt_tf)
+    _patch_main_loop_recon_paths(Path(tmp_path), monkeypatch, ml)
     ts0 = int(time.time() * 1000)
     row = [float(ts0), 1.0, 1.0, 1.0, 1.0, 1.0]
     check_mock = AsyncMock()
@@ -498,6 +487,9 @@ def test_main_loop_check_orders_every_10_loops(
 
         async def fetch_order_book(self, *a, **k):
             return {"asks": [[1.0, 1.0]], "bids": [[0.99, 1.0]]}
+
+        async def fetch_balance(self, *a, **k):
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self):
             return {}
@@ -525,6 +517,9 @@ def test_main_loop_check_orders_every_10_loops(
 
         def apply_liquidity_context(self, *a, **k):
             pass
+
+        def apply_alt_timeframe_veto(self, analysis, candles_alt):
+            return None
 
     monkeypatch.setattr(ml, "MarketAnalyzer", MA)
     monkeypatch.setattr(ml, "apply_storm_trip_to_risk", lambda r: False)

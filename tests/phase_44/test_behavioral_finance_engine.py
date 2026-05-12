@@ -1,9 +1,9 @@
 """Faz 44 — behavioral_finance_engine birim testleri."""
+
 from __future__ import annotations
 
 import numpy as np
 import pytest
-
 from phases.phase_44 import behavioral_finance_engine as bf_mod
 from phases.phase_44.behavioral_finance_engine import (
     analyze,
@@ -60,7 +60,15 @@ def test_analyze_none_blocked() -> None:
 
 
 def test_short_history_invalid() -> None:
-    r = analyze({"price_history": [1] * 10, "volume_history": [1] * 10, "sentiment_score": 0.5, "rsi": 50, "funding_rate": 0})
+    r = analyze(
+        {
+            "price_history": [1] * 10,
+            "volume_history": [1] * 10,
+            "sentiment_score": 0.5,
+            "rsi": 50,
+            "funding_rate": 0,
+        }
+    )
     assert r["trade_permission"] == "BLOCK"
 
 

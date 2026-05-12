@@ -3,6 +3,7 @@ Chaos / fault injection — borsa ve döngü kenar durumları (≥100 senaryo).
 
 fetch_all_ohlcv hata, order book gecikme, KeyboardInterrupt, CB OPEN, kısmi veri.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -11,6 +12,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
+from tests.test_main_loop_96 import _MAIN_LOOP_MOCK_USDT, _patch_main_loop_recon_paths
 
 
 def _ml_common(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pairs: list[str]) -> Any:
@@ -23,6 +26,7 @@ def _ml_common(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pairs: list[str]
     monkeypatch.setattr(ml, "_POLL_INTERVAL", 0.02)
     ml._shutdown = asyncio.Event()
     ml._loop_counter = 0
+    _patch_main_loop_recon_paths(tmp_path, monkeypatch, ml)
     return ml
 
 
@@ -49,6 +53,9 @@ def test_chaos_fetch_all_ohlcv_exception_matrix(
 
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [], "bids": []}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             return {}
@@ -99,6 +106,9 @@ def test_chaos_order_book_slow_matrix(
         async def fetch_order_book(self, *a, **k) -> dict:
             await asyncio.sleep(delay_ms / 1000.0)
             return {"asks": [[1.0, 1.0]], "bids": []}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             return {}
@@ -159,6 +169,9 @@ def test_chaos_keyboard_interrupt_in_fetch_matrix(
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [], "bids": []}
 
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
+
         def circuit_breaker_status(self) -> dict:
             return {}
 
@@ -209,6 +222,9 @@ def test_chaos_circuit_breaker_open_matrix(
 
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[1.0, 1.0]], "bids": []}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             if cb_style < 2:
@@ -281,6 +297,9 @@ def test_chaos_partial_symbol_data_matrix(
 
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[1.0, 1.0]], "bids": []}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             return {}

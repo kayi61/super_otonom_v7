@@ -1,17 +1,19 @@
 """Faz 33 — adversarial_robustness (flash, pump-dump, vol, fake breakout)."""
+
 from __future__ import annotations
 
 import numpy as np
-
 from super_otonom.adversarial_robustness import (
     analyze_adversarial_robustness,
     run_adversarial_phase,
 )
 
 
-def _ohlcv_rows(o: np.ndarray, h: np.ndarray, l: np.ndarray, c: np.ndarray, v: np.ndarray) -> list:
+def _ohlcv_rows(
+    o: np.ndarray, h: np.ndarray, low: np.ndarray, c: np.ndarray, v: np.ndarray
+) -> list:
     return [
-        [i, float(o[i]), float(h[i]), float(l[i]), float(c[i]), float(v[i])]
+        [i, float(o[i]), float(h[i]), float(low[i]), float(c[i]), float(v[i])]
         for i in range(len(c))
     ]
 
@@ -41,12 +43,12 @@ def test_adversarial_flash_crash_halts() -> None:
     """3. Flash crash → flash_crash_score >= 0.42, HALT."""
     np.random.seed(42)
     c = (100 * np.exp(np.cumsum(np.random.randn(80) * 0.003))).astype(float)
-    o, h, l = c.copy(), c.copy(), c.copy()
+    o, h, low = c.copy(), c.copy(), c.copy()
     c[-1] = float(c[-2]) * float(np.exp(-0.095))
-    l[-1] = min(float(l[-1]), float(c[-2]) * 0.88)
+    low[-1] = min(float(low[-1]), float(c[-2]) * 0.88)
     r = analyze_adversarial_robustness(
         "FC/USDT",
-        {"ohlcv": _ohlcv_rows(o, h, l, c, np.ones(80) * 1e6)},
+        {"ohlcv": _ohlcv_rows(o, h, low, c, np.ones(80) * 1e6)},
         {},
         attach_to_analysis=False,
     )
@@ -65,12 +67,12 @@ def test_adversarial_pump_dump_halts() -> None:
     o = np.roll(c, 1)
     o[0] = float(c[0])
     h = np.maximum.reduce([c, o]) * 1.0005
-    l = np.minimum.reduce([c, o]) * 0.9995
+    low = np.minimum.reduce([c, o]) * 0.9995
     v = np.ones(80) * 1e6
     v[20:36] *= 8.0
     r = analyze_adversarial_robustness(
         "PD/USDT",
-        {"ohlcv": _ohlcv_rows(o, h, l, c, v)},
+        {"ohlcv": _ohlcv_rows(o, h, low, c, v)},
         {},
         attach_to_analysis=False,
     )
@@ -107,14 +109,14 @@ def test_adversarial_fake_breakout_blocks() -> None:
     o = np.roll(c, 1)
     o[0] = float(c[0])
     h = np.maximum(o, c) * 1.0003
-    l = np.minimum(o, c) * 0.9997
+    low = np.minimum(o, c) * 0.9997
     resist = float(np.max(c[-28:-4]))
     h[-1] = max(float(h[-1]), resist * 1.008)
     c[-1] = resist * 0.998
-    l[-1] = min(float(l[-1]), float(c[-1]) * 0.999)
+    low[-1] = min(float(low[-1]), float(c[-1]) * 0.999)
     r = analyze_adversarial_robustness(
         "FK/USDT",
-        {"ohlcv": _ohlcv_rows(o, h, l, c, np.ones(80) * 1e6)},
+        {"ohlcv": _ohlcv_rows(o, h, low, c, np.ones(80) * 1e6)},
         {},
         attach_to_analysis=False,
     )

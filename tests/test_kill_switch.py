@@ -1,4 +1,5 @@
 """Kill-switch: global gate, sert sınır sayaçları (unit)."""
+
 from __future__ import annotations
 
 from unittest import mock

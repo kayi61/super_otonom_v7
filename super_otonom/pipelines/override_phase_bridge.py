@@ -5,6 +5,7 @@ Faz 66–70 modülleri burada çalışır; Faz 68 güvenlik + FORCE_ALL_CLOSE bi
 
 Çağrı yeri: BotEngine.tick — risk + sinyal + filtrelerden sonra, execute_trade öncesi.
 """
+
 from __future__ import annotations
 
 import time

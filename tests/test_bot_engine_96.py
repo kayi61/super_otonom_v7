@@ -1,6 +1,7 @@
 """
 bot_engine.py yuksek kapsam (%96+ hedef): stub import, risk dallari, _handle_*, OrderTracker, LIVE close.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,9 +28,7 @@ def _be_paths(tmp_path, monkeypatch: pytest.MonkeyPatch):
 # ---------------------------------------------------------------------------
 
 
-def test_tick_updates_peak_equity(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_tick_updates_peak_equity(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be = _be_paths(tmp_path, monkeypatch)
     e = be.BotEngine(1000.0, paper=True)
     e._peak_equity = 500.0
@@ -41,11 +40,17 @@ def test_tick_updates_peak_equity(
     async def _hi(*a, **k) -> None:
         pass
 
-    with p2.object(bmod, "compute_signal_quality", return_value=(50, [], {}, "m")), p2.object(
-        bmod, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")
-    ), p2.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")):
+    with (
+        p2.object(bmod, "compute_signal_quality", return_value=(50, [], {}, "m")),
+        p2.object(bmod, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        p2.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")),
+    ):
         asyncio.run(
-            e.tick("X", {"signal": "HOLD", "volatility": 0.01, "regime": "R"}, [{"close": 1.0, "volume": 1.0}])
+            e.tick(
+                "X",
+                {"signal": "HOLD", "volatility": 0.01, "regime": "R"},
+                [{"close": 1.0, "volume": 1.0}],
+            )
         )
     assert e._peak_equity == 2000.0
 
@@ -55,9 +60,7 @@ def test_tick_updates_peak_equity(
 # ---------------------------------------------------------------------------
 
 
-def test_risk_deny_emergency_with_reason(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_risk_deny_emergency_with_reason(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be = _be_paths(tmp_path, monkeypatch)
     e = be.BotEngine(1000.0, paper=True)
     e.risk.check_risk = lambda *a, **k: False
@@ -65,18 +68,16 @@ def test_risk_deny_emergency_with_reason(
     e.risk.emergency_stop = True
     e.risk.emergency_reason = "y"
     c = [{"close": 1.0, "volume": 1.0}]
-    with patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")), patch.object(
-        be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")
-    ), patch.object(e.ai, "validate_signal", return_value=("BUY", 0.8, "ok")):
-        out = asyncio.run(
-            e.tick("Z", {"signal": "BUY", "volatility": 0.01, "regime": "R"}, c)
-        )
+    with (
+        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch.object(e.ai, "validate_signal", return_value=("BUY", 0.8, "ok")),
+    ):
+        out = asyncio.run(e.tick("Z", {"signal": "BUY", "volatility": 0.01, "regime": "R"}, c))
     assert "EMERGENCY_STOP:y" in (out.get("decision_context") or {}).get("emergency_code", "")
 
 
-def test_risk_deny_emergency_no_reason(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_risk_deny_emergency_no_reason(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be = _be_paths(tmp_path, monkeypatch)
     e = be.BotEngine(1000.0, paper=True)
     e.risk.check_risk = lambda *a, **k: False
@@ -84,12 +85,12 @@ def test_risk_deny_emergency_no_reason(
     e.risk.emergency_stop = True
     e.risk.emergency_reason = None
     c = [{"close": 1.0, "volume": 1.0}]
-    with patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")), patch.object(
-        be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")
-    ), patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")):
-        out = asyncio.run(
-            e.tick("Z2", {"signal": "HOLD", "volatility": 0.01, "regime": "R"}, c)
-        )
+    with (
+        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")),
+    ):
+        out = asyncio.run(e.tick("Z2", {"signal": "HOLD", "volatility": 0.01, "regime": "R"}, c))
     assert (out.get("decision_context") or {}).get("emergency_code") == "EMERGENCY_STOP:unknown"
 
 
@@ -102,13 +103,13 @@ def test_risk_deny_no_emergency_info_log(
     e.risk.get_last_deny = lambda: "exposure"
     e.risk.emergency_stop = False
     c = [{"close": 1.0, "volume": 1.0}]
-    with patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")), patch.object(
-        be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")
-    ), patch.object(e.ai, "validate_signal", return_value=("BUY", 0.8, "ok")):
+    with (
+        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch.object(e.ai, "validate_signal", return_value=("BUY", 0.8, "ok")),
+    ):
         with caplog.at_level("INFO", logger="super_otonom.engine"):
-            asyncio.run(
-                e.tick("Q", {"signal": "BUY", "volatility": 0.01, "regime": "R"}, c)
-            )
+            asyncio.run(e.tick("Q", {"signal": "BUY", "volatility": 0.01, "regime": "R"}, c))
     assert "risk_capali" in caplog.text or "GIRIS" in caplog.text
 
 
@@ -117,9 +118,7 @@ def test_risk_deny_no_emergency_info_log(
 # ---------------------------------------------------------------------------
 
 
-def test_sentiment_veto_with_open_position_exits(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_sentiment_veto_with_open_position_exits(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be = _be_paths(tmp_path, monkeypatch)
     e = be.BotEngine(100_000.0, paper=True)
     e.open_positions["V"] = {
@@ -139,12 +138,12 @@ def test_sentiment_veto_with_open_position_exits(
     e.sentiment_layer.validate_with_sentiment = _v
     e.sentiment_layer.get_market_sentiment = lambda: {"status": "N", "score": 0.5, "source": "t"}
 
-    with patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")), patch.object(
-        be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")
-    ), patch.object(e.ai, "validate_signal", return_value=("BUY", 0.8, "ok")):
-        out = asyncio.run(
-            e.tick("V", {"signal": "BUY", "volatility": 0.01, "regime": "R"}, c)
-        )
+    with (
+        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch.object(e.ai, "validate_signal", return_value=("BUY", 0.8, "ok")),
+    ):
+        out = asyncio.run(e.tick("V", {"signal": "BUY", "volatility": 0.01, "regime": "R"}, c))
     assert "veto" in (out.get("decision_reason") or "").lower() or out.get("final_signal") == "HOLD"
 
 
@@ -153,9 +152,7 @@ def test_sentiment_veto_with_open_position_exits(
 # ---------------------------------------------------------------------------
 
 
-def test_entry_gate_closed_no_slots(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_entry_gate_closed_no_slots(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be = _be_paths(tmp_path, monkeypatch)
     e = be.BotEngine(10_000.0, paper=True)
     omax = int(CONFIG_RISK.get("max_open_positions", 1))
@@ -168,18 +165,18 @@ def test_entry_gate_closed_no_slots(
         "regime": "TRENDING",
         "ob_safe_size": 5_000.0,
     }
-    with patch.object(be, "compute_signal_quality", return_value=(90, [], {}, "m")), patch.object(
-        be, "compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")
-    ), patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")):
+    with (
+        patch.object(be, "compute_signal_quality", return_value=(90, [], {}, "m")),
+        patch.object(be, "compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")),
+        patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")),
+    ):
         out = asyncio.run(e.tick("Sym", a, c))
     assert "decision_context" in out
     d = out.get("decision_context") or {}
     assert d.get("entry_blocked") is not None or "gate" in str(d).lower() or "max" in str(d).lower()
 
 
-def test_entry_ob_safe_size_invalid_parses_none(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_entry_ob_safe_size_invalid_parses_none(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be = _be_paths(tmp_path, monkeypatch)
     e = be.BotEngine(50_000.0, paper=True)
     a = {
@@ -189,9 +186,11 @@ def test_entry_ob_safe_size_invalid_parses_none(
         "ob_safe_size": "not-a-number",
     }
     c = [{"close": 100.0, "volume": 1e3}]
-    with patch.object(be, "compute_signal_quality", return_value=(90, [], {}, "m")), patch.object(
-        be, "compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")
-    ), patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")):
+    with (
+        patch.object(be, "compute_signal_quality", return_value=(90, [], {}, "m")),
+        patch.object(be, "compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")),
+        patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")),
+    ):
         out = asyncio.run(e.tick("ObBad", a, c))
     ctx = out.get("decision_context")
     if ctx and isinstance(ctx, dict) and "ob_safe_size_input" in str(ctx) or out:
@@ -210,17 +209,17 @@ def test_entry_ob_merge_blocks_zero(
         "ob_safe_size": 0.0,
     }
     c = [{"close": 10.0, "volume": 1e3}]
-    with patch.object(be, "compute_signal_quality", return_value=(90, [], {}, "m")), patch.object(
-        be, "compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")
-    ), patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")):
+    with (
+        patch.object(be, "compute_signal_quality", return_value=(90, [], {}, "m")),
+        patch.object(be, "compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")),
+        patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")),
+    ):
         with caplog.at_level("INFO", logger="super_otonom.engine"):
             asyncio.run(e.tick("Ob0", a, c))
     assert "engellendi" in caplog.text or "ob" in caplog.text.lower()
 
 
-def test_entry_size_gate_fails(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_entry_size_gate_fails(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be = _be_paths(tmp_path, monkeypatch)
     e = be.BotEngine(100.0, paper=True)
     e.free_capital = 0.01
@@ -231,9 +230,11 @@ def test_entry_size_gate_fails(
         "ob_safe_size": 50.0,
     }
     c = [{"close": 1.0, "volume": 1e3}]
-    with patch.object(be, "compute_signal_quality", return_value=(90, [], {}, "m")), patch.object(
-        be, "compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")
-    ), patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")):
+    with (
+        patch.object(be, "compute_signal_quality", return_value=(90, [], {}, "m")),
+        patch.object(be, "compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")),
+        patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")),
+    ):
         out = asyncio.run(e.tick("Sz", a, c))
     assert out.get("actions", []) == [] or len(out.get("actions", [])) == 0
 
@@ -250,19 +251,11 @@ def _handle_entry_dctx_base(tmp_path, monkeypatch: pytest.MonkeyPatch):
     return be, e, a
 
 
-def test_handle_entry_dctx_none_gate_no_slots(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_handle_entry_dctx_none_gate_no_slots(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be, e, a = _handle_entry_dctx_base(tmp_path, monkeypatch)
     out: dict = {"actions": []}
-    with patch.object(
-        be, "gate_buy_signal_and_slots", return_value=(False, "max_open_positions")
-    ):
-        asyncio.run(
-            e._handle_entry(
-                "D0", 1.0, a, "BUY", 0.9, out, corr_multiplier=1.0, dctx=None
-            )
-        )
+    with patch.object(be, "gate_buy_signal_and_slots", return_value=(False, "max_open_positions")):
+        asyncio.run(e._handle_entry("D0", 1.0, a, "BUY", 0.9, out, corr_multiplier=1.0, dctx=None))
 
 
 def test_handle_entry_dctx_none_ob_block(
@@ -270,37 +263,28 @@ def test_handle_entry_dctx_none_ob_block(
 ) -> None:
     be, e, a = _handle_entry_dctx_base(tmp_path, monkeypatch)
     out: dict = {"actions": []}
-    with patch.object(
-        be, "gate_buy_signal_and_slots", return_value=(True, "")
-    ), patch.object(
-        be, "merge_entry_notional", return_value=(0.0, "ob", "ob_safe_size_zero")
+    with (
+        patch.object(be, "gate_buy_signal_and_slots", return_value=(True, "")),
+        patch.object(be, "merge_entry_notional", return_value=(0.0, "ob", "ob_safe_size_zero")),
     ):
         with caplog.at_level("INFO", logger="super_otonom.engine"):
             asyncio.run(
-                e._handle_entry(
-                    "D1", 1.0, a, "BUY", 0.9, out, corr_multiplier=1.0, dctx=None
-                )
+                e._handle_entry("D1", 1.0, a, "BUY", 0.9, out, corr_multiplier=1.0, dctx=None)
             )
     assert "GIRIS" in caplog.text or "engellendi" in caplog.text
 
 
-def test_handle_entry_dctx_none_size_gate(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_handle_entry_dctx_none_size_gate(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be, e, a = _handle_entry_dctx_base(tmp_path, monkeypatch)
     out: dict = {"actions": []}
-    with patch.object(
-        be, "gate_buy_signal_and_slots", return_value=(True, "")
-    ), patch.object(
-        be, "merge_entry_notional", return_value=(8_000.0, "m", "")
-    ), patch.object(
-        be, "gate_buy_size_and_exposure", return_value=(False, "insufficient_free_capital")
+    with (
+        patch.object(be, "gate_buy_signal_and_slots", return_value=(True, "")),
+        patch.object(be, "merge_entry_notional", return_value=(8_000.0, "m", "")),
+        patch.object(
+            be, "gate_buy_size_and_exposure", return_value=(False, "insufficient_free_capital")
+        ),
     ):
-        asyncio.run(
-            e._handle_entry(
-                "D2", 1.0, a, "BUY", 0.9, out, corr_multiplier=1.0, dctx=None
-            )
-        )
+        asyncio.run(e._handle_entry("D2", 1.0, a, "BUY", 0.9, out, corr_multiplier=1.0, dctx=None))
 
 
 def test_handle_entry_dctx_none_hard_limit(
@@ -308,20 +292,17 @@ def test_handle_entry_dctx_none_hard_limit(
 ) -> None:
     be, e, a = _handle_entry_dctx_base(tmp_path, monkeypatch)
     out: dict = {"actions": []}
-    with patch.object(
-        be, "gate_buy_signal_and_slots", return_value=(True, "")
-    ), patch.object(
-        be, "merge_entry_notional", return_value=(1_000.0, "m", "")
-    ), patch.object(
-        be, "gate_buy_size_and_exposure", return_value=(True, "")
-    ), patch.object(
-        e._hard_limits, "can_submit_order", return_value="order_rate_exceeded"
+    # Notional, ``gate_leverage_notional`` tavanının altında olmalı (10k * 0.05 * 1.0 ≈ 500);
+    # aksi halde kill switch öncesi leverage kapısında kesilir ve CRITICAL hiç üretilmez.
+    with (
+        patch.object(be, "gate_buy_signal_and_slots", return_value=(True, "")),
+        patch.object(be, "merge_entry_notional", return_value=(400.0, "m", "")),
+        patch.object(be, "gate_buy_size_and_exposure", return_value=(True, "")),
+        patch.object(e._hard_limits, "can_submit_order", return_value="order_rate_exceeded"),
     ):
         with caplog.at_level("CRITICAL", logger="super_otonom.engine"):
             asyncio.run(
-                e._handle_entry(
-                    "D3", 1.0, a, "BUY", 0.9, out, corr_multiplier=1.0, dctx=None
-                )
+                e._handle_entry("D3", 1.0, a, "BUY", 0.9, out, corr_multiplier=1.0, dctx=None)
             )
     assert "EMERGENCY_STOP" in caplog.text or "order_rate" in caplog.text
 
@@ -331,9 +312,7 @@ def test_handle_entry_dctx_none_hard_limit(
 # ---------------------------------------------------------------------------
 
 
-def test_handle_exit_stop_loss(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_handle_exit_stop_loss(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be = _be_paths(tmp_path, monkeypatch)
     e = be.BotEngine(1_000.0, paper=True)
     e.open_positions["L"] = {
@@ -346,27 +325,26 @@ def test_handle_exit_stop_loss(
     c = [{"close": 80.0, "volume": 1.0}]
 
     async def _r() -> None:
-        with patch.object(
-            e.risk, "should_trailing_stop", return_value=False
-        ), patch.object(e.exec_sim, "simulate_order", new_callable=AsyncMock) as so:
+        with (
+            patch.object(e.risk, "should_trailing_stop", return_value=False),
+            patch.object(e.exec_sim, "simulate_order", new_callable=AsyncMock) as so,
+        ):
             so.return_value = {
                 "executed_price": 80.0,
                 "fill_ratio": 1.0,
             }
-            out = await e.tick(
-                "L", {"signal": "HOLD", "volatility": 0.1, "regime": "R"}, c
-            )
+            out = await e.tick("L", {"signal": "HOLD", "volatility": 0.1, "regime": "R"}, c)
         assert "actions" in out
 
-    with patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")), patch.object(
-        be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")
-    ), patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")):
+    with (
+        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")),
+    ):
         asyncio.run(_r())
 
 
-def test_handle_exit_trailing_and_signal_sell(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_handle_exit_trailing_and_signal_sell(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be = _be_paths(tmp_path, monkeypatch)
     e = be.BotEngine(1_000.0, paper=True)
     e.open_positions["T"] = {
@@ -377,12 +355,17 @@ def test_handle_exit_trailing_and_signal_sell(
         "hold_bars": 0,
     }
     c1 = [{"close": 100.0, "volume": 1.0}]
-    with patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")), patch.object(
-        be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")
-    ), patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")), patch.object(
-        e.risk, "should_trailing_stop", return_value=True
-    ), patch.object(
-        e.exec_sim, "simulate_order", new_callable=AsyncMock, return_value={"executed_price": 99.0, "fill_ratio": 1.0}
+    with (
+        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")),
+        patch.object(e.risk, "should_trailing_stop", return_value=True),
+        patch.object(
+            e.exec_sim,
+            "simulate_order",
+            new_callable=AsyncMock,
+            return_value={"executed_price": 99.0, "fill_ratio": 1.0},
+        ),
     ):
         asyncio.run(e.tick("T", {"signal": "HOLD", "volatility": 0.1, "regime": "R"}, c1))
     e.open_positions["S"] = {
@@ -393,16 +376,19 @@ def test_handle_exit_trailing_and_signal_sell(
         "hold_bars": 0,
     }
     c2 = [{"close": 100.0, "volume": 1.0}]
-    with patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")), patch.object(
-        be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")
-    ), patch.object(e.ai, "validate_signal", return_value=("SELL", 0.8, "s")), patch.object(
-        e.risk, "should_trailing_stop", return_value=False
-    ), patch.object(
-        e.exec_sim, "simulate_order", new_callable=AsyncMock, return_value={"executed_price": 100.0, "fill_ratio": 1.0}
+    with (
+        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch.object(e.ai, "validate_signal", return_value=("SELL", 0.8, "s")),
+        patch.object(e.risk, "should_trailing_stop", return_value=False),
+        patch.object(
+            e.exec_sim,
+            "simulate_order",
+            new_callable=AsyncMock,
+            return_value={"executed_price": 100.0, "fill_ratio": 1.0},
+        ),
     ):
-        asyncio.run(
-            e.tick("S", {"signal": "SELL", "volatility": 0.1, "regime": "R"}, c2)
-        )
+        asyncio.run(e.tick("S", {"signal": "SELL", "volatility": 0.1, "regime": "R"}, c2))
 
 
 # ---------------------------------------------------------------------------
@@ -411,9 +397,7 @@ def test_handle_exit_trailing_and_signal_sell(
 # ---------------------------------------------------------------------------
 
 
-def test_close_with_no_open_position(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_close_with_no_open_position(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be = _be_paths(tmp_path, monkeypatch)
     e = be.BotEngine(1_000.0, paper=True)
     out: dict = {"actions": []}
@@ -422,9 +406,7 @@ def test_close_with_no_open_position(
     assert out["actions"] == []
 
 
-def test_live_sell_uses_slippage_not_sim(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_live_sell_uses_slippage_not_sim(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be = _be_paths(tmp_path, monkeypatch)
     e = be.BotEngine(10_000.0, paper=False)
     e.mode = "LIVE"
@@ -439,24 +421,24 @@ def test_live_sell_uses_slippage_not_sim(
     c = [{"close": 99.0, "volume": 1.0}]
 
     async def _r() -> None:
-        with patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")), patch.object(
-            be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")
-        ), patch.object(e.risk, "check_risk", return_value=True), patch.object(
-            e.risk, "should_trailing_stop", return_value=False
-        ), patch.object(
-            e.ai, "validate_signal", return_value=("HOLD", 0.5, "")
+        with (
+            patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
+            patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+            patch.object(e.risk, "check_risk", return_value=True),
+            patch.object(e.risk, "should_trailing_stop", return_value=False),
+            patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")),
         ):
             out = await e.tick(
                 "L", {"signal": "HOLD", "volatility": 0.1, "regime": "R", "strategist": "t"}, c
             )
         assert out is not None
 
-    with patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")), patch.object(
-        be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")
-    ), patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")), patch.object(
-        e.risk, "check_risk", return_value=True
-    ), patch.object(
-        e.risk, "should_trailing_stop", return_value=True
+    with (
+        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")),
+        patch.object(e.risk, "check_risk", return_value=True),
+        patch.object(e.risk, "should_trailing_stop", return_value=True),
     ):
         asyncio.run(_r())
     e.slippage.adjusted_price = MagicMock(return_value=99.0)
@@ -471,9 +453,7 @@ def test_live_sell_uses_slippage_not_sim(
 # ---------------------------------------------------------------------------
 
 
-def test_risk_no_record_omega_on_close(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_risk_no_record_omega_on_close(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be = _be_paths(tmp_path, monkeypatch)
     e = be.BotEngine(1_000.0, paper=True)
 
@@ -512,7 +492,10 @@ def test_risk_no_record_omega_on_close(
     o = {"actions": []}
     a = {"volatility": 0.1, "avg_volume": 1.0, "strategist": "t", "regime": "R"}
     with patch.object(
-        e.exec_sim, "simulate_order", new_callable=AsyncMock, return_value={"executed_price": 10.0, "fill_ratio": 1.0}
+        e.exec_sim,
+        "simulate_order",
+        new_callable=AsyncMock,
+        return_value={"executed_price": 10.0, "fill_ratio": 1.0},
     ):
         asyncio.run(e._close("R", 10.0, o, "T", a))
 

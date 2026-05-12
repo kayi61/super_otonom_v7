@@ -3,12 +3,13 @@ Geçmiş OHLCV ile strateji geri testi (paper BotEngine + MarketAnalyzer).
 
 Çıktı: Sharpe oranı, maksimum drawdown %, kazanma oranı, toplam getiri.
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -97,11 +98,15 @@ async def run_backtest_async(
     min_bars: int = 35,
     max_window: int = 150,
     periods_per_year: float = 252.0 * 24.0 * 12.0,
+    final_signal_histo: Optional[Dict[str, int]] = None,
 ) -> BacktestReport:
     """
     Mum listesi üzerinde sırayla analyze + engine.tick çalıştırır (paper).
 
     `candles`: analyzer/tick ile uyumlu dict listesi (open, high, low, close, volume, timestamp).
+
+    ``final_signal_histo``: verilirse her adımda ``out["final_signal"]`` sayımı bu dict’e eklenir
+    (gözlem; davranışı değiştirmez). Varsayılan ``None``.
     """
     if len(candles) <= min_bars:
         log.warning("backtest: yetersiz mum (need > min_bars=%s)", min_bars)
@@ -120,7 +125,10 @@ async def run_backtest_async(
         window = candles[start : i + 1]
         analysis = analyzer.analyze(symbol, window)
         analysis.setdefault("strategist", "trend")
-        await engine.tick(symbol, analysis, window)
+        out = await engine.tick(symbol, analysis, window)
+        if final_signal_histo is not None:
+            fs = str(out.get("final_signal", "HOLD"))
+            final_signal_histo[fs] = final_signal_histo.get(fs, 0) + 1
         equity_curve.append(float(engine.equity))
         n_steps += 1
 

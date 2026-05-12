@@ -1,4 +1,5 @@
 """apply_liquidity_context — oran + entry_scale sözleşmesi."""
+
 from __future__ import annotations
 
 import pytest

@@ -1,4 +1,5 @@
 """MetricsExporter: no-op veya prom ile çökmeme."""
+
 from __future__ import annotations
 
 import importlib

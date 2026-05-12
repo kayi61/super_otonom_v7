@@ -7,7 +7,7 @@ Sadece NumPy.
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 import numpy as np
 
@@ -173,9 +173,7 @@ def analyze(market_data: dict | None) -> dict:
     stop_hunt = compute_stop_hunt_risk(current_price, recent_low, recent_high, atr)
     inv_p = compute_inventory_pressure(mm_long_ratio)
 
-    risk_score = _clip01(
-        0.40 * vpin + 0.25 * qs + 0.20 * stop_hunt + 0.15 * inv_p
-    )
+    risk_score = _clip01(0.40 * vpin + 0.25 * qs + 0.20 * stop_hunt + 0.15 * inv_p)
     alpha_score = _clip01(1.0 - risk_score)
 
     n = min(len(buy), len(sell))

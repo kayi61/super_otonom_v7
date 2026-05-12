@@ -1,6 +1,7 @@
 """
 main_loop, bot_engine, metrics_exporter, position_sizer, risk_manager — hedef kapsam.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -62,7 +63,9 @@ def test_position_sizer_validate_empty_book_imbalance_and_safe_small() -> None:
     from super_otonom.position_sizer import PositionSizer
 
     s = PositionSizer(max_position_pct=0.1, min_notional=10_000.0)
-    assert s.validate_and_calculate("S", 1000.0, {"bids": [], "asks": [[1, 1.0]]}, 9999999999.0) == 0.0
+    assert (
+        s.validate_and_calculate("S", 1000.0, {"bids": [], "asks": [[1, 1.0]]}, 9999999999.0) == 0.0
+    )
     ob = {
         "bids": [[100.0, 0.0001] for _ in range(5)],
         "asks": [[100.1, 10.0] for _ in range(5)],
@@ -71,7 +74,14 @@ def test_position_sizer_validate_empty_book_imbalance_and_safe_small() -> None:
     z = s2.validate_and_calculate("S2", 50_000.0, ob, time.time() * 1000, min_bid_imbalance=0.8)
     assert z == 0.0
     s3 = PositionSizer(max_position_pct=0.1, min_notional=10_000.0)
-    z2 = s3.validate_and_calculate("S3", 100.0, {"bids": [[100, 1.0]], "asks": [[100.1, 1.0]]}, time.time() * 1000, volatility=0.5, kelly_safety=0.1)
+    z2 = s3.validate_and_calculate(
+        "S3",
+        100.0,
+        {"bids": [[100, 1.0]], "asks": [[100.1, 1.0]]},
+        time.time() * 1000,
+        volatility=0.5,
+        kelly_safety=0.1,
+    )
     assert z2 == 0.0
 
 
@@ -94,7 +104,10 @@ def test_position_sizer_slippage_paths() -> None:
     ob3 = {"asks": [[-1.0, 1.0]]}
     # best_ask <= 0 → erken dönüş, ham calculate çıktısı
     expect = s2.calculate("X", 1_000.0, volatility=0.1, ai_conf=0.5)
-    assert s2.calculate_with_slippage("X", 1_000.0, ob3, max_allowed_slippage=0.1, volatility=0.1) == expect
+    assert (
+        s2.calculate_with_slippage("X", 1_000.0, ob3, max_allowed_slippage=0.1, volatility=0.1)
+        == expect
+    )
 
 
 # ── risk_manager ─────────────────────────────────────────────────────────
@@ -219,8 +232,6 @@ def test_log_elite_startup_branches() -> None:
     m._log_elite_startup(E())
 
 
-
-
 # ── bot_engine — ek kapsam ──────────────────────────────────────────────
 
 
@@ -324,11 +335,11 @@ def test_tick_price_spike_with_open_ignores() -> None:
     e.open_positions["B"] = {"entry": 1.0, "qty": 1.0, "size": 1.0, "peak": 1.0}
     candles = [{"close": 1.0, "volume": 1.0, "timestamp": 0.0}]
 
-    with patch.object(
-        e._hard_limits, "check_price_tick", return_value="PRICE_BOMB"
-    ), patch(
-        "super_otonom.bot_engine.gate_global_trade_disable", return_value=(True, "")
+    with (
+        patch.object(e._hard_limits, "check_price_tick", return_value="PRICE_BOMB"),
+        patch("super_otonom.bot_engine.gate_global_trade_disable", return_value=(True, "")),
     ):
+
         async def _run() -> None:
             await e.tick("B", {"signal": "HOLD", "volatility": 0.01}, candles)
 

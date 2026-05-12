@@ -4,35 +4,40 @@ test_coverage_boost.py
 Coverage artırma testleri — tüm %0 modüller için
 Çalıştırma: python test_coverage_boost.py
 """
-import sys, os
+
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import asyncio
-import math
 import time
-import unittest
-from unittest.mock import MagicMock, patch, AsyncMock
-from typing import Dict, Any
+from unittest.mock import MagicMock, patch
 
 PASS = 0
 FAIL = 0
+
 
 def ok(label):
     global PASS
     PASS += 1
     print(f"  ✓ {label}")
 
+
 def fail(label, err):
     global FAIL
     FAIL += 1
     print(f"  ✗ {label} → {err}")
 
+
 def section(title):
     print(f"\n── {title} ──")
+
 
 # ══════════════════════════════════════════════════════════════════
 # YARDIMCI: sahte mum verisi
 # ══════════════════════════════════════════════════════════════════
+
 
 def make_candles(n=60, base_price=100.0):
     candles = []
@@ -43,14 +48,13 @@ def make_candles(n=60, base_price=100.0):
         h = p * 1.01
         lo = p * 0.99
         c = p * (1 + (0.001 if i % 2 == 0 else -0.001))
-        candles.append({
-            "timestamp": ts,
-            "open": o, "high": h, "low": lo,
-            "close": c, "volume": 100.0 + i
-        })
+        candles.append(
+            {"timestamp": ts, "open": o, "high": h, "low": lo, "close": c, "volume": 100.0 + i}
+        )
         p = c
         ts += 300_000
     return candles
+
 
 # ══════════════════════════════════════════════════════════════════
 # 1. KILL SWITCH
@@ -60,9 +64,10 @@ section("TEST 1: KillSwitch / HardLimitTracker")
 
 try:
     from super_otonom.kill_switch import (
-        HardLimitTracker, RateLimitStormTracker,
-        is_ratelimit_error, get_rate_limit_storm_tracker,
-        apply_storm_trip_to_risk, default_hard_limit_config
+        HardLimitTracker,
+        RateLimitStormTracker,
+        apply_storm_trip_to_risk,
+        is_ratelimit_error,
     )
 
     # T1.1 - HardLimitTracker oluşturma
@@ -129,8 +134,10 @@ try:
 
     # T1.8 - is_ratelimit_error
     try:
+
         class FakeExc(Exception):
             code = 429
+
         assert is_ratelimit_error(FakeExc()) is True
         assert is_ratelimit_error(ValueError("too many requests error")) is True
         assert is_ratelimit_error(ValueError("normal error")) is False
@@ -176,8 +183,12 @@ try:
     # T2.1 - trending iyi senaryo
     try:
         analysis = {
-            "signal": "BUY", "hurst": 0.65, "regime": "TRENDING",
-            "volatility": 0.02, "liquidity_ratio": 0.8, "high_tf_trend": "UP"
+            "signal": "BUY",
+            "hurst": 0.65,
+            "regime": "TRENDING",
+            "volatility": 0.02,
+            "liquidity_ratio": 0.8,
+            "high_tf_trend": "UP",
         }
         score, penalties, comps, main = compute_signal_quality(analysis)
         assert 0 <= score <= 100
@@ -188,8 +199,11 @@ try:
     # T2.2 - noisy rejim düşük skor
     try:
         analysis2 = {
-            "signal": "BUY", "hurst": 0.5, "regime": "NOISY",
-            "volatility": 0.1, "liquidity_ratio": 0.1
+            "signal": "BUY",
+            "hurst": 0.5,
+            "regime": "NOISY",
+            "volatility": 0.1,
+            "liquidity_ratio": 0.1,
         }
         score2, penalties2, _, _ = compute_signal_quality(analysis2)
         assert "hurst:noisy_regime" in penalties2
@@ -200,8 +214,11 @@ try:
     # T2.3 - flash_crash kesme
     try:
         analysis3 = {
-            "signal": "BUY", "hurst": 0.7, "regime": "TRENDING",
-            "volatility": 0.02, "flash_crash": True
+            "signal": "BUY",
+            "hurst": 0.7,
+            "regime": "TRENDING",
+            "volatility": 0.02,
+            "flash_crash": True,
         }
         score3, penalties3, _, _ = compute_signal_quality(analysis3)
         assert "flash_crash:cut" in penalties3
@@ -212,8 +229,11 @@ try:
     # T2.4 - MTF mismatch
     try:
         analysis4 = {
-            "signal": "BUY", "hurst": 0.6, "regime": "TRENDING",
-            "volatility": 0.02, "high_tf_trend": "DOWN"
+            "signal": "BUY",
+            "hurst": 0.6,
+            "regime": "TRENDING",
+            "volatility": 0.02,
+            "high_tf_trend": "DOWN",
         }
         score4, penalties4, _, _ = compute_signal_quality(analysis4)
         assert "mtf:tf_mismatch" in penalties4
@@ -438,7 +458,7 @@ except ImportError as e:
 section("TEST 6: StateMachine")
 
 try:
-    from super_otonom.state_machine import compute_trading_state, TradingState
+    from super_otonom.state_machine import TradingState, compute_trading_state
 
     def make_engine(emergency=False, omega_tighten=0):
         eng = MagicMock()
@@ -543,8 +563,7 @@ try:
         old_ts = (time.time() - 100) * 1000
         ob = {"bids": [[100, 1.0]], "asks": [[101, 1.0]]}
         size5 = sizer.validate_and_calculate(
-            "BTC/USDT", 10000.0, ob, old_ts,
-            max_candle_age_ms=100, volatility=0.02, ai_conf=0.7
+            "BTC/USDT", 10000.0, ob, old_ts, max_candle_age_ms=100, volatility=0.02, ai_conf=0.7
         )
         assert size5 == 0.0
         ok("T7.5 eski timestamp → 0 (zaman senkronizasyon filtresi)")
@@ -556,8 +575,13 @@ try:
         fresh_ts = time.time() * 1000
         ob_thin = {"bids": [[100, 0.01]], "asks": [[101, 10.0]]}
         size6 = sizer.validate_and_calculate(
-            "BTC/USDT", 10000.0, ob_thin, fresh_ts,
-            min_bid_imbalance=0.5, volatility=0.02, ai_conf=0.7
+            "BTC/USDT",
+            10000.0,
+            ob_thin,
+            fresh_ts,
+            min_bid_imbalance=0.5,
+            volatility=0.02,
+            ai_conf=0.7,
         )
         assert size6 == 0.0
         ok("T7.6 imbalance düşük → 0 (flash crash koruması)")
@@ -656,7 +680,8 @@ section("TEST 9: WFAManager")
 
 try:
     import pandas as pd
-    from super_otonom.wfa_manager import WFAManager, WFAFold
+
+    from super_otonom.wfa_manager import WFAManager
 
     # T9.1 - fold üretimi
     try:
@@ -834,7 +859,14 @@ try:
 
     # T11.7 - explain
     try:
-        exp = ai.explain("BTC/USDT", "BUY", {"regime": "TRENDING", "hurst": 0.6, "volatility": 0.02}, "BUY", 0.7, "TECHNICAL")
+        exp = ai.explain(
+            "BTC/USDT",
+            "BUY",
+            {"regime": "TRENDING", "hurst": 0.6, "volatility": 0.02},
+            "BUY",
+            0.7,
+            "TECHNICAL",
+        )
         assert "BTC/USDT" in exp
         ok("T11.7 explain çalışıyor")
     except Exception as e:
@@ -850,16 +882,19 @@ except ImportError as e:
 section("TEST 12: HealthSummary")
 
 try:
-    from super_otonom.health_summary import (
-        format_durum_line, format_tick_health, log_tick_health
-    )
+    from super_otonom.health_summary import format_durum_line, format_tick_health
 
     status = {
-        "equity": 10500.0, "total_pnl": 500.0, "pnl_pct": 5.0,
-        "peak_drawdown_pct": 2.1, "exposure_pct": 15.0, "total_trades": 10,
-        "emergency_stop": False, "emergency_code_line": "—",
+        "equity": 10500.0,
+        "total_pnl": 500.0,
+        "pnl_pct": 5.0,
+        "peak_drawdown_pct": 2.1,
+        "exposure_pct": 15.0,
+        "total_trades": 10,
+        "emergency_stop": False,
+        "emergency_code_line": "—",
         "hard_limits": {"orders_in_window": 1, "order_limit": 5, "window_sec": 1.0},
-        "rate_limit": {"rl_streak": 0, "rl_trip": 5}
+        "rate_limit": {"rl_streak": 0, "rl_trip": 5},
     }
 
     # T12.1 - format_durum_line
@@ -874,10 +909,15 @@ try:
     # T12.2 - format_tick_health
     try:
         dctx = {
-            "symbol": "BTC/USDT", "tick_id": 42, "final_signal": "BUY",
-            "entry_scale": "full", "liquidity_ratio": 0.8,
-            "signal_quality": 75, "adj_signal_quality": 70,
-            "effective_quality_min": 40, "omega_ai_log": ""
+            "symbol": "BTC/USDT",
+            "tick_id": 42,
+            "final_signal": "BUY",
+            "entry_scale": "full",
+            "liquidity_ratio": 0.8,
+            "signal_quality": 75,
+            "adj_signal_quality": 70,
+            "effective_quality_min": 40,
+            "omega_ai_log": "",
         }
         line2 = format_tick_health(status, dctx)
         assert "[OK]" in line2
@@ -974,8 +1014,10 @@ section("TEST 14: MLClient")
 
 try:
     from super_otonom.ml_client import (
-        MLClient, MLInferenceResult, format_ml_inference_payload,
-        get_ml_client, reset_ml_client_for_tests
+        MLClient,
+        format_ml_inference_payload,
+        get_ml_client,
+        reset_ml_client_for_tests,
     )
 
     # T14.1 - disabled client
@@ -1038,7 +1080,10 @@ section("TEST 15: CircuitBreaker / AsyncExchangeHandler")
 
 try:
     from super_otonom.exchange_async import (
-        CircuitBreaker, AsyncExchangeHandler, ohlcv_to_candles, _fake_ohlcv
+        AsyncExchangeHandler,
+        CircuitBreaker,
+        _fake_ohlcv,
+        ohlcv_to_candles,
     )
 
     # T15.1 - CircuitBreaker başlangıç
@@ -1116,11 +1161,14 @@ except ImportError as e:
 section("TEST 16: Backtester")
 
 try:
-    from super_otonom.backtester import (
-        run_backtest, BacktestReport, build_backtest_report,
-        _compute_sharpe, _compute_max_drawdown_pct
-    )
     import numpy as np
+
+    from super_otonom.backtester import (
+        BacktestReport,
+        _compute_max_drawdown_pct,
+        _compute_sharpe,
+        run_backtest,
+    )
 
     # T16.1 - _compute_sharpe
     try:
@@ -1169,12 +1217,12 @@ except ImportError as e:
 
 total = PASS + FAIL
 print(f"""
-{'='*60}
+{"=" * 60}
 TOPLAM : {total}
 GEÇEN  : {PASS}
 FAIL   : {FAIL}
-{'='*60}
-{'✓ TÜM TESTLER GEÇTİ' if FAIL == 0 else f'✗ {FAIL} TEST BAŞARISIZ'}
+{"=" * 60}
+{"✓ TÜM TESTLER GEÇTİ" if FAIL == 0 else f"✗ {FAIL} TEST BAŞARISIZ"}
 """)
 
 if FAIL > 0:

@@ -25,21 +25,22 @@ Journal:
     Son 1000 entry bellekte tutulur; tamamı audit log dosyasına yazılır.
 """
 
-import logging
-import time
-from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List, Optional
 import json
+import logging
 import os
+import time
+from dataclasses import asdict, dataclass, field
+from typing import Any, Dict, List, Optional
 
 log = logging.getLogger("super_otonom.capital")
 
-_JOURNAL_FILE     = "data/capital_journal.jsonl"
+_JOURNAL_FILE = "data/capital_journal.jsonl"
 _INVARIANT_TOLERANCE = 0.01  # yuvarlama toleransı (kuruş)
-_JOURNAL_MAX_BYTES   = 50 * 1024 * 1024  # 50 MB — üstünde rotate
+_JOURNAL_MAX_BYTES = 50 * 1024 * 1024  # 50 MB — üstünde rotate
 
 
 # ── Journal Entry ─────────────────────────────────────────────────────────────
+
 
 @dataclass
 class JournalEntry:
@@ -47,36 +48,39 @@ class JournalEntry:
     Tek bir ledger olayını temsil eder.
     Çift kayıt: debit_account borçlandırılır, credit_account alacaklandırılır.
     """
-    ts:             float
-    event:          str          # OPEN, CLOSE, UNREALIZED_UPDATE, FEE, DEPOSIT, WITHDRAWAL
-    symbol:         str
-    debit_account:  str          # hangi hesap azaldı
-    credit_account: str          # hangi hesap arttı
-    amount:         float        # mutlak değer
-    order_id:       str
-    note:           str          = ""
+
+    ts: float
+    event: str  # OPEN, CLOSE, UNREALIZED_UPDATE, FEE, DEPOSIT, WITHDRAWAL
+    symbol: str
+    debit_account: str  # hangi hesap azaldı
+    credit_account: str  # hangi hesap arttı
+    amount: float  # mutlak değer
+    order_id: str
+    note: str = ""
     # Snapshot — entry anındaki ledger durumu
-    snap_cash:             float = 0.0
-    snap_margin_used:      float = 0.0
-    snap_unrealized_pnl:   float = 0.0
-    snap_realized_pnl:     float = 0.0
-    snap_fees_paid:        float = 0.0
-    snap_nav:              float = 0.0
+    snap_cash: float = 0.0
+    snap_margin_used: float = 0.0
+    snap_unrealized_pnl: float = 0.0
+    snap_realized_pnl: float = 0.0
+    snap_fees_paid: float = 0.0
+    snap_nav: float = 0.0
 
 
 # ── Position Ledger ──────────────────────────────────────────────────────────
 
+
 @dataclass
 class PositionLedger:
     """Açık bir pozisyonun muhasebesel kaydı."""
-    symbol:        str
-    order_id:      str
-    entry_price:   float
-    qty:           float
-    notional:      float         # açılışta rezerve edilen tutar (margin_used'a eklenen)
-    peak_price:    float         = 0.0
-    unrealized:    float         = 0.0
-    opened_at:     float         = field(default_factory=time.time)
+
+    symbol: str
+    order_id: str
+    entry_price: float
+    qty: float
+    notional: float  # açılışta rezerve edilen tutar (margin_used'a eklenen)
+    peak_price: float = 0.0
+    unrealized: float = 0.0
+    opened_at: float = field(default_factory=time.time)
 
     def update_unrealized(self, current_price: float) -> float:
         """Anlık fiyata göre unrealized PnL güncelle. Delta döndürür."""
@@ -89,6 +93,7 @@ class PositionLedger:
 
 
 # ── Capital Engine ────────────────────────────────────────────────────────────
+
 
 class CapitalEngine:
     """
@@ -111,24 +116,24 @@ class CapitalEngine:
         self,
         initial_capital: float,
         journal_file: str = _JOURNAL_FILE,
-        max_position_pct: float = 0.95,   # available_cash'in max bu kadarı tek pozisyona
-        reserve_pct: float = 0.05,        # nakit rezervi — bu kadarı hiç kullanılmaz
+        max_position_pct: float = 0.95,  # available_cash'in max bu kadarı tek pozisyona
+        reserve_pct: float = 0.05,  # nakit rezervi — bu kadarı hiç kullanılmaz
     ):
-        self.initial_capital  = float(initial_capital)
-        self._journal_file    = journal_file
+        self.initial_capital = float(initial_capital)
+        self._journal_file = journal_file
         self._max_position_pct = float(max_position_pct)
-        self._reserve_pct      = float(reserve_pct)
+        self._reserve_pct = float(reserve_pct)
 
         # ── Ledger hesapları ──────────────────────────────────────────────────
-        self._cash             = float(initial_capital)
-        self._margin_used      = 0.0
-        self._reserved_margin  = 0.0   # in-flight: gönderildi ama fill gelmedi
-        self._unrealized_pnl   = 0.0
-        self._realized_pnl     = 0.0
-        self._fees_paid        = 0.0
+        self._cash = float(initial_capital)
+        self._margin_used = 0.0
+        self._reserved_margin = 0.0  # in-flight: gönderildi ama fill gelmedi
+        self._unrealized_pnl = 0.0
+        self._realized_pnl = 0.0
+        self._fees_paid = 0.0
         # FIX-1: deposit/withdrawal invariant tracker
         # Invariant: nav == initial_capital + _net_deposits + realized + unrealized - fees
-        self._net_deposits     = 0.0
+        self._net_deposits = 0.0
 
         # ── Pozisyon defteri ──────────────────────────────────────────────────
         self._positions: Dict[str, PositionLedger] = {}
@@ -140,7 +145,8 @@ class CapitalEngine:
         os.makedirs(os.path.dirname(journal_file) or ".", exist_ok=True)
         log.info(
             "CapitalEngine başlatıldı | initial=%.2f | reserve=%.1f%%",
-            initial_capital, reserve_pct * 100,
+            initial_capital,
+            reserve_pct * 100,
         )
 
     # ── Hesaplanan alanlar ────────────────────────────────────────────────────
@@ -168,7 +174,8 @@ class CapitalEngine:
         if notional > self.available_cash:
             log.warning(
                 "reserve_margin | yetersiz nakit | notional=%.2f available=%.2f",
-                notional, self.available_cash,
+                notional,
+                self.available_cash,
             )
             return False
         self._reserved_margin += notional
@@ -181,8 +188,12 @@ class CapitalEngine:
             amount=float(notional),
             note="margin reservation (pending fill)",
         )
-        log.debug("reserve_margin | order=%s notional=%.2f reserved_total=%.2f",
-                  order_id, notional, self._reserved_margin)
+        log.debug(
+            "reserve_margin | order=%s notional=%.2f reserved_total=%.2f",
+            order_id,
+            notional,
+            self._reserved_margin,
+        )
         return True
 
     def release_reservation(self, order_id: str, notional: float) -> None:
@@ -200,8 +211,12 @@ class CapitalEngine:
             amount=float(notional),
             note="margin reservation release",
         )
-        log.debug("release_reservation | order=%s notional=%.2f reserved_total=%.2f",
-                  order_id, notional, self._reserved_margin)
+        log.debug(
+            "release_reservation | order=%s notional=%.2f reserved_total=%.2f",
+            order_id,
+            notional,
+            self._reserved_margin,
+        )
 
     @property
     def buying_power(self) -> float:
@@ -247,8 +262,11 @@ class CapitalEngine:
             log.warning(
                 "CapitalEngine.open_position | yetersiz nakit | "
                 "gerekli=%.2f available=%.2f (cash=%.2f reserved=%.2f) | symbol=%s",
-                total_cost, self.available_cash,
-                self._cash, self._reserved_margin, symbol,
+                total_cost,
+                self.available_cash,
+                self._cash,
+                self._reserved_margin,
+                symbol,
             )
             return False
 
@@ -259,9 +277,9 @@ class CapitalEngine:
             )
             return False
 
-        self._cash        -= total_cost
+        self._cash -= total_cost
         self._margin_used += notional
-        self._fees_paid   += fee
+        self._fees_paid += fee
 
         pos = PositionLedger(
             symbol=symbol,
@@ -295,10 +313,13 @@ class CapitalEngine:
 
         self._check_invariant()
         log.info(
-            "CAPITAL | OPEN | %s | notional=%.2f fee=%.4f | "
-            "cash=%.2f margin=%.2f nav=%.2f",
-            symbol, notional, fee,
-            self._cash, self._margin_used, self.nav,
+            "CAPITAL | OPEN | %s | notional=%.2f fee=%.4f | cash=%.2f margin=%.2f nav=%.2f",
+            symbol,
+            notional,
+            fee,
+            self._cash,
+            self._margin_used,
+            self.nav,
         )
         return True
 
@@ -336,15 +357,15 @@ class CapitalEngine:
             return None
 
         # FIX-3: Kısmi fill oranı — tüm notional değil, doldurulan kadar
-        fill_ratio       = min(1.0, filled_qty / pos.qty) if pos.qty > 0 else 1.0
+        fill_ratio = min(1.0, filled_qty / pos.qty) if pos.qty > 0 else 1.0
         partial_notional = pos.notional * fill_ratio
-        realized         = (exit_price - pos.entry_price) * filled_qty
-        cash_return      = partial_notional + realized - fee
+        realized = (exit_price - pos.entry_price) * filled_qty
+        cash_return = partial_notional + realized - fee
 
-        self._margin_used  = max(0.0, self._margin_used - partial_notional)  # FIX-E
+        self._margin_used = max(0.0, self._margin_used - partial_notional)  # FIX-E
         self._realized_pnl += realized
-        self._cash         += cash_return
-        self._fees_paid    += fee
+        self._cash += cash_return
+        self._fees_paid += fee
 
         if fill_ratio >= 1.0:
             # Tam kapanış — pozisyonu kaldır
@@ -352,32 +373,36 @@ class CapitalEngine:
             self._unrealized_pnl -= pos.unrealized
         else:
             # Kısmi kapanış — pozisyonu güncelle
-            pos.qty      -= filled_qty
+            pos.qty -= filled_qty
             pos.notional -= partial_notional
             old_unrealized = pos.unrealized
             pos.unrealized = (exit_price - pos.entry_price) * pos.qty
-            self._unrealized_pnl += (pos.unrealized - old_unrealized)
+            self._unrealized_pnl += pos.unrealized - old_unrealized
             # Float epsilon: qty çok küçükse pozisyonu kapat
             if pos.qty < 1e-10 or pos.notional < 1e-8:
                 self._positions.pop(symbol)
                 self._unrealized_pnl -= pos.unrealized
                 log.info(
                     "CAPITAL | PARTIAL_CLOSE→FULL | %s | qty=%.2e epsilon altında kapandı",
-                    symbol, pos.qty,
+                    symbol,
+                    pos.qty,
                 )
             else:
                 log.info(
                     "CAPITAL | PARTIAL_CLOSE | %s | fill_ratio=%.2f | "
                     "kalan_qty=%.6f kalan_notional=%.2f",
-                    symbol, fill_ratio, pos.qty, pos.notional,
+                    symbol,
+                    fill_ratio,
+                    pos.qty,
+                    pos.notional,
                 )
 
         # cash asla negatife düşmesin
         if self._cash < 0:
             log.error(
-                "CapitalEngine | cash negatife düştü! cash=%.4f | "
-                "düzeltiliyor → 0.0 | symbol=%s",
-                self._cash, symbol,
+                "CapitalEngine | cash negatife düştü! cash=%.4f | düzeltiliyor → 0.0 | symbol=%s",
+                self._cash,
+                symbol,
             )
             self._cash = 0.0
 
@@ -412,10 +437,46 @@ class CapitalEngine:
         log.info(
             "CAPITAL | CLOSE | %s | pnl=%.4f fee=%.4f fill_ratio=%.2f | "
             "cash=%.2f margin=%.2f realized=%.2f nav=%.2f",
-            symbol, realized, fee, fill_ratio,
-            self._cash, self._margin_used, self._realized_pnl, self.nav,
+            symbol,
+            realized,
+            fee,
+            fill_ratio,
+            self._cash,
+            self._margin_used,
+            self._realized_pnl,
+            self.nav,
         )
         return realized
+
+    def close_partial(
+        self,
+        symbol: str,
+        order_id: str,
+        exit_price: float,
+        ratio: float,
+        fee: float = 0.0,
+    ) -> Optional[float]:
+        """Açık pozisyonun ``ratio`` (0–1) kadarını kapatır — ``close_position`` sarmalayıcısı."""
+        pos = self._positions.get(symbol)
+        if pos is None:
+            log.warning(
+                "CapitalEngine.close_partial | pozisyon bulunamadı | symbol=%s",
+                symbol,
+            )
+            return None
+        r = max(0.0, min(1.0, float(ratio)))
+        if r <= 0.0:
+            return None
+        filled_qty = pos.qty * r
+        if filled_qty <= 0.0:
+            return None
+        return self.close_position(
+            symbol=symbol,
+            order_id=order_id,
+            exit_price=exit_price,
+            filled_qty=filled_qty,
+            fee=fee,
+        )
 
     def update_unrealized(self, prices: Dict[str, float]) -> None:
         """
@@ -434,7 +495,9 @@ class CapitalEngine:
             if abs(delta) > 0.001:
                 log.debug(
                     "CAPITAL | UNREALIZED | %s | delta=%.4f unrealized=%.4f",
-                    symbol, delta, pos.unrealized,
+                    symbol,
+                    delta,
+                    pos.unrealized,
                 )
 
         # FIX-4: Delta tabanlı birikim yerine pozisyonlardan doğrudan topla
@@ -444,7 +507,7 @@ class CapitalEngine:
         """Komisyon veya swap gibi ek ücretleri kaydet."""
         if fee <= 0:
             return
-        self._cash      -= fee
+        self._cash -= fee
         self._fees_paid += fee
         self._cash = max(0.0, self._cash)
         self._record(
@@ -460,8 +523,8 @@ class CapitalEngine:
 
     def deposit(self, amount: float, note: str = "") -> None:
         """Sermaye artışı (yatırımcı para eklemesi)."""
-        self._cash         += float(amount)
-        self._net_deposits += float(amount)   # FIX-1: invariant için takip
+        self._cash += float(amount)
+        self._net_deposits += float(amount)  # FIX-1: invariant için takip
         self._record(
             event="DEPOSIT",
             symbol="—",
@@ -479,11 +542,12 @@ class CapitalEngine:
         if amount > self.available_cash:
             log.warning(
                 "CAPITAL | WITHDRAWAL | yetersiz | talep=%.2f mevcut=%.2f",
-                amount, self.available_cash,
+                amount,
+                self.available_cash,
             )
             return False
-        self._cash         -= float(amount)
-        self._net_deposits -= float(amount)   # FIX-1: invariant için takip
+        self._cash -= float(amount)
+        self._net_deposits -= float(amount)  # FIX-1: invariant için takip
         self._record(
             event="WITHDRAWAL",
             symbol="—",
@@ -505,21 +569,23 @@ class CapitalEngine:
         BotEngine.status() içinde kullanılacak.
         """
         return {
-            "nav":              round(self.nav, 2),
-            "cash":             round(self._cash, 2),
-            "margin_used":      round(self._margin_used, 2),
-            "reserved_margin":  round(self._reserved_margin, 2),
-            "unrealized_pnl":   round(self._unrealized_pnl, 4),
-            "realized_pnl":     round(self._realized_pnl, 4),
-            "fees_paid":        round(self._fees_paid, 4),
-            "net_deposits":     round(self._net_deposits, 2),       # FIX-1
-            "available_cash":   round(self.available_cash, 2),
-            "buying_power":     round(self.buying_power, 2),
-            "open_positions":   len(self._positions),
+            "nav": round(self.nav, 2),
+            "cash": round(self._cash, 2),
+            "margin_used": round(self._margin_used, 2),
+            "reserved_margin": round(self._reserved_margin, 2),
+            "unrealized_pnl": round(self._unrealized_pnl, 4),
+            "realized_pnl": round(self._realized_pnl, 4),
+            "fees_paid": round(self._fees_paid, 4),
+            "net_deposits": round(self._net_deposits, 2),  # FIX-1
+            "available_cash": round(self.available_cash, 2),
+            "buying_power": round(self.buying_power, 2),
+            "open_positions": len(self._positions),
             "total_return_pct": round(
                 (self.nav - self.initial_capital) / self.initial_capital * 100, 4
-            ) if self.initial_capital > 0 else 0.0,
-            "journal_entries":  len(self._journal),
+            )
+            if self.initial_capital > 0
+            else 0.0,
+            "journal_entries": len(self._journal),
         }
 
     def position_snapshot(self, symbol: str) -> Optional[Dict[str, Any]]:
@@ -528,14 +594,14 @@ class CapitalEngine:
         if pos is None:
             return None
         return {
-            "symbol":      pos.symbol,
-            "order_id":    pos.order_id,
+            "symbol": pos.symbol,
+            "order_id": pos.order_id,
             "entry_price": pos.entry_price,
-            "qty":         pos.qty,
-            "notional":    pos.notional,
-            "peak_price":  pos.peak_price,
-            "unrealized":  round(pos.unrealized, 4),
-            "opened_at":   pos.opened_at,
+            "qty": pos.qty,
+            "notional": pos.notional,
+            "peak_price": pos.peak_price,
+            "unrealized": round(pos.unrealized, 4),
+            "opened_at": pos.opened_at,
         }
 
     def all_positions(self) -> List[Dict[str, Any]]:
@@ -562,9 +628,14 @@ class CapitalEngine:
             log.error(
                 "CAPITAL | INVARIANT IHLALI | nav=%.4f expected=%.4f diff=%.6f | "
                 "cash=%.4f margin=%.4f unrealized=%.4f realized=%.4f fees=%.4f net_deposits=%.4f",
-                self.nav, expected, diff,
-                self._cash, self._margin_used,
-                self._unrealized_pnl, self._realized_pnl, self._fees_paid,
+                self.nav,
+                expected,
+                diff,
+                self._cash,
+                self._margin_used,
+                self._unrealized_pnl,
+                self._realized_pnl,
+                self._fees_paid,
                 self._net_deposits,
             )
             return False
@@ -600,7 +671,7 @@ class CapitalEngine:
         )
         self._journal.append(entry)
         if len(self._journal) > self._journal_max:
-            self._journal = self._journal[-self._journal_max:]
+            self._journal = self._journal[-self._journal_max :]
 
         # Dosyaya da yaz — FIX-D: 50MB üstünde rotate
         try:
@@ -623,25 +694,25 @@ class CapitalEngine:
     def to_dict(self) -> Dict[str, Any]:
         """BotEngine._save_state() içinde kullanılacak."""
         return {
-            "initial_capital":  self.initial_capital,
-            "cash":             self._cash,
-            "margin_used":      self._margin_used,
-            "reserved_margin":  self._reserved_margin,   # FIX-2
-            "unrealized_pnl":   self._unrealized_pnl,
-            "realized_pnl":     self._realized_pnl,
-            "fees_paid":        self._fees_paid,
-            "net_deposits":     self._net_deposits,       # FIX-1
-            "reserve_pct":      self._reserve_pct,        # config korunur
+            "initial_capital": self.initial_capital,
+            "cash": self._cash,
+            "margin_used": self._margin_used,
+            "reserved_margin": self._reserved_margin,  # FIX-2
+            "unrealized_pnl": self._unrealized_pnl,
+            "realized_pnl": self._realized_pnl,
+            "fees_paid": self._fees_paid,
+            "net_deposits": self._net_deposits,  # FIX-1
+            "reserve_pct": self._reserve_pct,  # config korunur
             "max_position_pct": self._max_position_pct,  # config korunur
             "positions": {
                 sym: {
-                    "order_id":    p.order_id,
+                    "order_id": p.order_id,
                     "entry_price": p.entry_price,
-                    "qty":         p.qty,
-                    "notional":    p.notional,
-                    "peak_price":  p.peak_price,
-                    "unrealized":  p.unrealized,
-                    "opened_at":   p.opened_at,
+                    "qty": p.qty,
+                    "notional": p.notional,
+                    "peak_price": p.peak_price,
+                    "unrealized": p.unrealized,
+                    "opened_at": p.opened_at,
                 }
                 for sym, p in self._positions.items()
             },
@@ -651,19 +722,19 @@ class CapitalEngine:
     def from_dict(cls, data: Dict[str, Any], **kwargs) -> "CapitalEngine":
         """BotEngine._load_state() içinde kullanılacak."""
         # Config değerlerini kaydedilmiş state'ten al — kwargs override edebilir
-        reserve_pct      = data.get("reserve_pct",      0.05)
+        reserve_pct = data.get("reserve_pct", 0.05)
         max_position_pct = data.get("max_position_pct", 0.95)
-        kwargs.setdefault("reserve_pct",      reserve_pct)
+        kwargs.setdefault("reserve_pct", reserve_pct)
         kwargs.setdefault("max_position_pct", max_position_pct)
 
         engine = cls(initial_capital=data["initial_capital"], **kwargs)
-        engine._cash             = float(data.get("cash",            engine._cash))
-        engine._margin_used      = float(data.get("margin_used",     0.0))
-        engine._reserved_margin  = float(data.get("reserved_margin", 0.0))  # FIX-2
-        engine._unrealized_pnl   = float(data.get("unrealized_pnl",  0.0))
-        engine._realized_pnl     = float(data.get("realized_pnl",    0.0))
-        engine._fees_paid        = float(data.get("fees_paid",        0.0))
-        engine._net_deposits     = float(data.get("net_deposits",     0.0))  # FIX-1
+        engine._cash = float(data.get("cash", engine._cash))
+        engine._margin_used = float(data.get("margin_used", 0.0))
+        engine._reserved_margin = float(data.get("reserved_margin", 0.0))  # FIX-2
+        engine._unrealized_pnl = float(data.get("unrealized_pnl", 0.0))
+        engine._realized_pnl = float(data.get("realized_pnl", 0.0))
+        engine._fees_paid = float(data.get("fees_paid", 0.0))
+        engine._net_deposits = float(data.get("net_deposits", 0.0))  # FIX-1
         for sym, pd in data.get("positions", {}).items():
             pos = PositionLedger(
                 symbol=sym,
@@ -678,6 +749,8 @@ class CapitalEngine:
             engine._positions[sym] = pos
         log.info(
             "CapitalEngine yüklendi | nav=%.2f | pozisyon=%d | reserved=%.2f",
-            engine.nav, len(engine._positions), engine._reserved_margin,
+            engine.nav,
+            len(engine._positions),
+            engine._reserved_margin,
         )
         return engine

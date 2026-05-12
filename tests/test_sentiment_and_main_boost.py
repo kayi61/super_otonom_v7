@@ -1,11 +1,15 @@
 """SentimentLayer + main_loop kısa tur (kapsam)."""
+
 from __future__ import annotations
 
 import asyncio
 import time
+from pathlib import Path
 
 import pytest
 from super_otonom.sentiment_layer import SentimentLayer, _dynamic_fallback_score
+
+from tests.test_main_loop_96 import _MAIN_LOOP_MOCK_USDT, _patch_main_loop_recon_paths
 
 
 def test_sentiment_mock_and_validate_branches() -> None:
@@ -28,9 +32,7 @@ def test_dynamic_fallback_score() -> None:
     assert 0.4 <= _dynamic_fallback_score() <= 0.6
 
 
-def test_main_loop_runs_until_shutdown(
-    tmp_path: object, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_main_loop_runs_until_shutdown(tmp_path: object, monkeypatch: pytest.MonkeyPatch) -> None:
     import super_otonom.bot_engine as be
     import super_otonom.main_loop as ml
 
@@ -42,6 +44,7 @@ def test_main_loop_runs_until_shutdown(
     mtf = dict(ml.MTF)
     mtf["enabled"] = False
     monkeypatch.setattr(ml, "MTF", mtf)
+    _patch_main_loop_recon_paths(Path(tmp_path), monkeypatch, ml)
 
     ts0 = int(time.time() * 1000)
 
@@ -53,6 +56,9 @@ def test_main_loop_runs_until_shutdown(
 
         async def fetch_order_book(self, *a, **k):
             return {"asks": [[100.0, 10.0]], "bids": [[99.0, 10.0]]}
+
+        async def fetch_balance(self, *a, **k):
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self):
             return {}
@@ -116,6 +122,7 @@ def test_main_loop_mtf_storm_and_analyzer_error(
     mtf["timeframe"] = "1h"
     mtf["candle_limit"] = 5
     monkeypatch.setattr(ml, "MTF", mtf)
+    _patch_main_loop_recon_paths(Path(tmp_path), monkeypatch, ml)
     ts0 = int(time.time() * 1000)
     row = [float(ts0), 1.0, 1.0, 1.0, 1.0, 1.0]
 
@@ -125,6 +132,9 @@ def test_main_loop_mtf_storm_and_analyzer_error(
 
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[1.0, 0.0]], "bids": []}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             return {"X/USDT": "OPEN (y)"}

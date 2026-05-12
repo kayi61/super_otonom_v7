@@ -23,4 +23,3 @@ def test_faz79_majority_buy_increases_consensus() -> None:
     r = infer_mtf_consensus(symbol="BTC/USDT", analysis={"mtf": mtf})
     assert 0 <= r.mtf_consensus_score <= 100
     assert isinstance(r.conflict_flag, bool)
-

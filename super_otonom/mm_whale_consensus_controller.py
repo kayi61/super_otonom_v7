@@ -20,7 +20,6 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional
 
-
 TradePermission = Literal["HALT", "BLOCK", "ALLOW"]
 Action = Literal["TRADE", "WAIT", "REDUCE", "HEDGE", "HALT"]
 ExecutionProfile = Literal["maker", "taker", "twap"]
@@ -210,7 +209,12 @@ def compute_mm_whale_consensus(
     if do_not_trade:
         execution_profile = "twap"
     # Entry hint "enter_now" may prefer taker in safe conditions
-    if entry_hint == "enter_now" and manipulation_risk < 55 and latency_arb_risk < 55 and spread_regime != "wide":
+    if (
+        entry_hint == "enter_now"
+        and manipulation_risk < 55
+        and latency_arb_risk < 55
+        and spread_regime != "wide"
+    ):
         execution_profile = "taker"
 
     # Max size multiplier: shrink under risk, expand under strong alpha
@@ -286,4 +290,3 @@ def compute_mm_whale_consensus(
         half_life_ms=hl,
         veto_reason=veto_reason,
     )
-

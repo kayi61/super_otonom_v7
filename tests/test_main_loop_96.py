@@ -4,6 +4,7 @@ Kosum: pytest tests/ --cov=super_otonom.main_loop (veya --cov=super_otonom) ...
 Not: --cov=super_otonom/main_path.py bazi ortamlarda modül bulunmaz; noktali isim kullanin.
 Giris noktasi (if __name__) pragma ile sayim disi: çalistirma `python -m super_otonom.main_loop`.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -44,10 +45,35 @@ def test_main_loop_reload_exits_on_live_without_confirm() -> None:
 # Yardimci: kisa yasayan main() senaryolari
 # ---------------------------------------------------------------------------
 
+_MAIN_LOOP_MOCK_USDT = 1000.0  # main() INITIAL_CAPITAL varsayilanı ile uyumlu
 
-def _ml_common_engines(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pairs: list[str]
-) -> Any:
+
+def _patch_main_loop_recon_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ml: Any) -> None:
+    """Startup handshake OrderEngine / recon çıktılarını tmp_path altına yönlendirir."""
+    from super_otonom.order_engine import OrderEngine as _OE
+    from super_otonom.reconciliation_engine import ReconciliationEngine as _RE
+
+    class _OrderEngineTmp(_OE):
+        def __init__(self, *a: Any, **k: Any) -> None:
+            if a or k:
+                super().__init__(*a, **k)
+            else:
+                super().__init__(
+                    order_log_file=str(tmp_path / "orders.jsonl"),
+                    pending_file=str(tmp_path / "pending_orders.json"),
+                )
+
+    class _ReconTmp(_RE):
+        def __init__(self, *a: Any, **k: Any) -> None:
+            k = dict(k)
+            k.setdefault("recon_dir", str(tmp_path / "recon"))
+            super().__init__(*a, **k)
+
+    monkeypatch.setattr(ml, "OrderEngine", _OrderEngineTmp)
+    monkeypatch.setattr(ml, "ReconciliationEngine", _ReconTmp)
+
+
+def _ml_common_engines(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pairs: list[str]) -> Any:
     import super_otonom.bot_engine as be
     import super_otonom.main_loop as ml
 
@@ -57,6 +83,7 @@ def _ml_common_engines(
     monkeypatch.setattr(ml, "_POLL_INTERVAL", 0.02)
     ml._shutdown = asyncio.Event()
     ml._loop_counter = 0
+    _patch_main_loop_recon_paths(tmp_path, monkeypatch, ml)
     return ml
 
 
@@ -65,9 +92,7 @@ def _ml_common_engines(
 # ---------------------------------------------------------------------------
 
 
-def test_main_adds_posix_signal_handlers(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_main_adds_posix_signal_handlers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from super_otonom import main_loop as ml
     from super_otonom.config import MTF
 
@@ -86,6 +111,9 @@ def test_main_adds_posix_signal_handlers(
 
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[1.0, 1.0]], "bids": [[0.9, 1.0]]}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             return {}
@@ -165,6 +193,9 @@ def test_circuit_open_warning_and_storm_trip_both_sites(
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[1.0, 1.0]], "bids": [[0.9, 1.0]]}
 
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
+
         def circuit_breaker_status(self) -> dict:
             return {sym: "OPEN (sim test)"}
 
@@ -230,9 +261,7 @@ def test_empty_pair_skips_debug_and_mtf_uses_v51(
     mtf["timeframe"] = "4h"
     mtf["candle_limit"] = 5
     monkeypatch.setattr(ml, "MTF", mtf)
-    ml_mod = _ml_common_engines(
-        tmp_path, monkeypatch, ["FULL/BTC", "NO1H/ETH"]
-    )
+    ml_mod = _ml_common_engines(tmp_path, monkeypatch, ["FULL/BTC", "NO1H/ETH"])
     mtf_time = mtf["timeframe"]
     ex_tf = ASYNC_EXCHANGE["timeframe"]
 
@@ -257,6 +286,9 @@ def test_empty_pair_skips_debug_and_mtf_uses_v51(
 
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[1.0, 1.0]], "bids": [[0.9, 1.0]]}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             return {}
@@ -338,6 +370,9 @@ def test_order_book_slippage_when_candles_empty(
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[1.0, 10.0]], "bids": [[0.5, 10.0]]}
 
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
+
         def circuit_breaker_status(self) -> dict:
             return {}
 
@@ -392,6 +427,9 @@ def test_rich_decision_v6_and_action_slippage(
     mtf = dict(MTF)
     mtf["enabled"] = False
     monkeypatch.setattr(ml, "MTF", mtf)
+    alt_tf = dict(ml.ALT_TF)
+    alt_tf["enabled"] = False
+    monkeypatch.setattr(ml, "ALT_TF", alt_tf)
     ml_mod = _ml_common_engines(tmp_path, monkeypatch, ["LIVEP/USDT"])
 
     ts0 = int(time.time() * 1000)
@@ -403,6 +441,9 @@ def test_rich_decision_v6_and_action_slippage(
 
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[100.0, 10.0]], "bids": [[99.0, 10.0]]}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             return {}
@@ -431,6 +472,9 @@ def test_rich_decision_v6_and_action_slippage(
         def apply_liquidity_context(self, *a, **k) -> None:
             pass
 
+        def apply_alt_timeframe_veto(self, analysis, candles_alt) -> None:
+            return None
+
     monkeypatch.setattr(ml, "MarketAnalyzer", MA)
     monkeypatch.setattr(ml, "apply_storm_trip_to_risk", lambda r: False)
 
@@ -444,6 +488,7 @@ def test_rich_decision_v6_and_action_slippage(
         "actions": [{"type": "BUY", "price": 99.0}],
     }
     with patch.object(BotEngine, "tick", new=AsyncMock(return_value=tick_out)):
+
         async def _u() -> None:
             t = asyncio.create_task(ml_mod.main())
             await asyncio.sleep(0.2)
@@ -479,6 +524,9 @@ def test_rich_sell_action_also_triggers_slippage_metric(
 
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[50.0, 10.0]], "bids": [[49.0, 10.0]]}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             return {}
@@ -517,6 +565,7 @@ def test_rich_sell_action_also_triggers_slippage_metric(
         "actions": [{"type": "SELL", "price": 48.0}],
     }
     with patch.object(BotEngine, "tick", new=AsyncMock(return_value=tick_out)):
+
         async def _g() -> None:
             t = asyncio.create_task(ml_mod.main())
             await asyncio.sleep(0.12)
@@ -548,6 +597,9 @@ def test_main_loop_exception_logged_and_continues(
 
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [], "bids": []}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             return {}
@@ -581,9 +633,7 @@ def test_main_loop_exception_logged_and_continues(
 # ---------------------------------------------------------------------------
 
 
-def test_wait_shutdown_timeout_pymodule(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_wait_shutdown_timeout_pymodule(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Döngü sonundaki wait_for(..., timeout=POLL) TimeoutError sigrasi (284-286)."""
     from super_otonom import main_loop as ml
     from super_otonom.config import MTF
@@ -602,6 +652,9 @@ def test_wait_shutdown_timeout_pymodule(
 
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[1.0, 1.0]], "bids": []}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             return {}
@@ -669,6 +722,9 @@ def test_main_windows_registers_sigint(
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[1.0, 1.0]], "bids": []}
 
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
+
         def circuit_breaker_status(self) -> dict:
             return {}
 
@@ -734,6 +790,9 @@ def test_main_windows_sigint_bind_failure_still_runs(
 
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[1.0, 1.0]], "bids": []}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             return {}
@@ -803,6 +862,9 @@ def test_tick_skipped_when_cb_opens_after_prep(
 
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[1.0, 1.0]], "bids": []}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             self._n += 1
@@ -878,6 +940,9 @@ def test_main_loop_keyboard_interrupt_in_fetch_breaks(
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [], "bids": []}
 
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
+
         def circuit_breaker_status(self) -> dict:
             return {}
 
@@ -904,9 +969,7 @@ def test_main_loop_keyboard_interrupt_in_fetch_breaks(
     assert ml_mod._shutdown.is_set()
 
 
-@pytest.mark.filterwarnings(
-    "ignore:coroutine 'Event.wait' was never awaited:RuntimeWarning"
-)
+@pytest.mark.filterwarnings("ignore:coroutine 'Event.wait' was never awaited:RuntimeWarning")
 def test_main_loop_keyboard_interrupt_on_poll_wait(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -927,6 +990,9 @@ def test_main_loop_keyboard_interrupt_on_poll_wait(
 
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[1.0, 1.0]], "bids": []}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             return {}
@@ -999,6 +1065,9 @@ def test_engine_shutdown_error_logged(
 
         async def fetch_order_book(self, *a, **k) -> dict:
             return {"asks": [[1.0, 1.0]], "bids": []}
+
+        async def fetch_balance(self, *a, **k) -> dict:
+            return {"total": {"USDT": _MAIN_LOOP_MOCK_USDT}}
 
         def circuit_breaker_status(self) -> dict:
             return {}

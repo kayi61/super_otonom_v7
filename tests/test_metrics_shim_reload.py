@@ -1,4 +1,5 @@
 """prometheus_client shim + metrics_exporter yeniden yükleme — tam init kapsamı."""
+
 from __future__ import annotations
 
 import importlib

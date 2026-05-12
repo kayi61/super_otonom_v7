@@ -1,7 +1,9 @@
 """Faz 23 — news_event_intelligence modülü (Faz 16/17 test üslubu)."""
+
 from __future__ import annotations
 
 import time
+from unittest.mock import patch
 
 from super_otonom.news_event_intelligence import analyze_news_event, run_news_event_phase
 
@@ -120,12 +122,20 @@ def test_run_news_event_phase_matches_analyze() -> None:
     """run_news_event_phase ile analyze_news_event uyumlu."""
     a1: dict = {}
     a2: dict = {}
+    fixed_pub_ms = 1_700_000_000_000
+    fixed_now_ms = 1_730_000_000_000
     d = {
         "headline": "Protocol completes audit milestone",
-        "published_at_ms": int(time.time() * 1000),
+        "published_at_ms": fixed_pub_ms,
     }
-    r1 = run_news_event_phase("Q/USDT", d, a1, attach_to_analysis=True)
-    r2 = analyze_news_event("Q/USDT", d, a2, attach_to_analysis=True)
+    # _news_age_hours ve unlock süreleri _now_ms() ile hesaplanır; iki ayrı çağrıda duvar saati
+    # kayarsa phase23 tam eşit olmayabilir — test için süreyi dondur.
+    with patch(
+        "super_otonom.news_event_intelligence._now_ms",
+        return_value=fixed_now_ms,
+    ):
+        r1 = run_news_event_phase("Q/USDT", d, a1, attach_to_analysis=True, event_ts=fixed_pub_ms)
+        r2 = analyze_news_event("Q/USDT", d, a2, attach_to_analysis=True, event_ts=fixed_pub_ms)
 
     assert r1["trade_permission"] == r2["trade_permission"]
     assert r1["alpha_score"] == r2["alpha_score"]

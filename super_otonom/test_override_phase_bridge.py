@@ -63,7 +63,10 @@ def test_bridge_phase68_halt_when_force_all_close() -> None:
     dctx.adj_signal_quality = None
     dctx.effective_quality_min = None
 
-    with patch("super_otonom.pipelines.override_phase_bridge.risk_pipeline.force_all_close_requested", return_value=True):
+    with patch(
+        "super_otonom.pipelines.override_phase_bridge.risk_pipeline.force_all_close_requested",
+        return_value=True,
+    ):
         attach_override_phases_to_analysis(analysis, engine=engine, dctx=dctx, out={})
 
     assert analysis["phase68"]["trade_permission"] == "HALT"

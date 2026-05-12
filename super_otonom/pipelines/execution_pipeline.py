@@ -5,23 +5,26 @@ Cross-venue / emir yönlendirme ayrımı:
 - Seçenek 2 — Ayrı execution katmanı: `out["execution_layer"]` (Faz 80 + Faz 47 birleşik yük).
 - Seçenek 3 — Faz 47 smart_order_router: `phase_chain["faz47"]`, `out["faz47"]`.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from super_otonom.decision_context import DecisionStage
-from super_otonom.dealer_intent_inference_engine import infer_dealer_intent
-from super_otonom.whale_intent_microstructure_engine import infer_whale_intent
-from super_otonom.liquidity_games_detector import detect_liquidity_games
-from super_otonom.cross_venue_leadlag_intelligence import infer_cross_venue_leadlag
-from super_otonom.mm_whale_consensus_controller import compute_mm_whale_consensus
-from super_otonom.regime_adaptive_execution_engine import infer_regime_adaptive_execution
-from super_otonom.smart_stop_engine import compute_smart_stop
 from super_otonom.alpha_decay_realtime_monitor import monitor_alpha_decay
-from super_otonom.multi_timeframe_consensus_engine import infer_mtf_consensus
 from super_otonom.autonomous_decision_core import decide_autonomously
+from super_otonom.confidence_calibration import calibrate_confidence_mvp
+from super_otonom.cross_venue_leadlag_intelligence import infer_cross_venue_leadlag
+from super_otonom.dealer_intent_inference_engine import infer_dealer_intent
+from super_otonom.decision_context import DecisionStage
+from super_otonom.liquidity_games_detector import detect_liquidity_games
+from super_otonom.meta_regime_orchestrator import attach_meta_regime
+from super_otonom.mm_whale_consensus_controller import compute_mm_whale_consensus
+from super_otonom.multi_timeframe_consensus_engine import infer_mtf_consensus
 from super_otonom.pipelines.override_phase_bridge import fill_governance_phases_if_missing
+from super_otonom.regime_adaptive_execution_engine import infer_regime_adaptive_execution
 from super_otonom.smart_order_router import compute_smart_order_route
+from super_otonom.smart_stop_engine import compute_smart_stop
+from super_otonom.whale_intent_microstructure_engine import infer_whale_intent
 
 
 def _phase_dict_from_analysis(analysis: Dict[str, Any], *keys: str) -> Dict[str, Any]:
@@ -65,6 +68,13 @@ async def execute_trade_phase(
         dctx.add_trace(DecisionStage.EXIT.value, "open_position")
         await engine._handle_exit(symbol, price, final, out, analysis)
     else:
+        # ── KARAR AKIŞI (giriş, açık pozisyon yok) ─────────────────────────────
+        # 1. fill_governance_phases_if_missing → analysis içi faz 66–70 sözlükleri
+        # 2. infer_dealer_intent (71) … infer_mtf_consensus (79) → analysis + OB
+        # 3. decide_autonomously(71–79, …) → p80 (final_action, trade_permission, …)
+        # 4. compute_smart_order_route (47) + phase_chain güncellemesi
+        # 5. BotEngine._handle_entry / _handle_exit — upstream out["final_signal"] (AI+füzyon)
+        #    execution katmanı ağırlıklı olarak p80 ve risk gate ile boyut/rotayı şekillendirir.
         _sig_upstream = str(out.get("final_signal", ""))
         _dr_upstream = out.get("decision_reason")
 
@@ -81,9 +91,14 @@ async def execute_trade_phase(
         p72 = infer_whale_intent(symbol=symbol, analysis=analysis, order_book=order_book)
         p73 = detect_liquidity_games(symbol=symbol, analysis=analysis, order_book=order_book)
         p74 = infer_cross_venue_leadlag(symbol=symbol, analysis=analysis)
-        p75 = compute_mm_whale_consensus(symbol=symbol, phase71=p71, phase72=p72, phase73=p73, phase74=p74)
+        # PROMPT-A11 — konsensus tek tur (çıktı aynı tick’te tekrar girdi olarak kullanılmaz)
+        p75 = compute_mm_whale_consensus(
+            symbol=symbol, phase71=p71, phase72=p72, phase73=p73, phase74=p74
+        )
 
-        p76 = infer_regime_adaptive_execution(symbol=symbol, analysis=analysis, order_book=order_book)
+        p76 = infer_regime_adaptive_execution(
+            symbol=symbol, analysis=analysis, order_book=order_book
+        )
         p77 = compute_smart_stop(
             symbol=symbol,
             side="LONG",
@@ -145,6 +160,27 @@ async def execute_trade_phase(
             }
         )
 
+        # PROMPT-A6 — aynı tick / faz ailesi yüksek güven tekrarına minimal ceza
+        conf, _cal_meta = calibrate_confidence_mvp(conf, dctx.phase_chain)
+        out["ai_confidence"] = conf
+        dctx.ai_confidence = float(conf)
+        analysis["confidence_calibration"] = _cal_meta
+        if _cal_meta.get("applied"):
+            dctx.add_trace("confidence_calibration", str(_cal_meta.get("summary", "")))
+
+        # PROMPT-A9 — meta-orchestrator (varsayılan: shadow; ölçüm olmadan
+        # ağırlık değiştirme yok). advisory modda dahi ±%8 ile sınırlandırılmış
+        # güven çarpanı uygular; shadow modda yalnızca analysis'e yazar.
+        conf, _meta_payload = attach_meta_regime(
+            analysis,
+            dctx.phase_chain,
+            base_confidence=conf,
+        )
+        out["ai_confidence"] = conf
+        dctx.ai_confidence = float(conf)
+        if _meta_payload.get("applied"):
+            dctx.add_trace("meta_regime", str(_meta_payload.get("summary", "")))
+
         out["final_action"] = p80.final_action
         out["trade_permission"] = p80.trade_permission
         out["phase80"] = p80.to_dict()
@@ -184,10 +220,14 @@ async def execute_trade_phase(
 
         # Faz 80 WAIT iken üst akış zaten BUY ise sinyali koru — giriş kapısı (OB merge, hard limit)
         # decide_autonomously sıkı WAIT üretebilir; legacy tick akışı BUY üzerinden risk kontrolü bekler.
+        # TREND_FOLLOW_OVERRIDE: validate_signal atlanır; kalibrasyon/meta güveni düşürse de üst BUY korunur.
+        _trend_follow_upstream = analysis.get("execution_mode") == "TREND_FOLLOW" or str(
+            _dr_upstream or ""
+        ).startswith("TREND_FOLLOW")
         if (
             p80.final_action == "WAIT"
             and _sig_upstream == "BUY"
-            and float(conf) >= 0.55
+            and (float(conf) >= 0.55 or _trend_follow_upstream)
         ):
             out["final_signal"] = "BUY"
             if _dr_upstream is not None and str(_dr_upstream).strip():

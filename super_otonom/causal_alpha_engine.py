@@ -112,7 +112,9 @@ def _to_log_returns(levels: Sequence[float]) -> np.ndarray:
     return r.astype(float)
 
 
-def _prepare_returns(a: List[float], b: List[float], d: Dict[str, Any]) -> Tuple[np.ndarray, np.ndarray]:
+def _prepare_returns(
+    a: List[float], b: List[float], d: Dict[str, Any]
+) -> Tuple[np.ndarray, np.ndarray]:
     use_lr = d.get("use_log_returns")
     if use_lr is False:
         ra = np.diff(np.asarray(a, dtype=float))
@@ -345,10 +347,7 @@ def analyze_causal_alpha(
     te_factor = _clamp01(0.55 * te_max + 0.45 * min(te_ab, te_ba))
 
     base_alpha = _clamp01(
-        0.38 * g_main
-        + 0.28 * te_factor
-        + 0.22 * lag_bonus * g_main
-        + 0.12 * (1.0 - sp_score)
+        0.38 * g_main + 0.28 * te_factor + 0.22 * lag_bonus * g_main + 0.12 * (1.0 - sp_score)
     )
     # Transfer entropy düşükse alpha düşür
     alpha_01 = _clamp01(base_alpha * (0.35 + 0.65 * te_factor))
@@ -365,10 +364,7 @@ def analyze_causal_alpha(
     conf = _clamp01(conf_base * (0.38 if spurious else 1.0))
 
     dh = _clamp01(
-        0.28
-        + 0.32 * (1.0 if hist_ok else 0.35)
-        + 0.22 * (1.0 - sp_score)
-        + 0.18 * te_factor
+        0.28 + 0.32 * (1.0 if hist_ok else 0.35) + 0.22 * (1.0 - sp_score) + 0.18 * te_factor
     )
 
     perm: TradePermission = "ALLOW"

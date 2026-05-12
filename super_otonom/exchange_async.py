@@ -3,6 +3,14 @@ from __future__ import annotations
 """
 AsyncExchangeHandler v5
 ─────────────────────────────────────────────────────────────────────────────
+Borsa soyutlama: OHLCV, order book, bakiye, emir durumu ccxt üzerinden.
+
+**Borsa özgü davranış:** Rate limit ve hata kodları ccxt/exchange katmanında kalır;
+bu sınıf CircuitBreaker + yeniden deneme ile sarar. Spot için ``fetch_positions``
+çoğu borsada boş veya minimal döner; mutabakat (``ReconciliationEngine``) futures veya
+margin pozisyonları için anlamlıdır — Binance dışı borsalar üretim öncesi testnet ile
+doğrulanmalıdır (bkz. ``config.EXCHANGES`` uyarıları).
+
 YENİLİKLER (v4 → v5):
   • CircuitBreaker sınıfı — art arda hatalar devre kesici açar
   • fetch_all_ohlcv → CircuitBreaker kontrolü ile koruma altında
@@ -12,18 +20,87 @@ YENİLİKLER (v4 → v5):
 
 import asyncio
 import logging
+import os
+import sys
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from super_otonom.kill_switch import get_rate_limit_storm_tracker, is_ratelimit_error
 
 log = logging.getLogger("super_otonom.exchange_async")
 
+
+def _binance_testnet_env_enabled() -> bool:
+    """Yalnızca ``BINANCE_TESTNET=true`` iken Binance demo (enable_demo_trading) kullanılır."""
+    return os.getenv("BINANCE_TESTNET", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _use_aiohttp_default_resolver() -> bool:
+    """
+    Windows'ta aiohttp+aiodns sık DNS hatası verir; ``DefaultResolver`` ile sistem çözücüsü kullanılır.
+    Diğer OS: ``SUPER_OTONOM_AIOHTTP_DEFAULT_RESOLVER=1`` ile aynı yol zorlanabilir.
+    """
+    if sys.platform == "win32":
+        return True
+    return os.getenv("SUPER_OTONOM_AIOHTTP_DEFAULT_RESOLVER", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+async def _install_aiohttp_default_resolver_session(ex: Any) -> None:
+    """ccxt async exchange için aiohttp oturumunu ``DefaultResolver`` ile yeniden kurar."""
+    import ssl as ssl_mod
+
+    import aiohttp
+
+    loop = asyncio.get_running_loop()
+    if ex.asyncio_loop is None:
+        ex.asyncio_loop = loop
+    throttler = getattr(ex, "throttler", None)
+    if throttler is not None:
+        throttler.loop = loop
+
+    if ex.ssl_context is None:
+        ex.ssl_context = (
+            ssl_mod.create_default_context(cafile=ex.cafile) if ex.verify else ex.verify
+        )
+
+    if ex.session is not None:
+        await ex.session.close()
+        ex.session = None
+    if ex.tcp_connector is not None:
+        await ex.tcp_connector.close()
+        ex.tcp_connector = None
+
+    ex.tcp_connector = aiohttp.TCPConnector(
+        ssl=ex.ssl_context,
+        loop=loop,
+        use_dns_cache=False,
+        resolver=aiohttp.DefaultResolver(),
+        enable_cleanup_closed=True,
+    )
+    ex.session = aiohttp.ClientSession(
+        loop=loop,
+        connector=ex.tcp_connector,
+        trust_env=bool(getattr(ex, "aiohttp_trust_env", True)),
+    )
+    ex.own_session = True
+    log.info("ccxt aiohttp: DefaultResolver (sistem DNS) + trust_env=%s", ex.aiohttp_trust_env)
+
+
+# Binance demo (Kasım 2025+): ``set_sandbox_mode`` spot için testnet.binance.vision kullanır (kalkmış).
+# ccxt: ``enable_demo_trading(True)`` → ``urls['api']`` = ``urls['demo']`` (demo-api / demo-fapi / demo-dapi).
+# Not: ``urls['api'] = "https://.../api/v3"`` (tek string) ccxt binance.sign ile uyumsuzdur (dict şart).
+
 try:
     import ccxt.async_support as ccxt_async
+
     _CCXT_AVAILABLE = True
 except ImportError:
-    ccxt_async = None          # type: ignore
+    ccxt_async = None  # type: ignore
     _CCXT_AVAILABLE = False
     log.warning("AsyncExchangeHandler: ccxt kurulu degil, simule mod aktif.")
 
@@ -31,6 +108,7 @@ except ImportError:
 # ─────────────────────────────────────────────────────────────────────────────
 #  v5 YENİLİK: CircuitBreaker
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class CircuitBreaker:
     """
@@ -46,11 +124,11 @@ class CircuitBreaker:
     """
 
     def __init__(self, failure_threshold: int = 5, recovery_time: float = 60.0):
-        self.failures          = 0
-        self.threshold         = failure_threshold
-        self.recovery_time     = recovery_time
+        self.failures = 0
+        self.threshold = failure_threshold
+        self.recovery_time = recovery_time
         self.last_failure_time = 0.0
-        self.is_open           = False
+        self.is_open = False
 
     def record_failure(self) -> None:
         """Başarısız çağrı kaydet. Eşiğe ulaşıldıysa devreyi aç."""
@@ -61,7 +139,8 @@ class CircuitBreaker:
                 log.warning(
                     "CircuitBreaker: %d art arda hata — devre AÇILDI, "
                     "%.0fs sonra tekrar denenecek.",
-                    self.failures, self.recovery_time,
+                    self.failures,
+                    self.recovery_time,
                 )
             self.is_open = True
 
@@ -69,8 +148,8 @@ class CircuitBreaker:
         """Başarılı çağrı: sayacı sıfırla, devre kapat."""
         if self.is_open:
             log.info("CircuitBreaker: başarılı çağrı — devre KAPATILDI.")
-        self.failures   = 0
-        self.is_open    = False
+        self.failures = 0
+        self.is_open = False
 
     def can_proceed(self) -> bool:
         """
@@ -81,10 +160,8 @@ class CircuitBreaker:
             return True
         # Recovery süresi geçtiyse HALF-OPEN: bir deneme izni ver
         if time.time() - self.last_failure_time > self.recovery_time:
-            log.info(
-                "CircuitBreaker: recovery süresi doldu — HALF-OPEN, deneme izni veriliyor."
-            )
-            self.is_open = False   # Sonuç başarısızsa record_failure tekrar açar
+            log.info("CircuitBreaker: recovery süresi doldu — HALF-OPEN, deneme izni veriliyor.")
+            self.is_open = False  # Sonuç başarısızsa record_failure tekrar açar
             self.failures = max(0, self.failures - 1)
             return True
         return False
@@ -102,6 +179,7 @@ class CircuitBreaker:
 # ─────────────────────────────────────────────────────────────────────────────
 #  Ana Exchange Handler
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class AsyncExchangeHandler:
     """
@@ -129,36 +207,78 @@ class AsyncExchangeHandler:
         cb_failure_threshold: int = 5,
         cb_recovery_time: float = 60.0,
     ):
-        self.exchange_id  = exchange_id
-        self.testnet      = testnet
-        self.max_retries  = max_retries
-        self.retry_delay  = retry_delay
-        self._ex: Any     = None
+        self.exchange_id = exchange_id
+        self.testnet = testnet
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        self._ex: Any = None
 
         # CircuitBreaker ayarları (sembol başına oluşturulur)
-        self._cb_threshold    = cb_failure_threshold
-        self._cb_recovery     = cb_recovery_time
+        self._cb_threshold = cb_failure_threshold
+        self._cb_recovery = cb_recovery_time
         self._breakers: Dict[str, CircuitBreaker] = {}
 
         if not _CCXT_AVAILABLE:
             log.warning("ccxt yok — AsyncExchangeHandler simule modda calisacak.")
             return
 
+        api_key = str(api_key or "").strip().strip('"').strip("'")
+        api_secret = str(api_secret or "").strip().strip('"').strip("'")
+
         config: Dict[str, Any] = {
-            "apiKey":    api_key,
-            "secret":    api_secret,
+            "apiKey": api_key,
+            "secret": api_secret,
             "enableRateLimit": True,
+            # Proxy / sistem sertifikası; aiohttp için (ccxt async).
+            "aiohttp_trust_env": True,
         }
         if extra_config:
             config.update(extra_config)
+
+        if exchange_id == "binance":
+            # Ana agda key olsa bile OHLCV icin sapi/capital zorunlu degil; yanlis/demo key ile kirilir.
+            _opts = config.setdefault("options", {})
+            _opts.setdefault("fetchCurrencies", False)
 
         exchange_cls = getattr(ccxt_async, exchange_id, None)
         if exchange_cls is None:
             raise ValueError(f"AsyncExchangeHandler: bilinmeyen exchange '{exchange_id}'")
 
         self._ex = exchange_cls(config)
+        if self._ex is not None:
+            self._ex.aiohttp_trust_env = True
 
-        if testnet and hasattr(self._ex, "set_sandbox_mode"):
+        _binance_demo = (
+            exchange_id == "binance"
+            and self._ex is not None
+            and bool(testnet)
+            and _binance_testnet_env_enabled()
+        )
+        if _binance_demo:
+            # Sandbox ile demo trading birlikte ccxt'te desteklenmez; demo URL'ler resmi yol.
+            try:
+                if hasattr(self._ex, "enable_demo_trading"):
+                    self._ex.enable_demo_trading(True)
+                    log.info(
+                        "Binance testnet: ccxt enable_demo_trading — "
+                        "exchangeInfo ve diger uclar demo-api / demo-fapi."
+                    )
+                else:
+                    demo = self._ex.urls.get("demo")
+                    if isinstance(demo, dict):
+                        self._ex.urls["api"] = dict(demo)
+                        self._ex.options["enableDemoTrading"] = True
+                        log.info("Binance testnet: urls['demo'] -> urls['api'] (eski ccxt).")
+                    else:
+                        log.warning("Binance testnet: ccxt urls['demo'] yok — URL ayari atlandi.")
+            except Exception as exc:
+                log.warning("Binance demo URL ayari basarisiz: %s", exc)
+        elif exchange_id == "binance" and bool(testnet) and not _binance_testnet_env_enabled():
+            log.info(
+                "Binance: testnet bayragi acik ama BINANCE_TESTNET env kapali — "
+                "canli spot API (api.binance.com) kullaniliyor."
+            )
+        elif testnet and exchange_id != "binance" and hasattr(self._ex, "set_sandbox_mode"):
             self._ex.set_sandbox_mode(True)
 
     def _get_breaker(self, symbol: str) -> CircuitBreaker:
@@ -193,23 +313,31 @@ class AsyncExchangeHandler:
         for attempt in range(1, self.max_retries + 1):
             try:
                 data = await self._ex.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
-                breaker.record_success()   # Başarı → sayacı sıfırla
+                breaker.record_success()  # Başarı → sayacı sıfırla
                 get_rate_limit_storm_tracker().on_success()
                 return data
             except Exception as exc:
                 last_err = exc
                 if is_ratelimit_error(exc):
                     get_rate_limit_storm_tracker().on_ratelimit()
-                breaker.record_failure()   # Her hata CircuitBreaker'a bildir
+                breaker.record_failure()  # Her hata CircuitBreaker'a bildir
                 log.warning(
                     "fetch_ohlcv hata | symbol=%s attempt=%d/%d err=%s cb=%s",
-                    symbol, attempt, self.max_retries, exc, breaker.state,
+                    symbol,
+                    attempt,
+                    self.max_retries,
+                    exc,
+                    breaker.state,
                 )
                 if attempt < self.max_retries:
                     await asyncio.sleep(self.retry_delay * attempt)
 
-        log.error("fetch_ohlcv basarisiz | symbol=%s | son_hata=%s | cb=%s",
-                  symbol, last_err, breaker.state)
+        log.error(
+            "fetch_ohlcv basarisiz | symbol=%s | son_hata=%s | cb=%s",
+            symbol,
+            last_err,
+            breaker.state,
+        )
         return last_err
 
     # ── Paralel çok-parite çekici ─────────────────────────────────────────────
@@ -268,6 +396,54 @@ class AsyncExchangeHandler:
             log.warning("fetch_order_book hata | symbol=%s err=%s", symbol, exc)
             return {"asks": [], "bids": []}
 
+    async def fetch_positions(
+        self, symbols: Optional[Sequence[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Açık pozisyonlar — ``ReconciliationEngine`` startup_handshake ile uyumlu.
+        Spot rejiminde çoğu borsada boş liste döner; futures/margin için ccxt unified API.
+        """
+        if self._ex is None:
+            return []
+        try:
+            if symbols:
+                out: List[Dict[str, Any]] = []
+                for sym in symbols:
+                    chunk = await self._ex.fetch_positions([sym])
+                    if chunk:
+                        out.extend(chunk)
+                get_rate_limit_storm_tracker().on_success()
+                return out
+            pos = await self._ex.fetch_positions()
+            get_rate_limit_storm_tracker().on_success()
+            return list(pos or [])
+        except Exception as exc:
+            if is_ratelimit_error(exc):
+                get_rate_limit_storm_tracker().on_ratelimit()
+            log.warning("fetch_positions hata | err=%s", exc)
+            return []
+
+    async def fetch_balance(self) -> Dict[str, Any]:
+        """
+        ccxt uyumlu bakiye (total.USDT) — ReconciliationEngine startup_handshake için.
+        Simülasyon / ccxt yok: INITIAL_CAPITAL ile hizalı sahte bakiye (yanlış hard block önler).
+        """
+        if self._ex is None:
+            try:
+                u = float(os.getenv("INITIAL_CAPITAL", "1000"))
+            except ValueError:
+                u = 1000.0
+            return {"total": {"USDT": u}}
+        try:
+            bal = await self._ex.fetch_balance()
+            get_rate_limit_storm_tracker().on_success()
+            return bal
+        except Exception as exc:
+            if is_ratelimit_error(exc):
+                get_rate_limit_storm_tracker().on_ratelimit()
+            log.warning("fetch_balance hata | err=%s", exc)
+            raise
+
     # ── Emir yönetimi (OrderTracker için) ────────────────────────────────────
 
     async def get_order_status(self, order_id: str, symbol: str) -> str:
@@ -285,8 +461,9 @@ class AsyncExchangeHandler:
                 return "filled"
             return status
         except Exception as exc:
-            log.warning("get_order_status hata | order_id=%s symbol=%s err=%s",
-                        order_id, symbol, exc)
+            log.warning(
+                "get_order_status hata | order_id=%s symbol=%s err=%s", order_id, symbol, exc
+            )
             return "unknown"
 
     async def cancel_order(self, order_id: str, symbol: str) -> bool:
@@ -301,8 +478,7 @@ class AsyncExchangeHandler:
             log.info("cancel_order: iptal edildi | order_id=%s symbol=%s", order_id, symbol)
             return True
         except Exception as exc:
-            log.warning("cancel_order hata | order_id=%s symbol=%s err=%s",
-                        order_id, symbol, exc)
+            log.warning("cancel_order hata | order_id=%s symbol=%s err=%s", order_id, symbol, exc)
             return False
 
     # ── Yaşam döngüsü ─────────────────────────────────────────────────────────
@@ -317,6 +493,39 @@ class AsyncExchangeHandler:
                 self._ex = None
 
     async def __aenter__(self) -> "AsyncExchangeHandler":
+        _ex = getattr(self, "_ex", None)
+        if _ex is not None and _CCXT_AVAILABLE and _use_aiohttp_default_resolver():
+            try:
+                await _install_aiohttp_default_resolver_session(_ex)
+            except Exception as exc:
+                log.warning("aiohttp DefaultResolver kurulumu atlandi: %s", exc)
+
+        # Binance imzali istekler: yerel saat sunucudan ilerideyse -1021; ccxt timeDifference ile düzelt.
+        if _ex is not None and self.exchange_id == "binance":
+            try:
+                await _ex.load_time_difference()
+                log.info(
+                    "Binance load_time_difference | skew_ms=%s",
+                    _ex.options.get("timeDifference"),
+                )
+            except Exception as exc:
+                log.warning("Binance load_time_difference atlandi: %s", exc)
+
+        # Binance demo URL'leri doğrulamak için erken exchangeInfo (diğer venue'lerde ccxt lazy yükler).
+        if (
+            _ex is not None
+            and self.exchange_id == "binance"
+            and self.testnet
+            and _binance_testnet_env_enabled()
+        ):
+            try:
+                await _ex.load_markets()
+                log.info(
+                    "Binance testnet load_markets tamam | markets=%d",
+                    len(getattr(_ex, "markets", {}) or {}),
+                )
+            except Exception as exc:
+                log.error("Binance testnet load_markets hatasi: %s", exc)
         return self
 
     async def __aexit__(self, *_: Any) -> None:
@@ -324,6 +533,7 @@ class AsyncExchangeHandler:
 
 
 # ── OHLCV → candle dict dönüştürücü ──────────────────────────────────────────
+
 
 def ohlcv_to_candles(raw: List[List[float]]) -> List[Dict[str, float]]:
     """
@@ -334,22 +544,26 @@ def ohlcv_to_candles(raw: List[List[float]]) -> List[Dict[str, float]]:
     for row in raw:
         if len(row) < 6:
             continue
-        candles.append({
-            "timestamp": float(row[0]),
-            "open":      float(row[1]),
-            "high":      float(row[2]),
-            "low":       float(row[3]),
-            "close":     float(row[4]),
-            "volume":    float(row[5]),
-        })
+        candles.append(
+            {
+                "timestamp": float(row[0]),
+                "open": float(row[1]),
+                "high": float(row[2]),
+                "low": float(row[3]),
+                "close": float(row[4]),
+                "volume": float(row[5]),
+            }
+        )
     return candles
 
 
 # ── Simülasyon (ccxt olmadan test için) ───────────────────────────────────────
 
+
 def _fake_ohlcv(symbol: str, limit: int) -> List[List[float]]:
     """Gerçek exchange olmadan unit test için basit sahte veri."""
     import random
+
     price = {"BTC/USDT": 65000.0, "ETH/USDT": 3500.0}.get(symbol, 100.0)
     ts = int(time.time() * 1000) - limit * 300_000
     out = []

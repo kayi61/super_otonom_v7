@@ -1,4 +1,5 @@
 """Scaling altındaki analyze yoğun testlerde Hurst polyfit RuntimeWarning susturulur."""
+
 from __future__ import annotations
 
 import warnings

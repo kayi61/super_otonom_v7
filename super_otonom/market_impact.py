@@ -32,29 +32,30 @@ Kullanım:
 
 import logging
 import math
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from dataclasses import dataclass
+from typing import Dict, List
 
 log = logging.getLogger("super_otonom.market_impact")
 
-_DEFAULT_LAMBDA     = 0.1    # piyasa etki katsayısı
-_DEFAULT_MIN_IMPACT = 0.0001 # minimum %0.01
-_DEFAULT_MAX_IMPACT = 0.02   # maksimum %2 — aşırı tahmin önlemi
-_HISTORY_SIZE       = 200
+_DEFAULT_LAMBDA = 0.1  # piyasa etki katsayısı
+_DEFAULT_MIN_IMPACT = 0.0001  # minimum %0.01
+_DEFAULT_MAX_IMPACT = 0.02  # maksimum %2 — aşırı tahmin önlemi
+_HISTORY_SIZE = 200
 
 
 @dataclass
 class ImpactEstimate:
     """Tek bir emir için market impact tahmini."""
-    order_notional:    float
-    avg_daily_volume:  float
-    volatility:        float
-    lambda_:           float
+
+    order_notional: float
+    avg_daily_volume: float
+    volatility: float
+    lambda_: float
     # Hesaplanan değerler
     participation_rate: float  # order / adv
-    amihud_impact_pct:  float  # sqrt(participation) × vol × lambda
-    total_pct:          float  # clamp edilmiş toplam etki
-    is_large_order:     bool   # participation > %5 → dikkat
+    amihud_impact_pct: float  # sqrt(participation) × vol × lambda
+    total_pct: float  # clamp edilmiş toplam etki
+    is_large_order: bool  # participation > %5 → dikkat
 
     def adjusted_price(self, side: str, price: float) -> float:
         """Market impact sonrası fiyat tahmini."""
@@ -89,12 +90,12 @@ class MarketImpactModel:
         max_impact: float = _DEFAULT_MAX_IMPACT,
         large_order_threshold: float = 0.05,  # ADV'nin %5'i
     ):
-        self._lambda               = lambda_
-        self._min_impact           = min_impact
-        self._max_impact           = max_impact
-        self._large_threshold      = large_order_threshold
+        self._lambda = lambda_
+        self._min_impact = min_impact
+        self._max_impact = max_impact
+        self._large_threshold = large_order_threshold
         self._history: List[ImpactEstimate] = []
-        self._symbol_adv: Dict[str, float]  = {}   # sembol → ortalama günlük hacim
+        self._symbol_adv: Dict[str, float] = {}  # sembol → ortalama günlük hacim
 
     def estimate(
         self,
@@ -113,9 +114,9 @@ class MarketImpactModel:
         """
         adv = max(float(avg_daily_volume), float(order_notional), 1.0)
         participation = float(order_notional) / adv
-        amihud        = math.sqrt(participation) * float(volatility) * self._lambda
-        total         = max(self._min_impact, min(self._max_impact, amihud))
-        is_large      = participation > self._large_threshold
+        amihud = math.sqrt(participation) * float(volatility) * self._lambda
+        total = max(self._min_impact, min(self._max_impact, amihud))
+        is_large = participation > self._large_threshold
 
         est = ImpactEstimate(
             order_notional=float(order_notional),
@@ -138,15 +139,19 @@ class MarketImpactModel:
             log.warning(
                 "MARKET_IMPACT | %s | participation=%.2f%% > eşik=%.0f%% | "
                 "impact=%.4f%% | order=%.0f adv=%.0f",
-                symbol or "?", participation * 100,
+                symbol or "?",
+                participation * 100,
                 self._large_threshold * 100,
                 total * 100,
-                order_notional, adv,
+                order_notional,
+                adv,
             )
         else:
             log.debug(
                 "MARKET_IMPACT | %s | participation=%.3f%% | impact=%.4f%%",
-                symbol or "?", participation * 100, total * 100,
+                symbol or "?",
+                participation * 100,
+                total * 100,
             )
         return est
 
@@ -165,10 +170,7 @@ class MarketImpactModel:
         """
         if not returns or not volumes_usd:
             return 0.0
-        pairs = [
-            (abs(r), v) for r, v in zip(returns, volumes_usd)
-            if v > 0
-        ]
+        pairs = [(abs(r), v) for r, v in zip(returns, volumes_usd) if v > 0]
         if not pairs:
             return 0.0
         return sum(abs_r / v for abs_r, v in pairs) / len(pairs)
@@ -180,9 +182,9 @@ class MarketImpactModel:
         avg_impact = sum(e.total_pct for e in recent) / len(recent)
         large_count = sum(1 for e in self._history if e.is_large_order)
         return {
-            "total_estimates":  len(self._history),
-            "large_orders":     large_count,
-            "avg_impact_pct":   round(avg_impact * 100, 4),
-            "max_impact_pct":   round(max(e.total_pct for e in self._history) * 100, 4),
-            "lambda":           self._lambda,
+            "total_estimates": len(self._history),
+            "large_orders": large_count,
+            "avg_impact_pct": round(avg_impact * 100, 4),
+            "max_impact_pct": round(max(e.total_pct for e in self._history) * 100, 4),
+            "lambda": self._lambda,
         }

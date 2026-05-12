@@ -15,6 +15,7 @@ Modlar:
   python -m super_otonom.benchmark_katman_a --live-ob --symbol BTC/USDT --iter 30
   DEFAULT_EXCHANGE / API anahtarları .env üzerinden (main_loop ile aynı).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -285,9 +286,7 @@ async def _run_benchmark(
     exchange_id: str,
 ) -> None:
     logging.getLogger().setLevel(logging.CRITICAL)
-    print(
-        "Katman A hedefi: A <50ms (CPU dilimi); canlı OB satırı ağ RTT içerir.\n"
-    )
+    print("Katman A hedefi: A <50ms (CPU dilimi); canlı OB satırı ağ RTT içerir.\n")
     if live_ob:
         await _run_live_ob_benchmark(
             iterations=iterations,

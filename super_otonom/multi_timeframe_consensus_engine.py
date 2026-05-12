@@ -17,8 +17,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, Literal, Optional, Tuple
-
+from typing import Any, Dict, Literal, Optional
 
 TradePermission = Literal["HALT", "BLOCK", "ALLOW"]
 EntryTiming = Literal["enter_now", "wait_confirm", "wait_pullback", "avoid", "unknown"]
@@ -195,7 +194,7 @@ def infer_mtf_consensus(
         else:
             # unknown signal -> reduce health later
             v = 0.0
-            hold_w += (w * 0.5)
+            hold_w += w * 0.5
 
         contrib = v * w
         signed += contrib
@@ -270,4 +269,3 @@ def infer_mtf_consensus(
         half_life_ms=hl,
         timeframes_seen=int(tfs_seen),
     )
-

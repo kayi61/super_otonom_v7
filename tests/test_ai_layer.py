@@ -1,4 +1,5 @@
 """AILayer: rejim ve fallback (LSTM kapalı)."""
+
 from __future__ import annotations
 
 import pytest

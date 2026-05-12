@@ -1,4 +1,5 @@
 """Faz 16 — social_signal modülü (Faz 18 derivative testleri ile aynı üslup)."""
+
 from __future__ import annotations
 
 from super_otonom.social_signal import analyze_social_signal, run_social_signal_phase
@@ -105,8 +106,9 @@ def test_run_social_signal_phase_matches_analyze() -> None:
     a1: dict = {}
     a2: dict = {}
     d = {"sentiment_score": 0.6, "engagement_rate": 0.45, "mention_momentum": -0.2}
-    r1 = run_social_signal_phase("Q/USDT", d, a1, attach_to_analysis=True)
-    r2 = analyze_social_signal("Q/USDT", d, a2, attach_to_analysis=True)
+    ts = 1_778_469_549_424
+    r1 = run_social_signal_phase("Q/USDT", d, a1, attach_to_analysis=True, event_ts=ts)
+    r2 = analyze_social_signal("Q/USDT", d, a2, attach_to_analysis=True, event_ts=ts)
 
     assert r1["trade_permission"] == r2["trade_permission"]
     assert r1["alpha_score"] == r2["alpha_score"]

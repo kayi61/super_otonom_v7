@@ -1,4 +1,5 @@
 """config modülü: anahtarlar ve tipler (smoke)."""
+
 from __future__ import annotations
 
 import super_otonom.config as cfg

@@ -38,79 +38,84 @@ import json
 import logging
 import os
 import time
-from dataclasses import dataclass, asdict, field
-from datetime import datetime, date
+from dataclasses import asdict, dataclass, field
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 log = logging.getLogger("super_otonom.audit")
 
-_AUDIT_DIR       = "data/audit"
-_RECONCILE_DIR   = "data/reconcile"
-_RECONCILE_TOLERANCE = 0.05   # %5 NAV farkı kabul edilir üstü uyarı
+_AUDIT_DIR = "data/audit"
+_RECONCILE_DIR = "data/reconcile"
+_RECONCILE_TOLERANCE = 0.05  # %5 NAV farkı kabul edilir üstü uyarı
 
 
 # ── Audit Event ───────────────────────────────────────────────────────────────
 
+
 @dataclass
 class AuditEvent:
     """Tek bir denetim olayı."""
-    ts:          float
-    date_str:    str          # "2026-04-27"
-    time_str:    str          # "14:32:01"
-    event_type:  str          # TRADE_OPEN, TRADE_CLOSE, RISK_BLOCK, ...
-    symbol:      str
-    order_id:    str
+
+    ts: float
+    date_str: str  # "2026-04-27"
+    time_str: str  # "14:32:01"
+    event_type: str  # TRADE_OPEN, TRADE_CLOSE, RISK_BLOCK, ...
+    symbol: str
+    order_id: str
     # Trade detayları
-    price:       float        = 0.0
-    qty:         float        = 0.0
-    notional:    float        = 0.0
-    pnl:         float        = 0.0
-    fee:         float        = 0.0
+    price: float = 0.0
+    qty: float = 0.0
+    notional: float = 0.0
+    pnl: float = 0.0
+    fee: float = 0.0
     # Karar detayları
-    signal:      str          = ""
-    reason:      str          = ""
-    confidence:  float        = 0.0
-    risk_deny:   str          = ""
+    signal: str = ""
+    reason: str = ""
+    confidence: float = 0.0
+    risk_deny: str = ""
     # Sistem durumu snapshot
-    nav:         float        = 0.0
-    cash:        float        = 0.0
-    realized_pnl: float       = 0.0
-    open_positions: int       = 0
+    nav: float = 0.0
+    cash: float = 0.0
+    realized_pnl: float = 0.0
+    open_positions: int = 0
     # Serbest alan
-    meta:        Dict[str, Any] = field(default_factory=dict)
+    meta: Dict[str, Any] = field(default_factory=dict)
 
 
 # ── Reconcile Raporu ──────────────────────────────────────────────────────────
 
+
 @dataclass
 class ReconcileReport:
     """Gün sonu mutabakat raporu."""
-    date_str:            str
-    generated_at:        float
+
+    date_str: str
+    generated_at: float
     # NAV karşılaştırması
-    sod_nav:             float    # gün başı NAV
-    eod_nav_expected:    float    # beklenen gün sonu NAV
-    eod_nav_actual:      float    # gerçekleşen gün sonu NAV
-    nav_diff:            float    # fark
-    nav_diff_pct:        float    # fark yüzdesi
-    nav_ok:              bool     # tolerans içinde mi
+    sod_nav: float  # gün başı NAV
+    eod_nav_expected: float  # beklenen gün sonu NAV
+    eod_nav_actual: float  # gerçekleşen gün sonu NAV
+    nav_diff: float  # fark
+    nav_diff_pct: float  # fark yüzdesi
+    nav_ok: bool  # tolerans içinde mi
     # Trade özeti
-    total_trades:        int
-    winning_trades:      int
-    losing_trades:       int
-    total_realized_pnl:  float
-    total_fees:          float
+    total_trades: int
+    winning_trades: int
+    losing_trades: int
+    total_realized_pnl: float
+    total_fees: float
     # Açık pozisyonlar
-    open_positions:      List[Dict[str, Any]]
+    open_positions: List[Dict[str, Any]]
     open_positions_count: int
     # PnL attribution (hangi symbol ne kadar katkı sağladı)
-    pnl_by_symbol:       Dict[str, float]
+    pnl_by_symbol: Dict[str, float]
     # Uyarılar
-    warnings:            List[str]
-    passed:              bool      # tüm kontroller geçti mi
+    warnings: List[str]
+    passed: bool  # tüm kontroller geçti mi
 
 
 # ── AuditLog ─────────────────────────────────────────────────────────────────
+
 
 class AuditLog:
     """
@@ -142,7 +147,7 @@ class AuditLog:
         """Belleğe + dosyaya yaz."""
         self._events.append(event)
         if len(self._events) > self._max_memory:
-            self._events = self._events[-self._max_memory:]
+            self._events = self._events[-self._max_memory :]
         try:
             with open(self._log_file(event.date_str), "a", encoding="utf-8") as f:
                 f.write(json.dumps(asdict(event), ensure_ascii=False) + "\n")
@@ -167,18 +172,30 @@ class AuditLog:
     ) -> None:
         ts, date_str, time_str = self._now()
         e = AuditEvent(
-            ts=ts, date_str=date_str, time_str=time_str,
+            ts=ts,
+            date_str=date_str,
+            time_str=time_str,
             event_type="TRADE_OPEN",
-            symbol=symbol, order_id=order_id,
-            price=price, qty=qty, notional=notional, fee=fee,
+            symbol=symbol,
+            order_id=order_id,
+            price=price,
+            qty=qty,
+            notional=notional,
+            fee=fee,
             confidence=confidence,
-            nav=nav, cash=cash, open_positions=open_positions,
+            nav=nav,
+            cash=cash,
+            open_positions=open_positions,
             meta=meta or {},
         )
         self._write(e)
         log.info(
             "AUDIT | TRADE_OPEN | %s | order=%s | price=%.4f qty=%.6f notional=%.2f",
-            symbol, order_id, price, qty, notional,
+            symbol,
+            order_id,
+            price,
+            qty,
+            notional,
         )
 
     def trade_close(
@@ -197,19 +214,30 @@ class AuditLog:
     ) -> None:
         ts, date_str, time_str = self._now()
         e = AuditEvent(
-            ts=ts, date_str=date_str, time_str=time_str,
+            ts=ts,
+            date_str=date_str,
+            time_str=time_str,
             event_type="TRADE_CLOSE",
-            symbol=symbol, order_id=order_id,
-            price=price, qty=qty, pnl=pnl, fee=fee,
+            symbol=symbol,
+            order_id=order_id,
+            price=price,
+            qty=qty,
+            pnl=pnl,
+            fee=fee,
             reason=reason,
-            nav=nav, realized_pnl=realized_pnl,
+            nav=nav,
+            realized_pnl=realized_pnl,
             open_positions=open_positions,
             meta=meta or {},
         )
         self._write(e)
         log.info(
             "AUDIT | TRADE_CLOSE | %s | order=%s | price=%.4f pnl=%.4f reason=%s",
-            symbol, order_id, price, pnl, reason,
+            symbol,
+            order_id,
+            price,
+            pnl,
+            reason,
         )
 
     def risk_block(
@@ -222,10 +250,14 @@ class AuditLog:
     ) -> None:
         ts, date_str, time_str = self._now()
         e = AuditEvent(
-            ts=ts, date_str=date_str, time_str=time_str,
+            ts=ts,
+            date_str=date_str,
+            time_str=time_str,
             event_type="RISK_BLOCK",
-            symbol=symbol, order_id="",
-            signal=signal, risk_deny=reason,
+            symbol=symbol,
+            order_id="",
+            signal=signal,
+            risk_deny=reason,
             nav=nav,
             meta=meta or {},
         )
@@ -240,10 +272,14 @@ class AuditLog:
     ) -> None:
         ts, date_str, time_str = self._now()
         e = AuditEvent(
-            ts=ts, date_str=date_str, time_str=time_str,
+            ts=ts,
+            date_str=date_str,
+            time_str=time_str,
             event_type="EMERGENCY",
-            symbol="—", order_id="",
-            reason=code, nav=nav,
+            symbol="—",
+            order_id="",
+            reason=code,
+            nav=nav,
             meta=meta or {},
         )
         self._write(e)
@@ -259,10 +295,15 @@ class AuditLog:
     ) -> None:
         ts, date_str, time_str = self._now()
         e = AuditEvent(
-            ts=ts, date_str=date_str, time_str=time_str,
+            ts=ts,
+            date_str=date_str,
+            time_str=time_str,
             event_type="SIGNAL",
-            symbol=symbol, order_id="",
-            signal=signal, confidence=confidence, reason=reason,
+            symbol=symbol,
+            order_id="",
+            signal=signal,
+            confidence=confidence,
+            reason=reason,
             meta=meta or {},
         )
         self._write(e)
@@ -277,10 +318,14 @@ class AuditLog:
         """Sistem olayları: START, STOP, CONFIG_CHANGE vb."""
         ts, date_str, time_str = self._now()
         e = AuditEvent(
-            ts=ts, date_str=date_str, time_str=time_str,
+            ts=ts,
+            date_str=date_str,
+            time_str=time_str,
             event_type=f"SYSTEM_{event_type}",
-            symbol="—", order_id="",
-            reason=reason, nav=nav,
+            symbol="—",
+            order_id="",
+            reason=reason,
+            nav=nav,
             meta=meta or {},
         )
         self._write(e)
@@ -305,25 +350,26 @@ class AuditLog:
         """Bugünkü olayların özeti."""
         today = date.today().strftime("%Y-%m-%d")
         today_events = [e for e in self._events if e.date_str == today]
-        trades_open  = [e for e in today_events if e.event_type == "TRADE_OPEN"]
+        trades_open = [e for e in today_events if e.event_type == "TRADE_OPEN"]
         trades_close = [e for e in today_events if e.event_type == "TRADE_CLOSE"]
-        risk_blocks  = [e for e in today_events if e.event_type == "RISK_BLOCK"]
-        emergencies  = [e for e in today_events if e.event_type == "EMERGENCY"]
-        total_pnl    = sum(e.pnl for e in trades_close)
-        total_fees   = sum(e.fee for e in today_events if e.fee > 0)
+        risk_blocks = [e for e in today_events if e.event_type == "RISK_BLOCK"]
+        emergencies = [e for e in today_events if e.event_type == "EMERGENCY"]
+        total_pnl = sum(e.pnl for e in trades_close)
+        total_fees = sum(e.fee for e in today_events if e.fee > 0)
         return {
-            "date":           today,
-            "trades_opened":  len(trades_open),
-            "trades_closed":  len(trades_close),
-            "risk_blocks":    len(risk_blocks),
-            "emergencies":    len(emergencies),
-            "total_pnl":      round(total_pnl, 4),
-            "total_fees":     round(total_fees, 4),
-            "event_count":    len(today_events),
+            "date": today,
+            "trades_opened": len(trades_open),
+            "trades_closed": len(trades_close),
+            "risk_blocks": len(risk_blocks),
+            "emergencies": len(emergencies),
+            "total_pnl": round(total_pnl, 4),
+            "total_fees": round(total_fees, 4),
+            "event_count": len(today_events),
         }
 
 
 # ── DailyReconciler ───────────────────────────────────────────────────────────
+
 
 class DailyReconciler:
     """
@@ -339,13 +385,13 @@ class DailyReconciler:
     def __init__(self, reconcile_dir: str = _RECONCILE_DIR):
         self._dir = reconcile_dir
         os.makedirs(reconcile_dir, exist_ok=True)
-        self._sod_nav:    float = 0.0
-        self._sod_date:   str   = ""
-        self._trade_log:  List[Dict[str, Any]] = []
+        self._sod_nav: float = 0.0
+        self._sod_date: str = ""
+        self._trade_log: List[Dict[str, Any]] = []
 
     def set_sod(self, nav: float) -> None:
         """Gün başı NAV'ı kaydet. Bot başlarken çağrılmalı."""
-        self._sod_nav  = float(nav)
+        self._sod_nav = float(nav)
         self._sod_date = date.today().strftime("%Y-%m-%d")
         log.info("Reconciler | SOD NAV kaydedildi | %.2f | %s", nav, self._sod_date)
 
@@ -357,13 +403,15 @@ class DailyReconciler:
         reason: str = "",
     ) -> None:
         """Her kapanan işlemde çağır."""
-        self._trade_log.append({
-            "symbol": symbol,
-            "pnl":    float(pnl),
-            "fee":    float(fee),
-            "reason": reason,
-            "ts":     time.time(),
-        })
+        self._trade_log.append(
+            {
+                "symbol": symbol,
+                "pnl": float(pnl),
+                "fee": float(fee),
+                "reason": reason,
+                "ts": time.time(),
+            }
+        )
 
     def run(
         self,
@@ -386,13 +434,11 @@ class DailyReconciler:
 
         # Beklenen NAV: SOD + realized_pnl - fees
         total_realized = sum(t["pnl"] for t in self._trade_log)
-        total_fees     = sum(t["fee"] for t in self._trade_log)
+        total_fees = sum(t["fee"] for t in self._trade_log)
         eod_nav_expected = self._sod_nav + total_realized - total_fees
 
-        nav_diff     = eod_nav_actual - eod_nav_expected
-        nav_diff_pct = (
-            abs(nav_diff) / max(abs(self._sod_nav), 1.0) * 100
-        )
+        nav_diff = eod_nav_actual - eod_nav_expected
+        nav_diff_pct = abs(nav_diff) / max(abs(self._sod_nav), 1.0) * 100
         nav_ok = nav_diff_pct <= (_RECONCILE_TOLERANCE * 100)
 
         if not nav_ok:
@@ -406,34 +452,27 @@ class DailyReconciler:
         audit_closed = (audit_summary or {}).get("trades_closed", len(self._trade_log))
         if audit_closed != len(self._trade_log):
             warnings.append(
-                f"TRADE SAYISI UYUMSUZ: reconciler={len(self._trade_log)} "
-                f"audit={audit_closed}"
+                f"TRADE SAYISI UYUMSUZ: reconciler={len(self._trade_log)} audit={audit_closed}"
             )
 
         # Acil durum kontrolü
         if (audit_summary or {}).get("emergencies", 0) > 0:
-            warnings.append(
-                f"BUGÜN {audit_summary['emergencies']} ACİL DURUM TETİKLENDİ"
-            )
+            warnings.append(f"BUGÜN {audit_summary['emergencies']} ACİL DURUM TETİKLENDİ")
 
         # PnL attribution
         pnl_by_symbol: Dict[str, float] = {}
         for t in self._trade_log:
             sym = t["symbol"]
-            pnl_by_symbol[sym] = round(
-                pnl_by_symbol.get(sym, 0.0) + t["pnl"], 4
-            )
+            pnl_by_symbol[sym] = round(pnl_by_symbol.get(sym, 0.0) + t["pnl"], 4)
 
         # Win/loss sayısı
-        wins   = [t for t in self._trade_log if t["pnl"] > 0]
+        wins = [t for t in self._trade_log if t["pnl"] > 0]
         losses = [t for t in self._trade_log if t["pnl"] <= 0]
 
         # Açık pozisyonlar
         open_pos = capital_snapshot.get("open_positions", 0)
         if open_pos > 0:
-            warnings.append(
-                f"GÜN SONU AÇIK POZİSYON: {open_pos} pozisyon hâlâ açık"
-            )
+            warnings.append(f"GÜN SONU AÇIK POZİSYON: {open_pos} pozisyon hâlâ açık")
 
         passed = len(warnings) == 0
 
@@ -463,9 +502,7 @@ class DailyReconciler:
         return report
 
     def _save_report(self, report: ReconcileReport) -> None:
-        path = os.path.join(
-            self._dir, f"reconcile_{report.date_str}.json"
-        )
+        path = os.path.join(self._dir, f"reconcile_{report.date_str}.json")
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(asdict(report), f, indent=2, ensure_ascii=False)
@@ -477,10 +514,15 @@ class DailyReconciler:
         log.info(
             "RECONCILE | %s | %s | trades=%d wins=%d losses=%d | "
             "pnl=%.4f fees=%.4f | nav_diff=%.2f (%.4f%%)",
-            report.date_str, status,
-            report.total_trades, report.winning_trades, report.losing_trades,
-            report.total_realized_pnl, report.total_fees,
-            report.nav_diff, report.nav_diff_pct,
+            report.date_str,
+            status,
+            report.total_trades,
+            report.winning_trades,
+            report.losing_trades,
+            report.total_realized_pnl,
+            report.total_fees,
+            report.nav_diff,
+            report.nav_diff_pct,
         )
         for w in report.warnings:
             log.warning("RECONCILE UYARI | %s", w)

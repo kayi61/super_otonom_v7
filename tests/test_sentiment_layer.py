@@ -1,4 +1,5 @@
 """SentimentLayer — mock ve durum sınıfları."""
+
 from __future__ import annotations
 
 from super_otonom.sentiment_layer import SentimentLayer, _dynamic_fallback_score

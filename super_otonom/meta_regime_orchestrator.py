@@ -69,10 +69,10 @@ KNOWN_FAMILIES = ("gov", "micro", "exec", "other")
 # Sayılar BİLİNÇLİ olarak küçük tutuldu: "ölçüm olmadan ağırlık değiştirme yok".
 # advisory modda dahi clamp ile global etki ±%8 ile sınırlı kalır.
 DEFAULT_FAMILY_WEIGHTS: Dict[str, Dict[str, float]] = {
-    "TRENDING":   {"gov": 1.00, "micro": 1.05, "exec": 1.10, "other": 1.00},
-    "RANGING":    {"gov": 1.00, "micro": 0.95, "exec": 0.90, "other": 1.00},
+    "TRENDING": {"gov": 1.00, "micro": 1.05, "exec": 1.10, "other": 1.00},
+    "RANGING": {"gov": 1.00, "micro": 0.95, "exec": 0.90, "other": 1.00},
     "CRASH_RISK": {"gov": 1.10, "micro": 0.85, "exec": 0.70, "other": 0.85},
-    "UNKNOWN":    {"gov": 1.00, "micro": 1.00, "exec": 1.00, "other": 1.00},
+    "UNKNOWN": {"gov": 1.00, "micro": 1.00, "exec": 1.00, "other": 1.00},
 }
 
 _VALID_MODES = ("shadow", "advisory", "off")
@@ -211,9 +211,7 @@ def _families_present(phase_chain: Optional[Mapping[str, Any]]) -> Dict[str, int
     return out
 
 
-def _weighted_mean(
-    weights: Mapping[str, float], counts: Mapping[str, int]
-) -> Optional[float]:
+def _weighted_mean(weights: Mapping[str, float], counts: Mapping[str, int]) -> Optional[float]:
     """Aile sayım ağırlıklı ortalama; sayım toplam 0 ise ``None``."""
     total = sum(int(c) for c in counts.values())
     if total <= 0:
@@ -238,9 +236,7 @@ def compute_meta_regime(
     """
     eff_mode = _resolve_mode(mode)
 
-    regime_raw = (
-        analysis.get("omega_regime") if isinstance(analysis, Mapping) else None
-    )
+    regime_raw = analysis.get("omega_regime") if isinstance(analysis, Mapping) else None
     regime = normalize_regime(regime_raw)
     weights = family_weights_for_regime(regime)
     counts = _families_present(phase_chain or {})
@@ -258,12 +254,7 @@ def compute_meta_regime(
     advised_mult = 1.0
     advised_conf = base
 
-    apply_advisory = (
-        eff_mode == "advisory"
-        and ack_ok
-        and weighted is not None
-        and base > 0.0
-    )
+    apply_advisory = eff_mode == "advisory" and ack_ok and weighted is not None and base > 0.0
     if apply_advisory:
         advised_mult = _clamp(float(weighted), advisory_min, advisory_max)
         advised_conf = _clamp(base * advised_mult, 0.0, 1.0)
@@ -285,10 +276,7 @@ def compute_meta_regime(
         "advised_confidence_mult": round(advised_mult, 4),
         "base_confidence": round(base, 4),
         "advised_confidence": round(advised_conf, 4),
-        "summary": (
-            f"reg={regime} mode={eff_mode} mult={advised_mult:.3f} "
-            f"d_conf={delta:+.3f}"
-        ),
+        "summary": (f"reg={regime} mode={eff_mode} mult={advised_mult:.3f} d_conf={delta:+.3f}"),
     }
     return payload
 

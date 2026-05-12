@@ -11,7 +11,7 @@ v5.2 → check_risk() artık RiskOntology'den okur (tek NAV kaynağı)
 
 import logging
 import time
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import numpy as np
 
@@ -37,15 +37,15 @@ class RiskManager:
     """
 
     def __init__(self, initial_capital: float):
-        self.initial_capital      = float(initial_capital)
-        self.emergency_stop       = False
+        self.initial_capital = float(initial_capital)
+        self.emergency_stop = False
         self.emergency_reason: Optional[str] = None
         self._last_risk_deny: Optional[str] = None
-        self.daily_loss           = 0.0
-        self.weekly_loss          = 0.0
-        self._peak_equity         = float(initial_capital)
-        self._day_start           = time.time()
-        self._week_start          = time.time()
+        self.daily_loss = 0.0
+        self.weekly_loss = 0.0
+        self._peak_equity = float(initial_capital)
+        self._day_start = time.time()
+        self._week_start = time.time()
         self._pnl_history: List[float] = []
         self._vol_history: List[float] = []
         # v5.1: son hesaplanan dinamik limit — status_dict için
@@ -54,7 +54,7 @@ class RiskManager:
         self._omega_qmin_tighten: int = 0
         # v5.2 — RiskOntology referansı (bot_engine tarafından set edilir)
         self._onto: Optional["RiskOntology"] = None
-        self._onto_warned: bool = False   # log flood önlemi
+        self._onto_warned: bool = False  # log flood önlemi
 
     def record_omega_trade_outcome(self, pnl: float) -> None:
         """
@@ -64,7 +64,8 @@ class RiskManager:
             self._omega_qmin_tighten = min(25, self._omega_qmin_tighten + 2)
             log.info(
                 "OMEGA-AI | feedback | kapanis_zarar | qmin_tighten=+%d (simdi +%d)",
-                2, self._omega_qmin_tighten,
+                2,
+                self._omega_qmin_tighten,
             )
         else:
             self._omega_qmin_tighten = max(0, self._omega_qmin_tighten - 1)
@@ -135,7 +136,7 @@ class RiskManager:
             self._pnl_history = self._pnl_history[-500:]
         if pnl < 0:
             loss = abs(float(pnl))
-            self.daily_loss  += loss
+            self.daily_loss += loss
             self.weekly_loss += loss
         # FIX-1: onto varsa VaR geçmişini onto'ya da ilet
         if self._onto is not None:
@@ -185,7 +186,9 @@ class RiskManager:
             log.critical(
                 "VOLATILITY_SPIKE | current=%.6f avg=%.6f multiplier=%.1fx | "
                 "islem riskli, pas gecildi.",
-                current_vol, avg_vol, spike_multiplier,
+                current_vol,
+                avg_vol,
+                spike_multiplier,
             )
             return False
         return True
@@ -235,7 +238,9 @@ class RiskManager:
 
         log.debug(
             "DynamicRisk OK | kayip=%.2f%% < limit=%.2f%% | vol=%.6f",
-            daily_pct * 100, dynamic_limit * 100, market_volatility,
+            daily_pct * 100,
+            dynamic_limit * 100,
+            market_volatility,
         )
         return True
 
@@ -272,9 +277,7 @@ class RiskManager:
 
         return None
 
-    def _check_risk_without_onto(
-        self, current_equity: float, current_vol: float
-    ) -> Optional[str]:
+    def _check_risk_without_onto(self, current_equity: float, current_vol: float) -> Optional[str]:
         """onto yoksa geriye dönük uyumluluk kontrolleri. Deny reason veya None döner."""
         if current_vol > 0:
             if not self.check_dynamic_risk(current_equity, current_vol):
@@ -285,7 +288,8 @@ class RiskManager:
                 self.trigger_emergency("static_daily_loss", silent=True)
                 log.critical(
                     "EMERGENCY_STOP | code=static_daily_loss | %.2f%% >= %.2f%%",
-                    daily_pct * 100, RISK["max_daily_loss_pct"] * 100,
+                    daily_pct * 100,
+                    RISK["max_daily_loss_pct"] * 100,
                 )
                 return "static_daily_loss"
 
@@ -294,7 +298,8 @@ class RiskManager:
             self.trigger_emergency("weekly_loss", silent=True)
             log.critical(
                 "EMERGENCY_STOP | code=weekly_loss | %.2f%% >= %.2f%%",
-                weekly_pct * 100, RISK["max_weekly_loss_pct"] * 100,
+                weekly_pct * 100,
+                RISK["max_weekly_loss_pct"] * 100,
             )
             return "weekly_loss"
 
@@ -305,7 +310,9 @@ class RiskManager:
                 self.trigger_emergency("max_drawdown", silent=True)
                 log.critical(
                     "EMERGENCY_STOP | code=max_drawdown | peak=%.2f current=%.2f dd=%.2f%%",
-                    self._peak_equity, current_equity, real_dd * 100,
+                    self._peak_equity,
+                    current_equity,
+                    real_dd * 100,
                 )
                 return "max_drawdown"
 
@@ -323,21 +330,21 @@ class RiskManager:
                     self.trigger_emergency("max_exposure", silent=True)
                     log.critical(
                         "EMERGENCY_STOP | code=max_exposure | %.2f%% > %.2f%%",
-                        exposure_pct * 100, RISK["max_exposure_pct"] * 100,
+                        exposure_pct * 100,
+                        RISK["max_exposure_pct"] * 100,
                     )
                 else:
                     log.warning(
                         "GIRIS | exposure_limit | %.2f%% > %.2f%%",
-                        exposure_pct * 100, RISK["max_exposure_pct"] * 100,
+                        exposure_pct * 100,
+                        RISK["max_exposure_pct"] * 100,
                     )
                 return "max_exposure"
 
         if current_vol > 0:
             self.record_volatility(current_vol)
             if not self.check_volatility_spike(current_vol):
-                log.warning(
-                    "GIRIS | volatility_spike | vol=%.6f | islem engellendi", current_vol
-                )
+                log.warning("GIRIS | volatility_spike | vol=%.6f | islem engellendi", current_vol)
                 return "volatility_spike"
 
         return None
@@ -346,7 +353,7 @@ class RiskManager:
         self,
         current_equity: float,
         open_exposure: float = 0.0,
-        current_vol: float   = 0.0,
+        current_vol: float = 0.0,
     ) -> bool:
         """
         Tüm risk kontrollerini sırayla denetler.
@@ -407,9 +414,7 @@ class RiskManager:
         conf = RISK["var_confidence"]
         return round(float(np.percentile(self._pnl_history, (1 - conf) * 100)), 2)
 
-    def should_trailing_stop(
-        self, entry: float, current: float, peak: float
-    ) -> bool:
+    def should_trailing_stop(self, entry: float, current: float, peak: float) -> bool:
         if peak <= entry:
             return False
         drawdown = (peak - current) / peak
@@ -429,38 +434,36 @@ class RiskManager:
             if self._peak_equity > 0
             else 0.0
         )
-        avg_vol_recent = (
-            sum(self._vol_history[-10:]) / 10
-            if len(self._vol_history) >= 10
-            else None
-        )
+        avg_vol_recent = sum(self._vol_history[-10:]) / 10 if len(self._vol_history) >= 10 else None
         d = {
-            "daily_loss":              round(self.daily_loss, 2),
-            "weekly_loss":             round(self.weekly_loss, 2),
-            "var_95":                  self.calculate_var(),
-            "emergency_stop":          self.emergency_stop,
-            "emergency_reason":        self.emergency_reason,
-            "last_risk_deny":          self._last_risk_deny,
-            "peak_equity":             round(self._peak_equity, 2),
-            "peak_drawdown_pct":       round(peak_dd, 2),
-            "avg_vol_recent":          round(avg_vol_recent, 6) if avg_vol_recent else None,
+            "daily_loss": round(self.daily_loss, 2),
+            "weekly_loss": round(self.weekly_loss, 2),
+            "var_95": self.calculate_var(),
+            "emergency_stop": self.emergency_stop,
+            "emergency_reason": self.emergency_reason,
+            "last_risk_deny": self._last_risk_deny,
+            "peak_equity": round(self._peak_equity, 2),
+            "peak_drawdown_pct": round(peak_dd, 2),
+            "avg_vol_recent": round(avg_vol_recent, 6) if avg_vol_recent else None,
             "dynamic_daily_limit_pct": round(self._last_dynamic_limit * 100, 2),
-            "omega_qmin_tighten":      self._omega_qmin_tighten,
-            "onto_active":             self._onto is not None,  # v5.2
+            "omega_qmin_tighten": self._omega_qmin_tighten,
+            "onto_active": self._onto is not None,  # v5.2
         }
         # v5.2 — onto varsa tutarlı metrikleri üzerine yaz
         if self._onto is not None:
-            d.update({
-                "nav":               round(self._onto.nav, 2),
-                "sod_nav":           round(self._onto.sod_nav, 2),
-                "peak_nav":          round(self._onto.peak_nav, 2),
-                "daily_loss_pct":    round(self._onto.daily_loss_pct * 100, 2),
-                "weekly_loss_pct":   round(self._onto.weekly_loss_pct * 100, 2),
-                "intraday_dd_pct":   round(self._onto.intraday_dd_pct * 100, 2),
-                "dynamic_limit_pct": round(self._onto.dynamic_daily_limit * 100, 2),
-                "gross_exp":         round(self._onto.gross_exp, 2),
-                "net_exp":           round(self._onto.net_exp, 2),
-                "exp_pct":           round(self._onto.exp_pct * 100, 2),
-                "var_1d":            self._onto.var_1d,
-            })
+            d.update(
+                {
+                    "nav": round(self._onto.nav, 2),
+                    "sod_nav": round(self._onto.sod_nav, 2),
+                    "peak_nav": round(self._onto.peak_nav, 2),
+                    "daily_loss_pct": round(self._onto.daily_loss_pct * 100, 2),
+                    "weekly_loss_pct": round(self._onto.weekly_loss_pct * 100, 2),
+                    "intraday_dd_pct": round(self._onto.intraday_dd_pct * 100, 2),
+                    "dynamic_limit_pct": round(self._onto.dynamic_daily_limit * 100, 2),
+                    "gross_exp": round(self._onto.gross_exp, 2),
+                    "net_exp": round(self._onto.net_exp, 2),
+                    "exp_pct": round(self._onto.exp_pct * 100, 2),
+                    "var_1d": self._onto.var_1d,
+                }
+            )
         return d

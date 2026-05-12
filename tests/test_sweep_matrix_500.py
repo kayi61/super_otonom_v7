@@ -2,6 +2,7 @@
 Geniş kapsam: parametre tarama (Faz 1+ — regresyon ağı top 500 toplam hedefi).
 pytest her parametre kombinasyonunu ayrı test case sayar.
 """
+
 from __future__ import annotations
 
 import math

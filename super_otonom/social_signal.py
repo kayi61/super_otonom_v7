@@ -210,9 +210,7 @@ def _risk_from_social(
     hype_risk = _clamp01(0.55 * mom_01 + 0.45 * engagement)
     polar = _clamp01(abs(composite))
     stage_boost = 0.22 if stage in ("FOMO", "PEAK") else 0.08 if stage == "CAPITULATION" else 0.12
-    return _clamp01(
-        0.26 * hype_risk + 0.28 * polar + 0.22 * mom_01 + stage_boost
-    )
+    return _clamp01(0.26 * hype_risk + 0.28 * polar + 0.22 * mom_01 + stage_boost)
 
 
 def analyze_social_signal(

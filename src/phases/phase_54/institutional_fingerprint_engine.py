@@ -128,8 +128,7 @@ def analyze(market_data: dict | None) -> dict:
     trades: List[dict] = list(d["trades"])
     ts_sorted = sorted(trades, key=lambda x: float(x["ts"]))
     time_gaps = [
-        float(ts_sorted[i + 1]["ts"]) - float(ts_sorted[i]["ts"])
-        for i in range(len(ts_sorted) - 1)
+        float(ts_sorted[i + 1]["ts"]) - float(ts_sorted[i]["ts"]) for i in range(len(ts_sorted) - 1)
     ]
     gaps_arr = np.asarray(time_gaps, dtype=float)
     gap_mean = float(np.mean(gaps_arr))
@@ -145,8 +144,7 @@ def analyze(market_data: dict | None) -> dict:
 
     obs = list(d["order_book_snapshots"])
     depth_changes = [
-        abs(float(obs[i]["bid_depth"]) - float(obs[i - 1]["bid_depth"]))
-        for i in range(1, len(obs))
+        abs(float(obs[i]["bid_depth"]) - float(obs[i - 1]["bid_depth"])) for i in range(1, len(obs))
     ]
     avg_depth_change = float(np.mean(depth_changes)) if depth_changes else 0.0
     bid_depths = [float(s["bid_depth"]) for s in obs]
@@ -174,17 +172,11 @@ def analyze(market_data: dict | None) -> dict:
     denom_vol = max(buy_volume + sell_volume, _EPS)
     inst_bias = float((buy_volume - sell_volume) / denom_vol)
 
-    institutional_score = float(
-        0.5 * twap_fingerprint + 0.3 * iceberg_score + 0.2 * nav_pressure
-    )
+    institutional_score = float(0.5 * twap_fingerprint + 0.3 * iceberg_score + 0.2 * nav_pressure)
 
     bias_term = (inst_bias + 1.0) / 2.0
-    alpha_score = _clip01(
-        0.4 * twap_fingerprint + 0.3 * bias_term + 0.3 * (1.0 - nav_pressure)
-    )
-    risk_score = _clip01(
-        0.4 * nav_pressure + 0.3 * iceberg_score + 0.3 * (1.0 - bias_term)
-    )
+    alpha_score = _clip01(0.4 * twap_fingerprint + 0.3 * bias_term + 0.3 * (1.0 - nav_pressure))
+    risk_score = _clip01(0.4 * nav_pressure + 0.3 * iceberg_score + 0.3 * (1.0 - bias_term))
 
     n_tr = len(trades)
     data_health = float(np.clip(n_tr / 30.0, 0.1, 1.0))

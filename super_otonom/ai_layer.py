@@ -20,6 +20,7 @@ log = logging.getLogger("super_otonom.ai")
 # ModelServer lazy import — yoksa fallback
 try:
     from super_otonom.core.market_models import ModelServer
+
     _MODEL_SERVER_AVAILABLE = True
 except ImportError:
     ModelServer = None  # type: ignore
@@ -75,10 +76,10 @@ class AILayer:
         c = float(candle.get("close") or 1.0)
         if abs(c) < 1e-9:
             c = 1.0
-        rsi_norm        = float(analysis.get("rsi", 50.0)) / 100.0
-        ema_diff        = float(analysis.get("ema_diff", 0.0))
+        rsi_norm = float(analysis.get("rsi", 50.0)) / 100.0
+        ema_diff = float(analysis.get("ema_diff", 0.0))
         ema_diff_clipped = max(-0.1, min(0.1, ema_diff)) * 10.0
-        vol_ratio       = min(float(analysis.get("vol_ratio", 1.0)), 10.0) / 10.0
+        vol_ratio = min(float(analysis.get("vol_ratio", 1.0)), 10.0) / 10.0
         return [
             (float(candle.get("open", c)) - c) / c,
             (float(candle.get("high", c)) - c) / c,
@@ -91,17 +92,13 @@ class AILayer:
         ]
 
     def update_buffer(self, symbol: str, candle: Dict, analysis: Dict) -> None:
-        self._buffer.setdefault(symbol, []).append(
-            self._extract_features(candle, analysis)
-        )
+        self._buffer.setdefault(symbol, []).append(self._extract_features(candle, analysis))
         if len(self._buffer[symbol]) > self.seq_len * 2:
-            self._buffer[symbol] = self._buffer[symbol][-self.seq_len:]
+            self._buffer[symbol] = self._buffer[symbol][-self.seq_len :]
 
     # ── v5 YENİLİK: Karar gerekçesi ──────────────────────────────────────────
 
-    def get_decision_reason(
-        self, ai_sig: str, conf: float, analysis: Dict
-    ) -> str:
+    def get_decision_reason(self, ai_sig: str, conf: float, analysis: Dict) -> str:
         """
         AI kararının açıklamasını üretir.
         main_loop içinde loglayarak botun 'düşünce sürecini' izleyebilirsin.
@@ -202,7 +199,7 @@ class AILayer:
             return base_signal, clipped, reason
 
         ai_sig = r.get("signal", "HOLD")
-        conf   = float(r.get("confidence", 0.5))
+        conf = float(r.get("confidence", 0.5))
 
         # AI ve analizör aynı yön: confidence boost
         if ai_sig == base_signal:

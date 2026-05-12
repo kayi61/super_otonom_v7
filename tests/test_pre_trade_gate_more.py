@@ -1,4 +1,5 @@
 """pre_trade_gate — ek dal kapsamı."""
+
 from __future__ import annotations
 
 import pytest

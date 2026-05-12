@@ -1,4 +1,5 @@
 """pre_trade_gate.merge_entry_notional — tek kaynak birleşimi."""
+
 from __future__ import annotations
 
 from super_otonom.pre_trade_gate import merge_entry_notional

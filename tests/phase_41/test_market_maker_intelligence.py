@@ -1,9 +1,10 @@
 """Faz 41 — market_maker_intelligence birim testleri."""
+
 from __future__ import annotations
 
 import numpy as np
 import pytest
-
+from phases.phase_41 import market_maker_intelligence as mm_mod
 from phases.phase_41.market_maker_intelligence import (
     analyze,
     compute_inventory_pressure,
@@ -12,7 +13,6 @@ from phases.phase_41.market_maker_intelligence import (
     compute_vpin,
     validate_market_data,
 )
-from phases.phase_41 import market_maker_intelligence as mm_mod
 
 
 def _base_valid() -> dict:

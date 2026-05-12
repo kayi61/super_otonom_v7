@@ -79,9 +79,7 @@ def _parse_direction(row: Dict[str, Any]) -> str:
 
 
 def _transfer_amount(row: Dict[str, Any]) -> float:
-    return float(
-        _get_num(row, "amount_usd", "usd", "value_usd", "notional_usd", "size_usd") or 0.0
-    )
+    return float(_get_num(row, "amount_usd", "usd", "value_usd", "notional_usd", "size_usd") or 0.0)
 
 
 def _whale_transfer_scores(rows: Any) -> tuple[float, float, float]:
@@ -180,7 +178,9 @@ def _alpha_smart_money(
     whale_activity: float,
 ) -> float:
     s = str(signal_hint or "HOLD").upper()
-    flow_alpha = _clamp01(0.38 * ((accum_bias + 1.0) / 2.0) + 0.32 * inst_vc_01 + 0.30 * exch_tag_01)
+    flow_alpha = _clamp01(
+        0.38 * ((accum_bias + 1.0) / 2.0) + 0.32 * inst_vc_01 + 0.30 * exch_tag_01
+    )
     boost = 0.08 * whale_activity
     base = _clamp01(flow_alpha + boost)
 

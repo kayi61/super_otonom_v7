@@ -10,6 +10,9 @@ Standartlar:
 - alpha_score + risk_score
 - confidence + data_health
 - event_ts + half_life_ms
+
+PROMPT-A8: ``analysis["market_snapshot"]`` (schema ``a8/v1``) varsa spread / imbalance
+bu özetten okunur; aksi halde ``order_book`` üzerinde klasik parse.
 """
 
 from __future__ import annotations
@@ -17,7 +20,6 @@ from __future__ import annotations
 import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional
-
 
 TradePermission = Literal["HALT", "BLOCK", "ALLOW"]
 GameType = Literal[
@@ -130,19 +132,44 @@ def detect_liquidity_games(
     hl = int(a.get("half_life_ms") or half_life_ms)
     hl = max(2_000, min(300_000, hl))
 
-    ob_ok = bool(order_book and isinstance(order_book, dict))
-    data_health = 0.84 if ob_ok else 0.50
-
     spread_pct: Optional[float] = None
     ob_imb: Optional[float] = None
+    ob_ok = False
 
-    if ob_ok:
+    snap = a.get("market_snapshot")
+    use_snap = isinstance(snap, dict) and snap.get("schema") == "a8/v1"
+    ob_part: Dict[str, Any] = snap.get("order_book", {}) if use_snap else {}
+
+    if use_snap and not ob_part.get("empty", True):
+        if ob_part.get("spread_rel") is not None:
+            spread_pct = float(ob_part["spread_rel"])
+        if ob_part.get("ob_imbalance_top10") is not None:
+            ob_imb = float(ob_part["ob_imbalance_top10"])
+        lv = ob_part.get("levels") or {}
+        if spread_pct is None or ob_imb is None:
+            best_bid, best_ask = _extract_best_prices(lv)
+            if spread_pct is None and best_bid is not None and best_ask is not None:
+                spread_pct = _compute_spread_pct(best_bid, best_ask)
+            if ob_imb is None:
+                ob_imb = _compute_ob_imbalance(lv)
+        ob_ok = bool(lv.get("bids")) and bool(lv.get("asks"))
+    elif order_book and isinstance(order_book, dict):
+        ob_ok = bool(order_book.get("bids")) and bool(order_book.get("asks"))
+
+    data_health = 0.84 if ob_ok else 0.50
+
+    if not use_snap and ob_ok:
         best_bid, best_ask = _extract_best_prices(order_book or {})
         if best_bid is not None and best_ask is not None:
             spread_pct = _compute_spread_pct(best_bid, best_ask)
         else:
             data_health = min(data_health, 0.60)
         ob_imb = _compute_ob_imbalance(order_book or {})
+        if ob_imb is None:
+            data_health = min(data_health, 0.65)
+    elif use_snap and ob_ok:
+        if spread_pct is None:
+            data_health = min(data_health, 0.60)
         if ob_imb is None:
             data_health = min(data_health, 0.65)
 
@@ -191,14 +218,18 @@ def detect_liquidity_games(
     elif manipulation_risk_score >= 60:
         cooldown_seconds = 45
 
-    do_not_trade_flag = bool(manipulation_risk_score >= 80 or game_type in ("stop_hunt", "quote_stuffing"))
+    do_not_trade_flag = bool(
+        manipulation_risk_score >= 80 or game_type in ("stop_hunt", "quote_stuffing")
+    )
 
     # Scores: this phase is mostly RISK/QUALITY; alpha is low.
     risk_score = _clamp100(max(manipulation_risk_score, 100.0 * (1.0 - _clamp01(data_health))))
     alpha_score = _clamp100(max(0.0, 45.0 - manipulation_risk_score * 0.30))
 
     # confidence
-    confidence = _clamp01(0.20 + 0.65 * _clamp01(data_health) + 0.15 * (manipulation_risk_score / 100.0))
+    confidence = _clamp01(
+        0.20 + 0.65 * _clamp01(data_health) + 0.15 * (manipulation_risk_score / 100.0)
+    )
     if not ob_ok:
         confidence = min(confidence, 0.55)
 
@@ -227,4 +258,3 @@ def detect_liquidity_games(
         ob_imbalance=ob_imb,
         vol_proxy=float(vol_proxy),
     )
-

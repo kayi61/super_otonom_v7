@@ -1,9 +1,11 @@
 """exchange_async: fake OHLCV, _fetch_one dalları, emir, dönüştürücü."""
+
 from __future__ import annotations
 
 import asyncio
 import builtins
 import importlib
+import os
 import sys
 import types
 from types import MethodType
@@ -86,9 +88,7 @@ def test_fetch_one_circuit_open_returns_empty() -> None:
 
 def test_fetch_one_success_mock_exchange() -> None:
     m_ex = MagicMock()
-    m_ex.fetch_ohlcv = AsyncMock(
-        return_value=[[0, 1, 1, 1, 1, 1], [0, 1, 1, 1, 1, 1]]
-    )
+    m_ex.fetch_ohlcv = AsyncMock(return_value=[[0, 1, 1, 1, 1, 1], [0, 1, 1, 1, 1, 1]])
     h = object.__new__(AsyncExchangeHandler)
     h._ex = m_ex
     h.max_retries = 1
@@ -184,8 +184,9 @@ def test_ratelimit_helper() -> None:
 
 
 def test_unknown_exchange_raises() -> None:
-    with mock.patch.object(ex, "_CCXT_AVAILABLE", True), mock.patch.object(
-        ex, "ccxt_async", types.SimpleNamespace()
+    with (
+        mock.patch.object(ex, "_CCXT_AVAILABLE", True),
+        mock.patch.object(ex, "ccxt_async", types.SimpleNamespace()),
     ):
         with pytest.raises(ValueError, match="bilinmeyen"):
             AsyncExchangeHandler("nosuchexchange")
@@ -278,20 +279,32 @@ def test_circuit_breaker_success_logs_when_was_open(caplog: pytest.LogCaptureFix
 
 
 def test_handler_extra_config_and_sandbox_mode() -> None:
-    """153, 159-162."""
+    """Binance testnet: set_sandbox yerine enable_demo_trading (demo-api host)."""
+
     class FakeEx:
         def __init__(self, config: dict) -> None:
             self.config = config
             self.sandbox = False
+            self.urls = {
+                "demo": {
+                    "public": "https://demo-api.binance.com/api/v3",
+                    "private": "https://demo-api.binance.com/api/v3",
+                },
+            }
 
-        def set_sandbox_mode(self, v: bool) -> None:
-            self.sandbox = bool(v)
+        def enable_demo_trading(self, v: bool) -> None:
+            if v:
+                self.urls["api"] = dict(self.urls["demo"])
 
     ns = types.SimpleNamespace(binance=FakeEx)
-    with mock.patch.object(ex, "_CCXT_AVAILABLE", True), mock.patch.object(ex, "ccxt_async", ns):
+    with (
+        mock.patch.object(ex, "_CCXT_AVAILABLE", True),
+        mock.patch.object(ex, "ccxt_async", ns),
+        mock.patch.dict(os.environ, {"BINANCE_TESTNET": "true"}, clear=False),
+    ):
         h = AsyncExchangeHandler("binance", testnet=True, extra_config={"opt": 7})
         assert h._ex.config.get("opt") == 7
-        assert h._ex.sandbox is True
+        assert h._ex.urls["api"]["public"] == "https://demo-api.binance.com/api/v3"
 
 
 def test_circuit_breaker_status_reports_symbols() -> None:

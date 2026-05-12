@@ -210,10 +210,7 @@ def analyze_order_book_intelligence(
     alpha_01 = _directional_alpha_01(obi, signal_hint)
 
     risk_01 = _clamp01(
-        0.34 * wall_max
-        + 0.28 * ice_max
-        + 0.38 * spo_max
-        + (0.08 if spread_pct > 0.006 else 0.0)
+        0.34 * wall_max + 0.28 * ice_max + 0.38 * spo_max + (0.08 if spread_pct > 0.006 else 0.0)
     )
 
     levels_ok = min(len(bids), len(asks)) / max(1.0, float(depth))

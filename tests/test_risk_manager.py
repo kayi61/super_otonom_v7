@@ -1,4 +1,5 @@
 """RiskManager critical paths (Faz 1)."""
+
 from __future__ import annotations
 
 from super_otonom.risk_manager import RiskManager

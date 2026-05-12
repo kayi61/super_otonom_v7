@@ -1,4 +1,5 @@
 """PositionSizer: calculate, can_open, slippage, exposure."""
+
 from __future__ import annotations
 
 from super_otonom.position_sizer import PositionSizer

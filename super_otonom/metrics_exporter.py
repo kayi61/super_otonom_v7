@@ -17,6 +17,7 @@ log = logging.getLogger("super_otonom.metrics")
 
 try:
     from prometheus_client import Counter, Gauge, Histogram, start_http_server
+
     _PROMETHEUS_AVAILABLE = True
 except ImportError:
     _PROMETHEUS_AVAILABLE = False
@@ -47,34 +48,34 @@ class MetricsExporter:
     """
 
     def __init__(self, port: int = 8000, namespace: str = "bot"):
-        self._enabled  = _PROMETHEUS_AVAILABLE
-        self._port     = port
-        self._ns       = namespace
-        self._gauges:   Dict[str, Any] = {}
+        self._enabled = _PROMETHEUS_AVAILABLE
+        self._port = port
+        self._ns = namespace
+        self._gauges: Dict[str, Any] = {}
         self._counters: Dict[str, Any] = {}
-        self._histos:   Dict[str, Any] = {}
+        self._histos: Dict[str, Any] = {}
 
         if not self._enabled:
             return
 
         # ── Scalar Gauge'ler ──────────────────────────────────────────────────
         gauge_defs = [
-            ("equity",            "Anlık toplam sermaye (USDT)"),
-            ("free_capital",      "Kullanılabilir serbest sermaye"),
-            ("total_pnl",         "Kümülatif kar/zarar"),
-            ("pnl_pct",           "Kar/zarar yüzdesi"),
-            ("open_positions",    "Açık pozisyon sayısı"),
-            ("trades_today",      "Bugünkü işlem sayısı"),
-            ("total_trades",      "Toplam işlem sayısı"),
-            ("win_rate",          "Son 50 işlem kazanma oranı (%)"),
-            ("rr_ratio",          "Risk/ödül oranı"),
-            ("var_95",            "95. percentile Value at Risk"),
-            ("daily_loss",        "Günlük zarar (USDT)"),
+            ("equity", "Anlık toplam sermaye (USDT)"),
+            ("free_capital", "Kullanılabilir serbest sermaye"),
+            ("total_pnl", "Kümülatif kar/zarar"),
+            ("pnl_pct", "Kar/zarar yüzdesi"),
+            ("open_positions", "Açık pozisyon sayısı"),
+            ("trades_today", "Bugünkü işlem sayısı"),
+            ("total_trades", "Toplam işlem sayısı"),
+            ("win_rate", "Son 50 işlem kazanma oranı (%)"),
+            ("rr_ratio", "Risk/ödül oranı"),
+            ("var_95", "95. percentile Value at Risk"),
+            ("daily_loss", "Günlük zarar (USDT)"),
             ("peak_drawdown_pct", "Peak-to-trough drawdown (%)"),
-            ("emergency_stop",    "Acil durdurma durumu (0/1)"),
+            ("emergency_stop", "Acil durdurma durumu (0/1)"),
             ("dynamic_daily_limit", "Dinamik günlük kayıp limiti (%)"),  # FIX v6.2
-            ("hurst",             "Son analiz Hurst exponent"),
-            ("volatility",        "Son analiz volatilite"),
+            ("hurst", "Son analiz Hurst exponent"),
+            ("volatility", "Son analiz volatilite"),
         ]
         for name, desc in gauge_defs:
             try:
@@ -82,9 +83,7 @@ class MetricsExporter:
             except ValueError:
                 from prometheus_client import REGISTRY
 
-                self._gauges[name] = REGISTRY._names_to_collectors.get(
-                    f"{namespace}_{name}"
-                )
+                self._gauges[name] = REGISTRY._names_to_collectors.get(f"{namespace}_{name}")
 
         # ── Sembol etiketli Gauge'ler (v5 yenilikleri) ───────────────────────
         try:
@@ -108,9 +107,7 @@ class MetricsExporter:
         except ValueError:
             from prometheus_client import REGISTRY
 
-            self._gauges["regime"] = REGISTRY._names_to_collectors.get(
-                f"{namespace}_regime"
-            )
+            self._gauges["regime"] = REGISTRY._names_to_collectors.get(f"{namespace}_regime")
         try:
             self._gauges["circuit_breaker_open"] = Gauge(
                 f"{namespace}_circuit_breaker_open",
@@ -148,9 +145,7 @@ class MetricsExporter:
         except ValueError:
             from prometheus_client import REGISTRY
 
-            self._histos["pnl"] = REGISTRY._names_to_collectors.get(
-                f"{namespace}_trade_pnl"
-            )
+            self._histos["pnl"] = REGISTRY._names_to_collectors.get(f"{namespace}_trade_pnl")
         try:
             self._histos["slippage"] = Histogram(
                 f"{namespace}_slippage_hist",
@@ -182,17 +177,17 @@ class MetricsExporter:
             return
 
         mapping = {
-            "equity":            "equity",
-            "free_capital":      "free_capital",
-            "total_pnl":         "total_pnl",
-            "pnl_pct":           "pnl_pct",
-            "open_positions":    "open_positions",
-            "trades_today":      "trades_today",
-            "total_trades":      "total_trades",
-            "win_rate":          "win_rate",
-            "rr_ratio":          "rr_ratio",
-            "var_95":            "var_95",
-            "daily_loss":        "daily_loss",
+            "equity": "equity",
+            "free_capital": "free_capital",
+            "total_pnl": "total_pnl",
+            "pnl_pct": "pnl_pct",
+            "open_positions": "open_positions",
+            "trades_today": "trades_today",
+            "total_trades": "total_trades",
+            "win_rate": "win_rate",
+            "rr_ratio": "rr_ratio",
+            "var_95": "var_95",
+            "daily_loss": "daily_loss",
             "peak_drawdown_pct": "peak_drawdown_pct",
             "dynamic_daily_limit": "dynamic_daily_limit",  # FIX v6.2
         }
@@ -215,8 +210,8 @@ class MetricsExporter:
         if not self._enabled:
             return
         symbol = analysis.get("symbol", "unknown")
-        hurst  = analysis.get("hurst")
-        vol    = analysis.get("volatility")
+        hurst = analysis.get("hurst")
+        vol = analysis.get("volatility")
         regime = analysis.get("regime", "NOISY")
 
         if hurst is not None:
@@ -233,9 +228,7 @@ class MetricsExporter:
 
     # ── v5 YENİLİK: Slippage kaydı ───────────────────────────────────────────
 
-    def record_slippage(
-        self, symbol: str, expected_price: float, actual_price: float
-    ) -> None:
+    def record_slippage(self, symbol: str, expected_price: float, actual_price: float) -> None:
         """
         İşlem sonrası beklenen fiyat ile gerçekleşen fiyat arasındaki
         kayma yüzdesini Prometheus'a yazar.
@@ -296,7 +289,4 @@ class MetricsExporter:
         return self._enabled
 
     def __repr__(self) -> str:
-        return (
-            f"MetricsExporter(enabled={self._enabled} "
-            f"port={self._port} ns={self._ns})"
-        )
+        return f"MetricsExporter(enabled={self._enabled} port={self._port} ns={self._ns})"

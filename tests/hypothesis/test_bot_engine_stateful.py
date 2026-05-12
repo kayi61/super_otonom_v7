@@ -1,4 +1,5 @@
 """BotEngine — Hypothesis RuleBasedStateMachine (durum + tick zinciri)."""
+
 from __future__ import annotations
 
 import asyncio

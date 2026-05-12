@@ -3,6 +3,7 @@ Tick başına / döngü başına bir satırlık sağlık özeti (kokpit).
 
 Terminal + ayrı health logger (logs/health.log) için ortak metin.
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,9 +27,7 @@ def ensure_health_file_logger(log_dir: str = "logs") -> None:
         os.makedirs(log_dir, exist_ok=True)
         fh = logging.FileHandler(path, encoding="utf-8")
         fh.setLevel(logging.INFO)
-        fh.setFormatter(
-            logging.Formatter("%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
-        )
+        fh.setFormatter(logging.Formatter("%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
         log_health.addHandler(fh)
         log_health.setLevel(logging.INFO)
         log_health.propagate = True
@@ -42,11 +41,11 @@ def format_durum_line(st: Dict[str, Any]) -> str:
     Döngü sonu özet: equity, pnl, sigortalar, emergency, hard_limits, 429 fırtına sayacı.
     """
     hl = st.get("hard_limits") or {}
-    oin  = int(hl.get("orders_in_window", 0))
+    oin = int(hl.get("orders_in_window", 0))
     olim = int(hl.get("order_limit", 1))
     em = st.get("emergency_stop", False)
-    eline = (st.get("emergency_code_line") or "—")
-    rl  = st.get("rate_limit") or {}
+    eline = st.get("emergency_code_line") or "—"
+    rl = st.get("rate_limit") or {}
     rls = int(rl.get("rl_streak", 0))
     rlt = int(rl.get("rl_trip", 0))
     fuses = f"Fuses ob={oin}/{olim} win={round(float(hl.get('window_sec', 0)), 1)}s rl={rls}/{rlt}"
@@ -57,13 +56,11 @@ def format_durum_line(st: Dict[str, Any]) -> str:
     )
 
 
-def _get_tag_and_label(
-    st: Dict[str, Any], dctx: Optional[Dict[str, Any]]
-) -> tuple:
+def _get_tag_and_label(st: Dict[str, Any], dctx: Optional[Dict[str, Any]]) -> tuple:
     """Tag ([OK]/[HALT]) ve durum etiketi döner."""
     emerg = bool(st.get("emergency_stop"))
-    d_em  = (dctx or {}).get("emergency_code")
-    tag   = "[HALT]" if (d_em or emerg) else "[OK]"
+    d_em = (dctx or {}).get("emergency_code")
+    tag = "[HALT]" if (d_em or emerg) else "[OK]"
 
     reason = st.get("emergency_reason") or ""
     if dctx and dctx.get("emergency_code"):
@@ -82,7 +79,7 @@ def _get_tag_and_label(
 def _get_quality_strings(dctx: Optional[Dict[str, Any]]) -> tuple:
     """Signal quality değerlerini string'e çevirir."""
     d = dctx or {}
-    qv   = d.get("signal_quality")
+    qv = d.get("signal_quality")
     qadj = d.get("adj_signal_quality")
     effq = d.get("effective_quality_min")
     return (
@@ -99,33 +96,32 @@ def format_tick_health(
     """
     Örnek: [OK] PnL: +0.2% | Exp: 15% | Lim: 0/10 | Status: Active | tick=42 BTC/USDT
     """
-    hl   = st.get("hard_limits") or {}
-    oin  = int(hl.get("orders_in_window", 0))
+    hl = st.get("hard_limits") or {}
+    oin = int(hl.get("orders_in_window", 0))
     olim = int(hl.get("order_limit", 1))
-    pnl  = float(st.get("pnl_pct", 0.0))
-    exp  = float(st.get("exposure_pct", 0.0))
+    pnl = float(st.get("pnl_pct", 0.0))
+    exp = float(st.get("exposure_pct", 0.0))
 
     tag, st_label = _get_tag_and_label(st, dctx)
 
-    d    = dctx or {}
-    sym  = d.get("symbol", "—")
+    d = dctx or {}
+    sym = d.get("symbol", "—")
     t_id = d.get("tick_id", "—")
-    sig  = d.get("final_signal", "HOLD")
-    pnl_s   = f"{pnl:+.1f}%"
-    scale   = d.get("entry_scale") or "—"
+    sig = d.get("final_signal", "HOLD")
+    pnl_s = f"{pnl:+.1f}%"
+    scale = d.get("entry_scale") or "—"
     scale_u = str(scale).upper() if scale != "—" else "—"
-    liq_r   = d.get("liquidity_ratio")
-    liq_s   = f"{float(liq_r):.2f}" if liq_r is not None else "—"
-    olog    = d.get("omega_ai_log") or ""
-    oshort  = (olog[:120] + "…") if len(olog) > 120 else olog
+    liq_r = d.get("liquidity_ratio")
+    liq_s = f"{float(liq_r):.2f}" if liq_r is not None else "—"
+    olog = d.get("omega_ai_log") or ""
+    oshort = (olog[:120] + "…") if len(olog) > 120 else olog
 
     qstr, qadj_s, effq_s = _get_quality_strings(dctx)
 
     return (
         f"{tag} {sig} | Qraw:{qstr} Qadj:{qadj_s} | effective_qmin:{effq_s} | Scale:{scale_u} | "
         f"PnL: {pnl_s} | Exp: {exp:.0f}% | Lim: {oin}/{olim} | Liq:{liq_s} | "
-        f"Status: {st_label} | tick={t_id} {sym}"
-        + (f" | {oshort}" if oshort else "")
+        f"Status: {st_label} | tick={t_id} {sym}" + (f" | {oshort}" if oshort else "")
     )
 
 

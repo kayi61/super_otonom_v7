@@ -1,9 +1,9 @@
 """Faz 43 — liquidity_topology_engine birim testleri."""
+
 from __future__ import annotations
 
 import numpy as np
 import pytest
-
 from phases.phase_43 import liquidity_topology_engine as lt_mod
 from phases.phase_43.liquidity_topology_engine import (
     analyze,
@@ -144,7 +144,9 @@ def test_alpha_risk_match_spec() -> None:
     d = _base_data(5)
     r = analyze(d)
     a = r["analysis"]
-    al = 0.5 * a["ofi_score"] + 0.3 * (1.0 - a["vacuum_score"]) + 0.2 * (1.0 - a["black_hole_score"])
+    al = (
+        0.5 * a["ofi_score"] + 0.3 * (1.0 - a["vacuum_score"]) + 0.2 * (1.0 - a["black_hole_score"])
+    )
     rs = 0.5 * a["black_hole_score"] + 0.3 * a["vacuum_score"] + 0.2 * (1.0 - a["ofi_score"])
     assert r["alpha_score"] == pytest.approx(np.clip(al, 0, 1))
     assert r["risk_score"] == pytest.approx(np.clip(rs, 0, 1))
@@ -250,7 +252,7 @@ def test_allow_reason() -> None:
 def test_depth_levels_param() -> None:
     d = _base_data(2)
     d["depth_levels"] = 2
-    r = analyze(d)
+    analyze(d)
     tb10, _, _ = compute_depth_totals(d["order_books"], 10)
     tb2, _, _ = compute_depth_totals(d["order_books"], 2)
     assert tb10 >= tb2

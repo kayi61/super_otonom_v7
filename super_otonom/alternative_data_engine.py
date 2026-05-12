@@ -85,7 +85,11 @@ def _merge_sections(d: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     """options_flow, developer, adoption, tokenomics alt dict'lerini düzleştir."""
     opt = _normalize(d.get("options_flow") or d.get("options") or {})
     if not opt and isinstance(d.get("put_call_ratio"), (int, float)):
-        opt = {k: d[k] for k in ("put_call_ratio", "put_volume", "call_volume", "large_notional_usd") if k in d}
+        opt = {
+            k: d[k]
+            for k in ("put_call_ratio", "put_volume", "call_volume", "large_notional_usd")
+            if k in d
+        }
     dev = _normalize(d.get("developer") or d.get("dev") or d.get("github") or {})
     ado = _normalize(d.get("adoption") or {})
     tok = _normalize(d.get("tokenomics") or {})
@@ -107,7 +111,11 @@ def _put_call_risk(sections: Dict[str, Dict[str, Any]]) -> Tuple[float, Dict[str
     whale = _get_float(o, "large_notional_usd", "whale_notional", default=0.0)
     whale_n = _clamp01(min(whale / 5e7, 1.0)) if whale > 0 else 0.0
     risk = _clamp01(0.62 * skew + 0.22 * whale_n + 0.16 * _clamp01(skew * whale_n * 2.0))
-    detail = {"put_call_ratio": float(pc), "options_skew_risk": float(skew), "whale_flow_weight": float(whale_n)}
+    detail = {
+        "put_call_ratio": float(pc),
+        "options_skew_risk": float(skew),
+        "whale_flow_weight": float(whale_n),
+    }
     return risk, detail
 
 
@@ -128,7 +136,11 @@ def _developer_scores(sections: Dict[str, Dict[str, Any]]) -> Tuple[float, float
     act_raw = 0.55 * _clamp01(commits / 120.0) + 0.45 * _clamp01(prs / 40.0)
     stale_pen = _clamp01(min(days / 45.0, 1.0))
     activity = _clamp01(act_raw * (1.0 - 0.35 * stale_pen))
-    conf_penalty = _clamp01(0.25 + 0.75 * stale_pen) if commits < 3 and prs < 2 else _clamp01(0.15 + 0.35 * stale_pen)
+    conf_penalty = (
+        _clamp01(0.25 + 0.75 * stale_pen)
+        if commits < 3 and prs < 2
+        else _clamp01(0.15 + 0.35 * stale_pen)
+    )
     detail = {
         "commits_30d": float(commits),
         "pr_count": float(prs),
@@ -169,15 +181,21 @@ def _adoption_scores(sections: Dict[str, Dict[str, Any]]) -> Tuple[float, Dict[s
     return adoption, detail
 
 
-def _tokenomics_eval(sections: Dict[str, Dict[str, Any]]) -> Tuple[bool, float, str, Dict[str, float]]:
+def _tokenomics_eval(
+    sections: Dict[str, Dict[str, Any]],
+) -> Tuple[bool, float, str, Dict[str, float]]:
     """
     Kötü tokenomics → BLOCK bayrağı.
     Returns: (should_block, risk_component [0,1], reason, detail)
     """
     t = sections["tokenomics"]
-    circ = _get_float(t, "circulating_supply_ratio", "circulating_pct", "float_ratio", default=float("nan"))
+    circ = _get_float(
+        t, "circulating_supply_ratio", "circulating_pct", "float_ratio", default=float("nan")
+    )
     infl = _get_float(t, "inflation_apy", "annual_inflation", "emission_apy", default=float("nan"))
-    vest = _get_float(t, "vesting_unlock_pct_90d", "unlock_pct_quarter", "cliff_pct", default=float("nan"))
+    vest = _get_float(
+        t, "vesting_unlock_pct_90d", "unlock_pct_quarter", "cliff_pct", default=float("nan")
+    )
     emis = _get_float(t, "emission_rate", "net_emission_pct", default=float("nan"))
 
     if circ != circ:
@@ -249,15 +267,14 @@ def analyze_alternative_data(
     tok_block, tok_risk, tok_reason, tok_detail = _tokenomics_eval(sections)
 
     coverage = sum(
-        1 for s in sections.values() if isinstance(s, dict) and len([k for k in s if s.get(k) not in (None, "", [])]) > 0
+        1
+        for s in sections.values()
+        if isinstance(s, dict) and len([k for k in s if s.get(k) not in (None, "", [])]) > 0
     )
     cov01 = _clamp01(coverage / 4.0)
 
     blend = _clamp01(
-        0.28 * (1.0 - opt_risk)
-        + 0.24 * dev_act
-        + 0.30 * adop
-        + 0.18 * (1.0 - tok_risk)
+        0.28 * (1.0 - opt_risk) + 0.24 * dev_act + 0.30 * adop + 0.18 * (1.0 - tok_risk)
     )
 
     risk_01 = _clamp01(
@@ -283,9 +300,7 @@ def analyze_alternative_data(
     conf_base = _clamp01(0.22 + 0.42 * cov01 + 0.24 * dev_act + 0.12 * (1.0 - opt_risk))
     conf = _clamp01(conf_base * (1.0 - 0.55 * dev_conf_pen))
 
-    dh = _clamp01(
-        0.18 + 0.30 * cov01 + 0.26 * dev_act + 0.16 * adop + 0.10 * (1.0 - tok_risk)
-    )
+    dh = _clamp01(0.18 + 0.30 * cov01 + 0.26 * dev_act + 0.16 * adop + 0.10 * (1.0 - tok_risk))
 
     perm: TradePermission = "ALLOW"
     if d.get("force_halt") is True:

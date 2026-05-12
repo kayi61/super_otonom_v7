@@ -19,7 +19,6 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional
 
-
 TradePermission = Literal["HALT", "BLOCK", "ALLOW"]
 RoutePreference = Literal["leader", "best_price", "lowest_latency", "avoid_latency_arb", "unknown"]
 
@@ -193,7 +192,9 @@ def infer_cross_venue_leadlag(
     alpha_score = _clamp100(leadlag_alpha_score * _clamp01(data_health))
     risk_score = _clamp100(max(latency_arb_risk, 100.0 * (1.0 - _clamp01(data_health))))
 
-    confidence = _clamp01(0.20 + 0.65 * _clamp01(data_health) + 0.15 * (leadlag_alpha_score / 100.0))
+    confidence = _clamp01(
+        0.20 + 0.65 * _clamp01(data_health) + 0.15 * (leadlag_alpha_score / 100.0)
+    )
     if venues_seen <= 1:
         confidence = min(confidence, 0.55)
 
@@ -218,4 +219,3 @@ def infer_cross_venue_leadlag(
         venues_seen=int(venues_seen),
         max_price_divergence_bps=None if div_bps is None else float(round(div_bps, 2)),
     )
-

@@ -84,7 +84,10 @@ def test_execution_pipeline_runs_faz_71_to_79_then_47_80_chain() -> None:
     assert el.get("route_preference") == out["phase80"].get("route_preference")
     assert el.get("risk_gate") == p80.get("risk_gate")
     assert el.get("execution_mode") == dctx.phase_chain["faz76"].get("regime_execution_mode")
-    assert "dynamic_stop" in out and out["dynamic_stop"] == dctx.phase_chain["faz77"]["dynamic_stop_level"]
+    assert (
+        "dynamic_stop" in out
+        and out["dynamic_stop"] == dctx.phase_chain["faz77"]["dynamic_stop_level"]
+    )
 
     engine._handle_entry.assert_awaited()
 
@@ -94,14 +97,88 @@ def test_faz79_conflict_lowers_risk_gate_vs_aligned_mtf() -> None:
 
     now = int(time.time() * 1000)
     base = {
-        "p71": {"trade_permission": "ALLOW", "dealer_pressure_score": 20, "spread_regime": "normal", "likely_trap_side": "none", "confidence": 0.9, "data_health": 0.9, "event_ts": now, "half_life_ms": 25_000},
-        "p72": {"trade_permission": "ALLOW", "whale_intent": "accumulate", "absorption_score": 70, "sweep_risk": 20, "entry_timing_hint": "enter_now", "confidence": 0.9, "data_health": 0.9, "event_ts": now, "half_life_ms": 30_000},
-        "p73": {"trade_permission": "ALLOW", "manipulation_risk_score": 20, "do_not_trade_flag": False, "cooldown_seconds": 0, "confidence": 0.9, "data_health": 0.9, "event_ts": now, "half_life_ms": 18_000},
-        "p74": {"trade_permission": "ALLOW", "leadlag_alpha_score": 60, "latency_arb_risk": 15, "route_preference": "leader", "confidence": 0.9, "data_health": 0.9, "event_ts": now, "half_life_ms": 20_000},
-        "p75": {"trade_permission": "ALLOW", "action": "TRADE", "conviction": 70, "max_size_multiplier": 1.0, "execution_profile": "taker", "alpha_score": 65, "risk_score": 30, "confidence": 0.9, "data_health": 0.9, "event_ts": now, "half_life_ms": 22_000},
-        "p76": {"trade_permission": "ALLOW", "preferred_order_type": "taker", "slippage_risk": 20, "urgency_score": 40, "confidence": 0.9, "data_health": 0.9, "event_ts": now, "half_life_ms": 20_000},
-        "p77": {"trade_permission": "ALLOW", "hunt_risk_score": 20, "stop_placement_hint": "keep", "confidence": 0.9, "data_health": 0.9, "event_ts": now, "half_life_ms": 35_000},
-        "p78": {"trade_permission": "ALLOW", "alpha_freshness_score": 75, "exit_urgency": 10, "confidence": 0.9, "data_health": 0.9, "event_ts": now, "half_life_ms": 30_000},
+        "p71": {
+            "trade_permission": "ALLOW",
+            "dealer_pressure_score": 20,
+            "spread_regime": "normal",
+            "likely_trap_side": "none",
+            "confidence": 0.9,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 25_000,
+        },
+        "p72": {
+            "trade_permission": "ALLOW",
+            "whale_intent": "accumulate",
+            "absorption_score": 70,
+            "sweep_risk": 20,
+            "entry_timing_hint": "enter_now",
+            "confidence": 0.9,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 30_000,
+        },
+        "p73": {
+            "trade_permission": "ALLOW",
+            "manipulation_risk_score": 20,
+            "do_not_trade_flag": False,
+            "cooldown_seconds": 0,
+            "confidence": 0.9,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 18_000,
+        },
+        "p74": {
+            "trade_permission": "ALLOW",
+            "leadlag_alpha_score": 60,
+            "latency_arb_risk": 15,
+            "route_preference": "leader",
+            "confidence": 0.9,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 20_000,
+        },
+        "p75": {
+            "trade_permission": "ALLOW",
+            "action": "TRADE",
+            "conviction": 70,
+            "max_size_multiplier": 1.0,
+            "execution_profile": "taker",
+            "alpha_score": 65,
+            "risk_score": 30,
+            "confidence": 0.9,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 22_000,
+        },
+        "p76": {
+            "trade_permission": "ALLOW",
+            "preferred_order_type": "taker",
+            "slippage_risk": 20,
+            "urgency_score": 40,
+            "confidence": 0.9,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 20_000,
+        },
+        "p77": {
+            "trade_permission": "ALLOW",
+            "hunt_risk_score": 20,
+            "stop_placement_hint": "keep",
+            "confidence": 0.9,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 35_000,
+        },
+        "p78": {
+            "trade_permission": "ALLOW",
+            "alpha_freshness_score": 75,
+            "exit_urgency": 10,
+            "confidence": 0.9,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 30_000,
+        },
     }
     ok79 = {
         "trade_permission": "ALLOW",
@@ -157,14 +234,89 @@ def test_faz78_freshness_scales_confidence() -> None:
     }
     high_f = {**low_f, "alpha_freshness_score": 95}
     common = {
-        "p71": {"trade_permission": "ALLOW", "dealer_pressure_score": 25, "spread_regime": "normal", "likely_trap_side": "none", "confidence": 0.85, "data_health": 0.9, "event_ts": now, "half_life_ms": 25_000},
-        "p72": {"trade_permission": "ALLOW", "whale_intent": "accumulate", "absorption_score": 65, "sweep_risk": 25, "entry_timing_hint": "enter_now", "confidence": 0.85, "data_health": 0.9, "event_ts": now, "half_life_ms": 30_000},
-        "p73": {"trade_permission": "ALLOW", "manipulation_risk_score": 18, "do_not_trade_flag": False, "cooldown_seconds": 0, "confidence": 0.85, "data_health": 0.9, "event_ts": now, "half_life_ms": 18_000},
-        "p74": {"trade_permission": "ALLOW", "leadlag_alpha_score": 55, "latency_arb_risk": 12, "route_preference": "leader", "confidence": 0.85, "data_health": 0.9, "event_ts": now, "half_life_ms": 20_000},
-        "p75": {"trade_permission": "ALLOW", "action": "TRADE", "conviction": 72, "max_size_multiplier": 1.0, "execution_profile": "taker", "alpha_score": 62, "risk_score": 28, "confidence": 0.85, "data_health": 0.9, "event_ts": now, "half_life_ms": 22_000},
-        "p76": {"trade_permission": "ALLOW", "preferred_order_type": "taker", "slippage_risk": 22, "urgency_score": 35, "confidence": 0.85, "data_health": 0.9, "event_ts": now, "half_life_ms": 20_000},
-        "p77": {"trade_permission": "ALLOW", "hunt_risk_score": 22, "stop_placement_hint": "keep", "confidence": 0.85, "data_health": 0.9, "event_ts": now, "half_life_ms": 35_000},
-        "p79": {"trade_permission": "ALLOW", "mtf_consensus_score": 68, "conflict_flag": False, "entry_timing": "enter_now", "confidence": 0.85, "data_health": 0.9, "event_ts": now, "half_life_ms": 40_000},
+        "p71": {
+            "trade_permission": "ALLOW",
+            "dealer_pressure_score": 25,
+            "spread_regime": "normal",
+            "likely_trap_side": "none",
+            "confidence": 0.85,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 25_000,
+        },
+        "p72": {
+            "trade_permission": "ALLOW",
+            "whale_intent": "accumulate",
+            "absorption_score": 65,
+            "sweep_risk": 25,
+            "entry_timing_hint": "enter_now",
+            "confidence": 0.85,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 30_000,
+        },
+        "p73": {
+            "trade_permission": "ALLOW",
+            "manipulation_risk_score": 18,
+            "do_not_trade_flag": False,
+            "cooldown_seconds": 0,
+            "confidence": 0.85,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 18_000,
+        },
+        "p74": {
+            "trade_permission": "ALLOW",
+            "leadlag_alpha_score": 55,
+            "latency_arb_risk": 12,
+            "route_preference": "leader",
+            "confidence": 0.85,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 20_000,
+        },
+        "p75": {
+            "trade_permission": "ALLOW",
+            "action": "TRADE",
+            "conviction": 72,
+            "max_size_multiplier": 1.0,
+            "execution_profile": "taker",
+            "alpha_score": 62,
+            "risk_score": 28,
+            "confidence": 0.85,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 22_000,
+        },
+        "p76": {
+            "trade_permission": "ALLOW",
+            "preferred_order_type": "taker",
+            "slippage_risk": 22,
+            "urgency_score": 35,
+            "confidence": 0.85,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 20_000,
+        },
+        "p77": {
+            "trade_permission": "ALLOW",
+            "hunt_risk_score": 22,
+            "stop_placement_hint": "keep",
+            "confidence": 0.85,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 35_000,
+        },
+        "p79": {
+            "trade_permission": "ALLOW",
+            "mtf_consensus_score": 68,
+            "conflict_flag": False,
+            "entry_timing": "enter_now",
+            "confidence": 0.85,
+            "data_health": 0.9,
+            "event_ts": now,
+            "half_life_ms": 40_000,
+        },
     }
     r_lo = decide_autonomously(
         symbol="BTC/USDT",
@@ -225,8 +377,9 @@ def test_execution_pipeline_passes_override_phases_from_analysis() -> None:
     out = {"final_signal": "BUY", "ai_confidence": 0.8, "decision_reason": ""}
     dctx = DecisionContext.start(symbol="BTC/USDT", tick_id=1, analysis=analysis)
 
-    asyncio.run(execute_trade_phase(engine, "BTC/USDT", 100.0, analysis, out, 1.0, dctx, candles=[]))
+    asyncio.run(
+        execute_trade_phase(engine, "BTC/USDT", 100.0, analysis, out, 1.0, dctx, candles=[])
+    )
 
     assert dctx.phase_chain["faz80"]["block_reason"] == "override:phase50"
     assert dctx.phase_chain["faz80"]["final_action"] != "ENTER"
-

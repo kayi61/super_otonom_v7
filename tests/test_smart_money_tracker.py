@@ -1,4 +1,5 @@
 """Faz 17 — smart_money_tracker modülü."""
+
 from __future__ import annotations
 
 from super_otonom.smart_money_tracker import analyze_smart_money, run_smart_money_phase

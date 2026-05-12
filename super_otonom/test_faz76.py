@@ -4,7 +4,9 @@ from __future__ import annotations
 def test_faz76_unknown_regime_still_returns_valid_fields() -> None:
     from super_otonom.regime_adaptive_execution_engine import infer_regime_adaptive_execution
 
-    r = infer_regime_adaptive_execution(symbol="BTC/USDT", analysis={"regime": "???", "volatility": 0.02, "liquidity_ratio": 0.5})
+    r = infer_regime_adaptive_execution(
+        symbol="BTC/USDT", analysis={"regime": "???", "volatility": 0.02, "liquidity_ratio": 0.5}
+    )
     d = r.to_dict()
     assert d["regime_execution_mode"] in ("trend", "range", "volatile", "crisis", "unknown")
     assert d["preferred_order_type"] in ("maker", "taker", "twap", "unknown")
@@ -25,4 +27,3 @@ def test_faz76_extreme_slippage_can_block() -> None:
     )
     assert r.slippage_risk >= 0
     assert r.trade_permission in ("ALLOW", "BLOCK")
-

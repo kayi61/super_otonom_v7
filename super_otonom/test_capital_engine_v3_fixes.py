@@ -8,12 +8,19 @@ Yeni 5 fix için testler:
   FIX-D: Journal 50MB rotation
   FIX-E: _margin_used negatif guard
 """
+
 from __future__ import annotations
-import os, sys, json, tempfile, pytest
+
+import os
+import sys
+
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from capital_engine import CapitalEngine
 
 _TOL = 0.01
+
 
 def make_engine(capital=10_000.0, reserve_pct=0.0):
     return CapitalEngine(
@@ -23,9 +30,11 @@ def make_engine(capital=10_000.0, reserve_pct=0.0):
         max_position_pct=1.0,
     )
 
+
 def invariant_ok(e):
-    expected = (e.initial_capital + e._net_deposits
-                + e._realized_pnl + e._unrealized_pnl - e._fees_paid)
+    expected = (
+        e.initial_capital + e._net_deposits + e._realized_pnl + e._unrealized_pnl - e._fees_paid
+    )
     return abs(e.nav - expected) <= _TOL
 
 
@@ -33,8 +42,8 @@ def invariant_ok(e):
 # FIX-A: open_position available_cash kontrolü
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestOpenPositionReservedCheck:
 
+class TestOpenPositionReservedCheck:
     def test_overcommit_blocked_when_reserved(self):
         """
         cash=10000, reserved=8000, available=2000
@@ -82,8 +91,8 @@ class TestOpenPositionReservedCheck:
 # FIX-B: record_fee invariant kontrolü
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestRecordFeeInvariant:
 
+class TestRecordFeeInvariant:
     def test_invariant_holds_after_record_fee(self):
         e = make_engine(10_000)
         e.record_fee("BTC/USDT", "ord-1", 25.0, "swap fee")
@@ -113,8 +122,8 @@ class TestRecordFeeInvariant:
 # FIX-C: available_cash reserve nav bazlı
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestAvailableCashNavBased:
 
+class TestAvailableCashNavBased:
     def test_reserve_scales_with_nav_after_deposit(self):
         """
         reserve_pct=0.05
@@ -153,11 +162,12 @@ class TestAvailableCashNavBased:
 # FIX-D: Journal rotation
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestJournalRotation:
 
+class TestJournalRotation:
     def test_journal_rotates_when_size_exceeded(self, tmp_path):
         """50MB limitini simulate et — küçük limit ile test."""
         import capital_engine as ce_mod
+
         original_limit = ce_mod._JOURNAL_MAX_BYTES
         ce_mod._JOURNAL_MAX_BYTES = 500  # 500 byte limit — test için küçük
 
@@ -182,6 +192,7 @@ class TestJournalRotation:
     def test_journal_continues_after_rotation(self, tmp_path):
         """Rotation sonrası yazma devam etmeli."""
         import capital_engine as ce_mod
+
         original_limit = ce_mod._JOURNAL_MAX_BYTES
         ce_mod._JOURNAL_MAX_BYTES = 200
 
@@ -200,8 +211,8 @@ class TestJournalRotation:
 # FIX-E: _margin_used negatif guard
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestMarginUsedNeverNegative:
 
+class TestMarginUsedNeverNegative:
     def test_margin_never_negative_on_full_close(self):
         e = make_engine(10_000)
         e.open_position("BTC/USDT", "ord-1", 50_000, 0.1, 5_000)
@@ -237,8 +248,8 @@ class TestMarginUsedNeverNegative:
 # Kombinasyon testi
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestCombinedV3:
 
+class TestCombinedV3:
     def test_full_scenario_with_all_fixes(self):
         """Tüm 5 fix birlikte çalışıyor mu?"""
         e = CapitalEngine(

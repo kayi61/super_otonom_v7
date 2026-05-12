@@ -1,6 +1,7 @@
 """
 main_loop, bot_engine, metrics_exporter, position_sizer, risk_manager kapsamı.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -76,7 +77,9 @@ def test_slippage_zero_volume_asks() -> None:
 
     s = PositionSizer()
     with patch.object(s, "calculate", return_value=10.0):
-        z = s.calculate_with_slippage("Z", 100.0, {"asks": [[1.0, 0.0], [1.1, 0.0]]}, max_allowed_slippage=0.1, volatility=0.1)
+        z = s.calculate_with_slippage(
+            "Z", 100.0, {"asks": [[1.0, 0.0], [1.1, 0.0]]}, max_allowed_slippage=0.1, volatility=0.1
+        )
     assert z == 0.0
 
 

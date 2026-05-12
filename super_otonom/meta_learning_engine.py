@@ -164,12 +164,12 @@ def maml_style_adaptation_gain(y: np.ndarray) -> float:
         idx_s = np.arange(0, max(k_support, n - idx_q.size))
 
     lam = 1e-2
-    I = np.eye(X.shape[1])
-    inner_w = np.linalg.solve(X[idx_s].T @ X[idx_s] + lam * I, X[idx_s].T @ y[idx_s])
+    ident = np.eye(X.shape[1])
+    inner_w = np.linalg.solve(X[idx_s].T @ X[idx_s] + lam * ident, X[idx_s].T @ y[idx_s])
     pred_q = X[idx_q] @ inner_w
     mse_inner = float(np.mean((pred_q - y[idx_q]) ** 2))
 
-    outer_w = np.linalg.solve(X.T @ X + lam * I, X.T @ y)
+    outer_w = np.linalg.solve(X.T @ X + lam * ident, X.T @ y)
     pred_all = X[idx_q] @ outer_w
     mse_outer = float(np.mean((pred_all - y[idx_q]) ** 2))
 
@@ -189,7 +189,7 @@ def online_performance_proxy(
     if y.size < w + 4:
         return 0.5, 0.0
     recent = y[-w:]
-    past = y[-2 * w : -w] if y.size >= 2 * w else y[: -w]
+    past = y[-2 * w : -w] if y.size >= 2 * w else y[:-w]
     r_mu = float(np.mean(recent))
     p_mu = float(np.mean(past))
     if lower_is_better:

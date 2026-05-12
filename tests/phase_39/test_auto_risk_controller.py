@@ -1,9 +1,9 @@
 """Faz 39 — auto_risk_controller birim testleri."""
+
 from __future__ import annotations
 
 import numpy as np
 import pytest
-
 from phases.phase_39 import auto_risk_controller as arc_mod
 from phases.phase_39.auto_risk_controller import (
     analyze,
@@ -148,7 +148,14 @@ def test_drawdown_takes_precedence_over_loss() -> None:
 
 def test_risk_score_formula() -> None:
     ec = [1000.0] * 100
-    r = analyze(_base(equity_curve=ec, recent_trades=[{"pnl": 1.0}], max_drawdown_pct=0.2, consecutive_loss_limit=10))
+    r = analyze(
+        _base(
+            equity_curve=ec,
+            recent_trades=[{"pnl": 1.0}],
+            max_drawdown_pct=0.2,
+            consecutive_loss_limit=10,
+        )
+    )
     a = r["analysis"]
     exp = 0.6 * a["drawdown_score"] + 0.4 * a["loss_streak_score"]
     assert r["risk_score"] == pytest.approx(np.clip(exp, 0, 1))
@@ -221,7 +228,9 @@ def test_avg_loss_uses_abs_in_kelly() -> None:
 def test_allow_when_safe() -> None:
     ec = [10000.0 + i for i in range(100)]
     tr = [{"pnl": 10.0}] * 3
-    r = analyze(_base(equity_curve=ec, recent_trades=tr, max_drawdown_pct=0.5, consecutive_loss_limit=10))
+    r = analyze(
+        _base(equity_curve=ec, recent_trades=tr, max_drawdown_pct=0.5, consecutive_loss_limit=10)
+    )
     assert r["analysis"]["drawdown_breach"] is False
     assert r["analysis"]["consecutive_losses"] == 0
     assert r["trade_permission"] == "ALLOW"
@@ -237,7 +246,14 @@ def test_loss_one_below_limit_allow() -> None:
 def test_drawdown_exactly_at_threshold_breaches() -> None:
     ec = [100.0, 200.0, 170.0]
     dd = (200.0 - 170.0) / 200.0
-    r = analyze(_base(equity_curve=ec, max_drawdown_pct=dd, recent_trades=[{"pnl": 1.0}], consecutive_loss_limit=99))
+    r = analyze(
+        _base(
+            equity_curve=ec,
+            max_drawdown_pct=dd,
+            recent_trades=[{"pnl": 1.0}],
+            consecutive_loss_limit=99,
+        )
+    )
     assert r["analysis"]["drawdown_breach"] is True
 
 
@@ -272,7 +288,14 @@ def test_loss_streak_score_one_at_limit() -> None:
 def test_drawdown_score_normalized() -> None:
     ec = [100.0, 200.0, 150.0]
     mdd = 0.25
-    r = analyze(_base(equity_curve=ec, max_drawdown_pct=mdd, recent_trades=[{"pnl": 1.0}], consecutive_loss_limit=99))
+    r = analyze(
+        _base(
+            equity_curve=ec,
+            max_drawdown_pct=mdd,
+            recent_trades=[{"pnl": 1.0}],
+            consecutive_loss_limit=99,
+        )
+    )
     dd = r["analysis"]["current_drawdown"]
     assert r["analysis"]["drawdown_score"] == pytest.approx(np.clip(dd / mdd, 0, 1))
 

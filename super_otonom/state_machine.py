@@ -4,6 +4,7 @@ v8 — İşlem modu durum makinesi (AGGRESSIVE / DEFENSIVE / NO_TRADE / EMERGENC
 Otomatik geçiş kuralları yalnızca *okuma* ile hesaplanır; kalıcı state BotEngine
 içinde risk ve acil bayraklarıyla zaten tutulur. Bu modül tek tick görünümü üretir.
 """
+
 from __future__ import annotations
 
 import os

@@ -1,4 +1,5 @@
 """Faz 18 — derivatives_intel modülü (Faz 21/25 tarzı ince testler)."""
+
 from __future__ import annotations
 
 from super_otonom.derivatives_intel import analyze_derivatives_intel, run_derivatives_phase

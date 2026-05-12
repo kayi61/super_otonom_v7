@@ -242,7 +242,9 @@ def blend_optimal(w_bl: np.ndarray, w_erc: np.ndarray, blend: float = 0.55) -> n
     return x / max(sx, _EPS)
 
 
-def five_factor_scores(R: np.ndarray, syms: List[str], d: Dict[str, Any]) -> Tuple[np.ndarray, float]:
+def five_factor_scores(
+    R: np.ndarray, syms: List[str], d: Dict[str, Any]
+) -> Tuple[np.ndarray, float]:
     """
     Varlık başına [0,1] birleşik faktör skoru ve portföy ortalaması.
     momentum, value, quality, low_vol, size
@@ -361,15 +363,28 @@ def analyze_portfolio_optimizer(
         risk_01 = _clamp01(max(risk_01, 0.72))
 
     alpha_01 = _clamp01(
-        0.42 * alpha_bar + 0.28 * _clamp01(max(sharpe, 0.0) * 3.5) + 0.18 * (1.0 - imb) + 0.12 * (1.0 - max_w)
+        0.42 * alpha_bar
+        + 0.28 * _clamp01(max(sharpe, 0.0) * 3.5)
+        + 0.18 * (1.0 - imb)
+        + 0.12 * (1.0 - max_w)
     )
     if sharpe < 0:
         alpha_01 = _clamp01(alpha_01 * 0.35)
 
-    conf_base = _clamp01(0.24 + 0.38 * (1.0 - view_uncertain) + 0.22 * (1.0 - imb) + 0.16 * _clamp01(max(sharpe, 0.0) * 3.0))
+    conf_base = _clamp01(
+        0.24
+        + 0.38 * (1.0 - view_uncertain)
+        + 0.22 * (1.0 - imb)
+        + 0.16 * _clamp01(max(sharpe, 0.0) * 3.0)
+    )
     conf = _clamp01(conf_base * (0.45 + 0.55 * (1.0 - view_uncertain)))
 
-    dh = _clamp01(0.28 + 0.32 * (1.0 - view_uncertain) + 0.22 * (1.0 - imb) + 0.18 * min(1.0, R.shape[0] / 120.0))
+    dh = _clamp01(
+        0.28
+        + 0.32 * (1.0 - view_uncertain)
+        + 0.22 * (1.0 - imb)
+        + 0.18 * min(1.0, R.shape[0] / 120.0)
+    )
 
     perm: TradePermission = "ALLOW"
     if sharpe < 0:

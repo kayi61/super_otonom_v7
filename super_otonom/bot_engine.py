@@ -6,6 +6,8 @@ BotEngine v8.0 (davranış v6.2 ile uyumlu; mimari genişletme)
 v6.2 → OrderTracker, ExecutionSimulator, TradeLogger (önceki notlar)
 v8   → tick → process_signal / apply_filters / calculate_position / execute_trade;
          pipelines (risk, signal, execution); state_machine görünümü; AI explain / TRADE_WHY
+A11  → self-feedback: ``_tick_impl`` + donmuş çekirdek + ``tick()`` reentrancy guard
+         (`self_feedback_guard`)
 """
 
 import asyncio
@@ -13,13 +15,14 @@ import json
 import logging
 import os
 import random
+import shutil
+import tempfile
 import time
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
 from super_otonom.ai_layer import AILayer
 from super_otonom.capital_engine import CapitalEngine
-from super_otonom.risk_ontology import RiskOntology
 from super_otonom.config import METRICS, RISK
 from super_otonom.correlation_manager import CorrelationManager
 from super_otonom.decision_context import DecisionContext, DecisionStage
@@ -27,29 +30,37 @@ from super_otonom.kill_switch import HardLimitTracker, get_rate_limit_storm_trac
 from super_otonom.metrics_exporter import MetricsExporter
 from super_otonom.omega_regime import compute_omega_regime  # noqa: F401 — test patch hedefi
 from super_otonom.pipelines import execution_pipeline, signal_pipeline
-from super_otonom.signal_fusion_engine import run_signal_fusion_phase
-from super_otonom.unified_system_core import run_system_gate_phase
 from super_otonom.pipelines.override_phase_bridge import attach_override_phases_to_analysis
 from super_otonom.pre_trade_gate import (
     fat_finger_check,
     gate_buy_signal_and_slots,
     gate_buy_size_and_exposure,
+    gate_entry_cooldown,
     gate_global_trade_disable,  # noqa: F401 — test patch
+    gate_leverage_notional,
     merge_entry_notional,
     ob_depth_check,
     same_bar_guard,
     spread_check,
 )
+from super_otonom.risk_ontology import RiskOntology
+from super_otonom.self_feedback_guard import (
+    attach_tick_frozen_mark,
+    audit_intratick_frozen_core,
+)
 from super_otonom.sentiment_layer import SentimentLayer
+from super_otonom.signal_fusion_engine import run_signal_fusion_phase
 from super_otonom.signal_quality_scorer import compute_signal_quality  # noqa: F401 — test patch
 from super_otonom.state_machine import compute_trading_state
+from super_otonom.tick_timing import span as _tick_span
+from super_otonom.unified_system_core import run_system_gate_phase
 
 log = logging.getLogger("super_otonom.engine")
 
 # Sprint 1 — AuditLog + DailyReconciler entegrasyonu
 try:
-    from super_otonom.audit_log import AuditLog
-    from super_otonom.audit_log import DailyReconciler
+    from super_otonom.audit_log import AuditLog, DailyReconciler
+
     _AUDIT_AVAILABLE = True
 except ImportError:
     _AUDIT_AVAILABLE = False
@@ -58,19 +69,67 @@ except ImportError:
 # Sprint 4 — AlertManager
 try:
     from super_otonom.alert_manager import AlertManager
+
     _ALERT_AVAILABLE = True
 except ImportError:
     _ALERT_AVAILABLE = False
     log.warning("BotEngine: alert_manager modülü bulunamadı — alarmlar devre dışı")
 
-_TAKE_PROFIT_PCT    = RISK.get("take_profit_pct", 0.03)
-_STOP_LOSS_PCT      = RISK.get("stop_loss_pct", 0.015)
+_TAKE_PROFIT_PCT = RISK.get("take_profit_pct", 0.03)
+_STOP_LOSS_PCT = RISK.get("stop_loss_pct", 0.015)
 _MAX_OPEN_POSITIONS = RISK.get("max_open_positions", 1)
-_STATE_FILE         = "data/bot_state.json"
-_TRADE_LOG_FILE     = "data/trades.log"
+_STATE_FILE = "data/bot_state.json"
+_TRADE_LOG_FILE = "data/trades.log"
 
-VALID_BUY_SIGNALS  = {"BUY"}
+VALID_BUY_SIGNALS = {"BUY"}
 VALID_SELL_SIGNALS = {"SELL", "CLOSE_ALL"}
+
+
+def _atomic_write_json(path: str, payload: Dict[str, Any]) -> None:
+    """JSON dosyasını atomik yazar (tmp + fsync + replace); çökme anında yarım dosya kalmaz."""
+    directory = os.path.dirname(path) or "."
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=".bot_state_",
+        suffix=".tmp",
+        dir=directory,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            if os.path.isfile(tmp_path):
+                os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _compact_phase_chain_for_attribution(
+    phase_chain: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Dict[str, Any]]]:
+    """PROMPT-A5 — BUY anı ``dctx.phase_chain`` özeti (haftalık proxy için)."""
+    if not phase_chain or not isinstance(phase_chain, dict):
+        return None
+    out: Dict[str, Dict[str, Any]] = {}
+    for k, v in phase_chain.items():
+        if not isinstance(v, dict):
+            continue
+        tp = v.get("trade_permission")
+        row: Dict[str, Any] = {
+            "trade_permission": str(tp).upper() if tp is not None else "UNKNOWN",
+        }
+        for extra in ("reason", "block_reason", "final_action", "alpha_score", "risk_score"):
+            if extra in v and v[extra] is not None:
+                ev = v[extra]
+                if isinstance(ev, (int, float, str, bool)):
+                    row[extra] = ev
+        out[str(k)] = row
+    return out or None
 
 
 def _min_entry_confidence() -> float:
@@ -87,11 +146,13 @@ def _min_entry_confidence() -> float:
 try:
     from super_otonom.position_sizer import PositionSizer
     from super_otonom.risk_manager import RiskManager
+
     _CORE_AVAILABLE = True
 except ImportError:
     try:
         from super_otonom.core.position_sizer import PositionSizer
         from super_otonom.core.risk_manager import RiskManager
+
         _CORE_AVAILABLE = True
     except ImportError:
         _CORE_AVAILABLE = False
@@ -100,7 +161,7 @@ except ImportError:
         class _StubSizer:
             min_notional = 10.0
 
-            def __init__(self, *_a, **_k):  # noqa: stub
+            def __init__(self, *_a, **_k):  # noqa
                 pass  # intentionally empty — stub implementation
 
             def set_trade_log(self, _tl):
@@ -123,12 +184,14 @@ except ImportError:
             emergency_stop = False
             emergency_reason = None
 
-            def __init__(self, capital: float = 0.0, *_a, **_k):  # noqa: stub
+            def __init__(self, capital: float = 0.0, *_a, **_k):  # noqa
                 pass  # intentionally empty — stub implementation
 
-            def trigger_emergency(self, code, silent=True, **_kw):  # noqa: stub
-                self.emergency_stop = True
-                self.emergency_reason = code
+            def trigger_emergency(self, code: str, *, silent: bool = False) -> None:  # noqa
+                # RiskManager ile aynı yüzey (keyword-only silent) + ilk tetik latch
+                if not self.emergency_stop:
+                    self.emergency_stop = True
+                    self.emergency_reason = code
 
             def get_last_deny(self):
                 return ""
@@ -145,9 +208,12 @@ except ImportError:
 
             def status_dict(self):
                 return {
-                    "var_95": 0.0, "daily_loss": 0.0,
-                    "emergency_stop": False, "emergency_reason": None,
-                    "last_risk_deny": None, "dynamic_daily_limit_pct": 3.0,
+                    "var_95": 0.0,
+                    "daily_loss": 0.0,
+                    "emergency_stop": self.emergency_stop,
+                    "emergency_reason": self.emergency_reason,
+                    "last_risk_deny": None,
+                    "dynamic_daily_limit_pct": 3.0,
                     "omega_qmin_tighten": 0,
                 }
 
@@ -162,14 +228,16 @@ except ImportError:
                 # intentionally empty stub — no ontology in stub mode
                 pass
 
-        PositionSizer = _StubSizer   # type: ignore
-        RiskManager   = _StubRisk    # type: ignore
+        PositionSizer = _StubSizer  # type: ignore
+        RiskManager = _StubRisk  # type: ignore
 
 try:
     from super_otonom.core.market_models import SlippageModel
 except ImportError:
-    class SlippageModel:                             # type: ignore
+
+    class SlippageModel:  # type: ignore
         """Çekirdek market_models yok — fiyatı olduğu gibi döndür (stub)."""
+
         def adjusted_price(self, _side, price, **_kw):
             return float(price)
 
@@ -181,23 +249,23 @@ class ExecutionSimulator:
     Latency, slippage ve kısmi dolumu simüle eder.
 
     Sprint 1 — Deterministik seed:
-        seed=None  → production (her çalışmada farklı)
+        seed=None  → production (her çalışmada farklı RNG örneği)
         seed=42    → test/backtesting (tekrarlanabilir)
+        ``random.Random.uniform`` birim testlerde monkeypatch ile sabitlenebilir.
     """
+
     def __init__(
         self,
         slippage_range: Tuple[float, float] = (0.0001, 0.001),
-        latency_range:  Tuple[float, float] = (0.05, 0.3),
+        latency_range: Tuple[float, float] = (0.05, 0.3),
         fill_ratio_range: Tuple[float, float] = (0.7, 1.0),
         seed: Optional[int] = None,
     ):
-        self.slippage_range   = slippage_range
-        self.latency_range    = latency_range
+        self.slippage_range = slippage_range
+        self.latency_range = latency_range
         self.fill_ratio_range = fill_ratio_range
-        # Sprint 1: numpy rng — seed ile deterministik, None ile random
-        import numpy as np
-        self._rng = np.random.default_rng(seed)
         self._seed = seed
+        self._rng = random.Random(seed) if seed is not None else random.Random()
 
     async def simulate_order(
         self,
@@ -223,21 +291,24 @@ class ExecutionSimulator:
         else:
             executed_price = price * (1 - spread - slip)
 
-        fill_ratio  = float(self._rng.uniform(*self.fill_ratio_range))
+        fill_ratio = float(self._rng.uniform(*self.fill_ratio_range))
         filled_size = size * fill_ratio
 
         log.debug(
-            "ExecutionSimulator | side=%s price=%.6f→%.6f slip=%.5f%% "
-            "fill=%.1f%% latency=%.0fms",
-            side, price, executed_price, slip * 100,
-            fill_ratio * 100, latency * 1000,
+            "ExecutionSimulator | side=%s price=%.6f→%.6f slip=%.5f%% fill=%.1f%% latency=%.0fms",
+            side,
+            price,
+            executed_price,
+            slip * 100,
+            fill_ratio * 100,
+            latency * 1000,
         )
         return {
             "executed_price": executed_price,
-            "filled_size":    filled_size,
-            "fill_ratio":     fill_ratio,
-            "latency":        latency,
-            "slippage":       slip,
+            "filled_size": filled_size,
+            "fill_ratio": fill_ratio,
+            "latency": latency,
+            "slippage": slip,
         }
 
 
@@ -248,6 +319,7 @@ class TradeLogger:
     - Her işlemde trades.log dosyasına satır ekler (bot çökse bile güvende)
     - BotEngine.trade_log bellek listesini de günceller
     """
+
     def __init__(self, filepath: str = _TRADE_LOG_FILE):
         self.filepath = filepath
         os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
@@ -269,6 +341,7 @@ class OrderTracker:
             düzgün await edilebilir.
     FIX 2: BotEngine.__init__() içinde örneklenir, tick() döngüsünde çağrılır.
     """
+
     def __init__(self, exchange_handler: Any):
         self.exchange = exchange_handler
         self.active_orders: Dict[str, Dict[str, Any]] = {}
@@ -302,7 +375,20 @@ class BotEngine:
     """
     v8 — Tick; aşamalar pipelines + BotEngine üzerindeki faz metodlarıyla aynı sıra.
 
-    Özet: risk ön kontrol → process_signal → apply_filters → calculate_position → execute_trade
+    **Aktif tick zinciri (özet)** — ayrıntı: ``docs/ACTIVE_PIPELINE.md``.
+
+    1. ``tick`` → ``_tick_impl``: unrealized / funding / ontology / correlation güncelle
+    2. ``run_system_gate_phase`` (unified_system_core) → kill / risk erken çıkış
+    3. ``process_signal`` → ``signal_pipeline.process_signal_phase`` (+ fusion / gates içerde)
+    4. ``apply_filters``
+    5. ``calculate_position`` + trailing
+    6. ``execute_trade`` → ``execution_pipeline.execute_trade_phase`` → ``_handle_exit`` / ``_handle_entry``
+
+    Hard safety (AI override edemez): ``hard_safety_contract`` + ``RISK`` / env;
+    giriş yolunda ``gate_leverage_notional``, ``gate_entry_cooldown``, ``pre_trade_gate`` zinciri.
+
+    Kalıcılık: ``data/bot_state.json`` atomik yazılır; bozuk JSON'da boş state + uyarı;
+    mutabakat pozisyon uyumsuzluğunda ``_safe_mode_block_new_entries`` ile yeni BUY bloklanır.
     """
 
     def __init__(
@@ -313,7 +399,7 @@ class BotEngine:
         sentiment_mock_score: Optional[float] = None,
         exchange_handler: Any = None,
     ):
-        self.mode            = "PAPER" if paper else "LIVE"
+        self.mode = "PAPER" if paper else "LIVE"
         self.initial_capital = float(capital)
         # v9 — CapitalEngine: kurumsal sermaye muhasebesi
         self.capital = CapitalEngine(
@@ -324,19 +410,20 @@ class BotEngine:
         # v9 — RiskOntology: tek NAV kaynağı, tutarlı denominators
         self.onto = RiskOntology(initial_nav=capital)
         # Geriye dönük uyumluluk
-        self.equity          = float(capital)
-        self.free_capital    = float(capital)
-        self._peak_equity    = float(capital)
+        self.equity = float(capital)
+        self.free_capital = float(capital)
+        self._peak_equity = float(capital)
 
         self.open_positions: Dict[str, Dict[str, Any]] = {}
-        self.trade_log:      List[Dict[str, Any]]      = []
+        self.trade_log: List[Dict[str, Any]] = []
 
-        self.risk     = RiskManager(capital)
+        self.risk = RiskManager(capital)
         self.risk.set_ontology(self.onto)  # v5.2 — tek NAV kaynağını bağla
-        self.ai       = AILayer()
-        self.sizer    = PositionSizer(
+        self.ai = AILayer()
+        self.sizer = PositionSizer(
             max_position_pct=RISK["max_position_pct"],
             min_notional=RISK["min_notional"],
+            max_leverage=float(RISK.get("max_leverage", 1.0)),
         )
         self.slippage = SlippageModel()
 
@@ -362,20 +449,28 @@ class BotEngine:
         else:
             log.info("BotEngine: exchange_handler verilmedi — OrderTracker pasif.")
 
-        self._today        = date.today()
+        self._today = date.today()
         self._trades_today = 0
         self._tick_counter = 0
-        self._last_order_bar_ts: dict = {}   # Faz 3: same-bar duplicate koruması
+        self._a11_tick_depth = 0  # PROMPT-A11 — tick() reentrancy (aynı engine)
+        self._a11_audit_analysis: Optional[Dict[str, Any]] = None
+        self._last_order_bar_ts: dict = {}  # Faz 3: same-bar duplicate koruması
+        # Hard safety: son başarılı giriş zamanı (monotonic); AI bu sözlüğü sıfırlamaz — yalnızca başarılı BUY sonrası güncellenir
+        self._last_entry_wall_ts: Dict[str, float] = {}
         self._hard_limits = HardLimitTracker.from_config()
+        # State / mutabakat: bozuk state dosyası veya borsa↔ledger pozisyon farkı
+        self._state_corrupt_fallback: bool = False
+        self._safe_mode_block_new_entries: bool = False
+        self._safe_mode_reason: Optional[str] = None
 
         # Sprint 1 — AuditLog + DailyReconciler
         if _AUDIT_AVAILABLE:
-            self.audit      = AuditLog()
+            self.audit = AuditLog()
             self.reconciler = DailyReconciler()
             self.reconciler.set_sod(self.capital.nav)
             log.info("BotEngine: AuditLog + DailyReconciler aktif")
         else:
-            self.audit      = None
+            self.audit = None
             self.reconciler = None
 
         # Sprint 4 M1 — AlertManager
@@ -385,7 +480,10 @@ class BotEngine:
         else:
             self.alerts = None
 
+        # _load_state içi veya eski kod yolları için güvenli başlangıç (RiskManager._onto ile karıştırılmaz).
+        self._onto = None
         self._load_state()
+        self._onto = self.onto
 
     def set_exchange_handler(self, exchange_handler: Any) -> None:
         """Exchange handler sonradan da verilebilir (main_loop esnekliği için)."""
@@ -411,7 +509,8 @@ class BotEngine:
 
         log.critical(
             "EMERGENCY_LIQUIDATE | %d pozisyon kapatılıyor | sebep=%s",
-            len(self.open_positions), reason,
+            len(self.open_positions),
+            reason,
         )
 
         # Sprint 4 M1 — Alarm gönder
@@ -436,23 +535,24 @@ class BotEngine:
         positions_snapshot = list(self.open_positions)
         for symbol in positions_snapshot:
             try:
-                pos   = self.open_positions.get(symbol, {})
-                price = float(pos.get("entry", 0))   # son bilinen fiyat
+                pos = self.open_positions.get(symbol, {})
+                price = float(pos.get("entry", 0))  # son bilinen fiyat
                 await self._close(
-                    symbol, price, dummy_out,
+                    symbol,
+                    price,
+                    dummy_out,
                     f"EMERGENCY_LIQUIDATE:{reason}",
                     dummy_analysis,
                 )
                 result["liquidated"].append(symbol)
                 log.warning(
                     "EMERGENCY_LIQUIDATE | kapatıldı | %s | price=%.4f",
-                    symbol, price,
+                    symbol,
+                    price,
                 )
             except Exception as exc:
                 result["failed"].append(symbol)
-                log.error(
-                    "EMERGENCY_LIQUIDATE | HATA | %s | %s", symbol, exc
-                )
+                log.error("EMERGENCY_LIQUIDATE | HATA | %s | %s", symbol, exc)
 
         result["total_pnl"] = round(self.capital._realized_pnl, 4)
         self._save_state()
@@ -463,22 +563,20 @@ class BotEngine:
     def _save_state(self) -> None:
         try:
             state = {
-                "equity":         self.equity,
-                "free_capital":   self.free_capital,
-                "peak_equity":    self._peak_equity,
+                "equity": self.equity,
+                "free_capital": self.free_capital,
+                "peak_equity": self._peak_equity,
                 "open_positions": self.open_positions,
-                "trade_log":      self.trade_log[-200:],
-                "timestamp":      time.time(),
-                "mode":           self.mode,
+                "trade_log": self.trade_log[-200:],
+                "timestamp": time.time(),
+                "mode": self.mode,
                 "capital_engine": self.capital.to_dict(),
-                "risk_ontology":  self.onto.to_dict(),
+                "risk_ontology": self.onto.to_dict(),
                 # Sprint 2 Madde 4: VaR geçmişi restart'ta korunur
-                "pnl_history":    self.risk._pnl_history[-500:],
-                "vol_history":    self.risk._vol_history[-200:],
+                "pnl_history": self.risk._pnl_history[-500:],
+                "vol_history": self.risk._vol_history[-200:],
             }
-            os.makedirs(os.path.dirname(_STATE_FILE) or ".", exist_ok=True)
-            with open(_STATE_FILE, "w", encoding="utf-8") as f:
-                json.dump(state, f, indent=2, ensure_ascii=False)
+            _atomic_write_json(_STATE_FILE, state)
         except Exception as e:
             log.error("BotEngine._save_state hatasi: %s", e)
 
@@ -487,18 +585,35 @@ class BotEngine:
             return
         try:
             with open(_STATE_FILE, "r", encoding="utf-8") as f:
-                state = json.load(f)
+                raw = f.read()
+            try:
+                state = json.loads(raw)
+            except json.JSONDecodeError as je:
+                self._state_corrupt_fallback = True
+                try:
+                    bak = _STATE_FILE + ".bak"
+                    shutil.copy2(_STATE_FILE, bak)
+                    log.warning("BotEngine._load_state: bozuk dosya yedeklendi | %s", bak)
+                except OSError as copy_err:
+                    log.warning("BotEngine._load_state: .bak yazilamadi | %s", copy_err)
+                log.error(
+                    "BotEngine._load_state: JSON bozuk — bos state ile devam | %s | offset=%s",
+                    je,
+                    getattr(je, "pos", None),
+                )
+                return
             if state.get("mode") != self.mode:
                 log.warning(
                     "BotEngine._load_state: mod uyumsuzlugu (kayit=%s, aktif=%s), atlaniyor.",
-                    state.get("mode"), self.mode,
+                    state.get("mode"),
+                    self.mode,
                 )
                 return
-            self.equity         = float(state.get("equity",       self.equity))
-            self.free_capital   = float(state.get("free_capital", self.free_capital))
-            self._peak_equity   = float(state.get("peak_equity",  self._peak_equity))
+            self.equity = float(state.get("equity", self.equity))
+            self.free_capital = float(state.get("free_capital", self.free_capital))
+            self._peak_equity = float(state.get("peak_equity", self._peak_equity))
             self.open_positions = state.get("open_positions", {})
-            self.trade_log      = state.get("trade_log", [])
+            self.trade_log = state.get("trade_log", [])
             # v9 — CapitalEngine state yükle
             if "capital_engine" in state:
                 self.capital = CapitalEngine.from_dict(
@@ -506,28 +621,42 @@ class BotEngine:
                     max_position_pct=RISK.get("max_position_pct", 0.95),
                     reserve_pct=RISK.get("capital_reserve_pct", 0.05),
                 )
-                self.equity       = self.capital.nav
+                self.equity = self.capital.nav
                 self.free_capital = self.capital.available_cash
+                self.initial_capital = float(self.capital.initial_capital)
+                self.risk.initial_capital = self.initial_capital
             if "risk_ontology" in state:
                 self.onto = RiskOntology.from_dict(state["risk_ontology"])
+                self.risk.set_ontology(self.onto)
                 log.info("RiskOntology yuklendi | nav=%.2f", self.onto.nav)
             # Sprint 2 Madde 4: VaR geçmişini geri yükle — sıfırdan başlamaz
             if "pnl_history" in state:
                 self.risk._pnl_history = [float(x) for x in state["pnl_history"]]
-                if self._onto is not None or hasattr(self, "onto"):
-                    onto = getattr(self, "_onto", None) or getattr(self, "onto", None)
-                    if onto is not None:
-                        onto._pnl_history = list(self.risk._pnl_history)
-                        onto.var_1d = onto._calc_var()
+                onto = getattr(self, "onto", None)
+                if onto is not None:
+                    onto._pnl_history = list(self.risk._pnl_history)
+                    onto.var_1d = onto._calc_var()
                 log.info("VaR gecmisi yuklendi | %d kayit", len(self.risk._pnl_history))
             if "vol_history" in state:
                 self.risk._vol_history = [float(x) for x in state["vol_history"]]
             log.info(
                 "BotEngine: durum geri yuklendi | equity=%.2f | acik_poz=%d | islem=%d",
-                self.equity, len(self.open_positions), len(self.trade_log),
+                self.equity,
+                len(self.open_positions),
+                len(self.trade_log),
             )
         except Exception as e:
             log.error("BotEngine._load_state hatasi: %s", e)
+
+    def set_safe_mode_block_new_entries(self, active: bool, reason: str = "") -> None:
+        """Mutabakat uyumsuzluğunda yeni BUY açılmasını engeller; çıkış/trailing çalışır."""
+        self._safe_mode_block_new_entries = bool(active)
+        self._safe_mode_reason = reason or None
+        log.warning(
+            "SAFE_MODE | block_new_entries=%s | %s",
+            active,
+            reason or "—",
+        )
 
     # ── Yardımcılar ──────────────────────────────────────────────────────────
 
@@ -545,7 +674,7 @@ class BotEngine:
                 self.reconciler.reset_for_new_day(self.capital.nav)
             if self.audit is not None:
                 self.audit.system_event("DAY_RESET", nav=self.capital.nav)
-            self._today        = today
+            self._today = today
             self._trades_today = 0
 
     def _open_exposure(self, prices: Dict[str, float]) -> float:
@@ -582,9 +711,7 @@ class BotEngine:
         dctx: DecisionContext,
         out: Dict[str, Any],
     ) -> bool:
-        return await signal_pipeline.apply_filters_phase(
-            self, symbol, analysis, price, dctx, out
-        )
+        return await signal_pipeline.apply_filters_phase(self, symbol, analysis, price, dctx, out)
 
     def calculate_position(self, symbol: str, final_signal: str) -> float:
         """
@@ -621,7 +748,9 @@ class BotEngine:
             if dd_scale < 1.0:
                 log.info(
                     "DRAWDOWN_SCALING | %s | dd=%.1f%% → size_scale=%.2f",
-                    symbol, dd_pct, dd_scale,
+                    symbol,
+                    dd_pct,
+                    dd_scale,
                 )
 
         return round(corr_mult * dd_scale, 4)
@@ -645,27 +774,21 @@ class BotEngine:
         if not self.open_positions:
             return
         prices = {
-            sym: price if sym == symbol
-                 else float(self.open_positions[sym].get("entry", 0))
+            sym: price if sym == symbol else float(self.open_positions[sym].get("entry", 0))
             for sym in self.open_positions
         }
         self.capital.update_unrealized(prices)
         self.equity = self.capital.nav
 
-    def _tick_apply_funding_rate(
-        self, analysis: Dict[str, Any]
-    ) -> None:
+    def _tick_apply_funding_rate(self, analysis: Dict[str, Any]) -> None:
         """Funding rate / swap maliyetini uygular."""
         if not self.open_positions:
             return
-        _swap_rate = float(
-            analysis.get("funding_rate",
-                         RISK.get("swap_rate_daily", 0.0003))
-        )
+        _swap_rate = float(analysis.get("funding_rate", RISK.get("swap_rate_daily", 0.0003)))
         if _swap_rate <= 0:
             return
         for _sym, _pos in self.open_positions.items():
-            _notional  = float(_pos.get("size", 0))
+            _notional = float(_pos.get("size", 0))
             _swap_cost = _notional * _swap_rate
             if _swap_cost > 0.001:
                 self.capital.record_fee(
@@ -676,20 +799,17 @@ class BotEngine:
                 )
                 log.debug(
                     "FUNDING | %s | notional=%.2f rate=%.6f cost=%.4f",
-                    _sym, _notional, _swap_rate, _swap_cost,
+                    _sym,
+                    _notional,
+                    _swap_rate,
+                    _swap_cost,
                 )
 
     def _tick_check_trailing_stops(self, symbol: str):
         """Diğer açık pozisyonlar için trailing stop kontrolü."""
-        return [
-            (_sym, _pos)
-            for _sym, _pos in self.open_positions.items()
-            if _sym != symbol
-        ]
+        return [(_sym, _pos) for _sym, _pos in self.open_positions.items() if _sym != symbol]
 
-    def _tick_handle_risk_block(
-        self, symbol: str, out: Dict[str, Any]
-    ) -> None:
+    def _tick_handle_risk_block(self, symbol: str, out: Dict[str, Any]) -> None:
         """Risk bloğunda audit log ve emergency liquidation."""
         if self.audit is not None:
             self.audit.risk_block(
@@ -704,10 +824,41 @@ class BotEngine:
                 self.risk.get_last_deny(),
             )
             import asyncio as _asyncio
+
             _liquidate_task = _asyncio.ensure_future(
                 self.emergency_liquidate(self.risk.get_last_deny() or "risk_block")
             )
             out["_liquidate_task"] = _liquidate_task
+
+    def _attach_signal_lineage(
+        self,
+        symbol: str,
+        out: Dict[str, Any],
+        dctx: Optional[DecisionContext],
+        analysis: Dict[str, Any],
+        event_ts: float,
+        gate: Optional[str],
+        completion: str,
+    ) -> None:
+        """PROMPT-A7 — ``out['signal_lineage']`` + log + ``decision_context`` yenileme."""
+        from super_otonom.signal_lineage import build_signal_lineage, log_signal_lineage
+
+        tid = int(dctx.tick_id) if dctx is not None else int(self._tick_counter)
+        payload = build_signal_lineage(
+            symbol=symbol,
+            tick_id=tid,
+            out=out,
+            dctx=dctx,
+            analysis=analysis,
+            event_ts=float(event_ts),
+            gate=gate,
+            completion=completion,
+        )
+        out["signal_lineage"] = payload
+        log_signal_lineage(payload)
+        if dctx is not None:
+            dctx.signal_lineage = payload
+            out["decision_context"] = dctx.to_dict()
 
     async def tick(
         self,
@@ -716,101 +867,150 @@ class BotEngine:
         candles: List[Dict[str, float]],
     ) -> Dict[str, Any]:
         self._reset_daily_if_needed()
-        self._tick_counter += 1
 
         out: Dict[str, Any] = {
-            "symbol":            symbol,
-            "actions":           [],
-            "ai_confidence":     None,
-            "final_signal":      "HOLD",
-            "decision_reason":   "",
-            "sentiment_status":  "UNKNOWN",
-            "corr_multiplier":   1.0,
-            "decision_context":  None,
-            "ai_explain":        "",
+            "symbol": symbol,
+            "actions": [],
+            "ai_confidence": None,
+            "final_signal": "HOLD",
+            "decision_reason": "",
+            "sentiment_status": "UNKNOWN",
+            "corr_multiplier": 1.0,
+            "decision_context": None,
+            "ai_explain": "",
         }
 
         if not candles:
+            self._tick_counter += 1
+            self._attach_signal_lineage(
+                symbol, out, None, analysis or {}, float(time.time()), None, "no_candles"
+            )
             return out
 
-        price        = float(candles[-1]["close"])
+        if self._a11_tick_depth >= 1:
+            log.critical(
+                "PROMPT-A11 | tick() re-entry blocked | sym=%s depth=%s",
+                symbol,
+                self._a11_tick_depth,
+            )
+            out["final_signal"] = "HOLD"
+            out["decision_reason"] = "A11_REENTRANT_TICK"
+            self._attach_signal_lineage(
+                symbol, out, None, analysis or {}, float(time.time()), None, "a11_reentrant"
+            )
+            return out
+
+        self._tick_counter += 1
+        self._a11_tick_depth += 1
+        self._a11_audit_analysis = None
+        try:
+            out = await self._tick_impl(symbol, analysis, candles, out)
+        finally:
+            _a11_msg = audit_intratick_frozen_core(self._a11_audit_analysis)
+            if _a11_msg:
+                log.error("PROMPT-A11 | %s | sym=%s", _a11_msg, symbol)
+            self._a11_audit_analysis = None
+            self._a11_tick_depth -= 1
+
+        return out
+
+    async def _tick_impl(
+        self,
+        symbol: str,
+        analysis: Dict[str, Any],
+        candles: List[Dict[str, float]],
+        out: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        price = float(candles[-1]["close"])
         candle_ts_ms = float(candles[-1].get("timestamp", time.time() * 1000))
-        candle_ts_s  = candle_ts_ms / 1000.0
-        analysis     = dict(analysis or {})
-        analysis["avg_volume"] = float(
-            analysis.get("avg_volume") or self._avg_volume(candles)
-        )
+        candle_ts_s = candle_ts_ms / 1000.0
+        analysis = dict(analysis or {})
+        analysis["avg_volume"] = float(analysis.get("avg_volume") or self._avg_volume(candles))
         analysis["candle_ts"] = candle_ts_s
 
-        dctx = DecisionContext.start(symbol, self._tick_counter, analysis)
-        dctx.add_trace("start", f"close={price:.4f}")
-        dctx.trading_state = compute_trading_state(self, analysis).value
+        with _tick_span(analysis, "pre_system_gate"):
+            attach_tick_frozen_mark(analysis, tick_id=self._tick_counter, symbol=symbol)
+            self._a11_audit_analysis = analysis
 
-        # Unrealized PnL güncelle
-        self._tick_update_unrealized(symbol, price)
-        if self.equity > self._peak_equity:
-            self._peak_equity = self.equity
-            self.risk.update_peak(self.capital.nav)
+            dctx = DecisionContext.start(symbol, self._tick_counter, analysis)
+            dctx.add_trace("start", f"close={price:.4f}")
+            dctx.trading_state = compute_trading_state(self, analysis).value
 
+            # Unrealized PnL güncelle
+            self._tick_update_unrealized(symbol, price)
+            if self.equity > self._peak_equity:
+                self._peak_equity = self.equity
+                self.risk.update_peak(self.capital.nav)
 
-        # Funding rate / swap maliyeti
-        self._tick_apply_funding_rate(analysis)
+            # Funding rate / swap maliyeti
+            self._tick_apply_funding_rate(analysis)
 
-        # RiskOntology güncelle
-        self.onto.update(
-            nav=self.capital.nav,
-            positions=self.open_positions,
-            current_vol=float(analysis.get("volatility", 0.0)),
-        )
+            # RiskOntology güncelle
+            self.onto.update(
+                nav=self.capital.nav,
+                positions=self.open_positions,
+                current_vol=float(analysis.get("volatility", 0.0)),
+            )
 
-        self.correlation_mgr.update_returns(symbol, price)
+            self.correlation_mgr.update_returns(symbol, price)
 
-        gate = run_system_gate_phase(self, symbol, price, dctx, out, analysis)
+        with _tick_span(analysis, "system_gate"):
+            gate = run_system_gate_phase(self, symbol, price, dctx, out, analysis)
         if gate == "kill":
+            self._attach_signal_lineage(symbol, out, dctx, analysis, candle_ts_s, "kill", "kill")
             return out
         if gate == "risk":
             self._tick_handle_risk_block(symbol, out)
+            self._attach_signal_lineage(symbol, out, dctx, analysis, candle_ts_s, "risk", "risk")
             return out
 
-        await self.process_signal(symbol, analysis, candles, dctx, out)
+        with _tick_span(analysis, "process_signal"):
+            await self.process_signal(symbol, analysis, candles, dctx, out)
 
-        if not await self.apply_filters(symbol, analysis, price, dctx, out):
+        with _tick_span(analysis, "apply_filters"):
+            _filters_ok = await self.apply_filters(symbol, analysis, price, dctx, out)
+        if not _filters_ok:
+            self._attach_signal_lineage(symbol, out, dctx, analysis, candle_ts_s, None, "filters")
             return out
 
-        fs = out["final_signal"]
-        corr_multiplier = self.calculate_position(symbol, fs)
-        if fs == "BUY":
-            out["corr_multiplier"] = corr_multiplier
-            dctx.corr_multiplier = corr_multiplier
-            dctx.add_trace(DecisionStage.CORRELATION.value, f"mult={corr_multiplier:.3f}")
+        with _tick_span(analysis, "position_trailing"):
+            fs = out["final_signal"]
+            corr_multiplier = self.calculate_position(symbol, fs)
+            if fs == "BUY":
+                out["corr_multiplier"] = corr_multiplier
+                dctx.corr_multiplier = corr_multiplier
+                dctx.add_trace(DecisionStage.CORRELATION.value, f"mult={corr_multiplier:.3f}")
 
-        # Trailing stop — diğer semboller
-        for _sym, _pos in self._tick_check_trailing_stops(symbol):
-            _entry = float(_pos.get("entry", 0))
-            _peak  = float(_pos.get("peak", _entry))
-            _cur   = float(_pos.get("entry", 0))
-            if _entry > 0 and self.risk.should_trailing_stop(_entry, _cur, _peak):
-                log.info(
-                    "TRAILING_STOP | otomatik | %s | entry=%.4f peak=%.4f",
-                    _sym, _entry, _peak,
-                )
-                _exit_analysis = {"avg_volume": 1.0, "volatility": 0.01, "fee": 0.0}
-                await self._close(_sym, _cur, out, "TRAILING_STOP", _exit_analysis)
+            # Trailing stop — diğer semboller
+            for _sym, _pos in self._tick_check_trailing_stops(symbol):
+                _entry = float(_pos.get("entry", 0))
+                _peak = float(_pos.get("peak", _entry))
+                _cur = float(_pos.get("entry", 0))
+                if _entry > 0 and self.risk.should_trailing_stop(_entry, _cur, _peak):
+                    log.info(
+                        "TRAILING_STOP | otomatik | %s | entry=%.4f peak=%.4f",
+                        _sym,
+                        _entry,
+                        _peak,
+                    )
+                    _exit_analysis = {"avg_volume": 1.0, "volatility": 0.01, "fee": 0.0}
+                    await self._close(_sym, _cur, out, "TRAILING_STOP", _exit_analysis)
 
-        attach_override_phases_to_analysis(
-            analysis, engine=self, dctx=dctx, out=out, symbol=symbol
-        )
+        with _tick_span(analysis, "override_bridge"):
+            attach_override_phases_to_analysis(
+                analysis, engine=self, dctx=dctx, out=out, symbol=symbol
+            )
 
-        await self.execute_trade(
-            symbol, price, analysis, out, corr_multiplier, dctx, candles
-        )
+        with _tick_span(analysis, "execute_trade"):
+            await self.execute_trade(symbol, price, analysis, out, corr_multiplier, dctx, candles)
 
-        dctx.final_signal    = out.get("final_signal", fs)
-        dctx.decision_reason = out.get("decision_reason", dctx.decision_reason)
-        out["decision_context"] = dctx.to_dict()
+        with _tick_span(analysis, "finalize"):
+            dctx.final_signal = out.get("final_signal", fs)
+            dctx.decision_reason = out.get("decision_reason", dctx.decision_reason)
+            self._attach_signal_lineage(symbol, out, dctx, analysis, candle_ts_s, None, "full")
 
-        self.metrics.update(self.status())
-        self.metrics.record_analysis(analysis)
+            self.metrics.update(self.status())
+            self.metrics.record_analysis(analysis)
 
         return out
 
@@ -864,6 +1064,18 @@ class BotEngine:
                 dctx.entry_blocked = block
                 dctx.add_trace(DecisionStage.ENTRY.value, f"gate:{block}")
             log.debug("pre_trade_gate | %s | %s", symbol, block)
+            return False, bar_ts
+
+        ok_cd, block_cd = gate_entry_cooldown(
+            symbol,
+            self._last_entry_wall_ts,
+            float(RISK.get("min_entry_cooldown_sec", 0.0)),
+        )
+        if not ok_cd:
+            if dctx is not None:
+                dctx.entry_blocked = block_cd
+                dctx.add_trace(DecisionStage.ENTRY.value, f"cooldown:{block_cd}")
+            log.debug("pre_trade_gate | cooldown | %s | %s", symbol, block_cd)
             return False, bar_ts
 
         return True, bar_ts
@@ -929,8 +1141,13 @@ class BotEngine:
     ) -> bool:
         """Faz 3: fat-finger, spread, ob depth, exposure kontrolleri."""
         ok_sz, block_sz = gate_buy_size_and_exposure(
-            self.sizer, symbol, self.equity, size, raw_size,
-            self.free_capital, self.open_positions,
+            self.sizer,
+            symbol,
+            self.equity,
+            size,
+            raw_size,
+            self.free_capital,
+            self.open_positions,
         )
         if not ok_sz:
             if dctx is not None:
@@ -982,17 +1199,19 @@ class BotEngine:
             sim_result = await self.exec_sim.simulate_order(
                 side="buy", price=price, size=size, paper=True
             )
-            fill_price  = sim_result["executed_price"]
+            fill_price = sim_result["executed_price"]
             filled_size = sim_result["filled_size"]
             qty = filled_size / float(fill_price or price)
             log.debug(
                 "ExecutionSim BUY | fill_ratio=%.2f latency=%.0fms slip=%.5f%%",
-                sim_result["fill_ratio"], sim_result["latency"] * 1000,
+                sim_result["fill_ratio"],
+                sim_result["latency"] * 1000,
                 sim_result["slippage"] * 100,
             )
         else:
             fill_price = self.slippage.adjusted_price(
-                "buy", price,
+                "buy",
+                price,
                 order_size=float(size),
                 avg_volume=avg_vol,
                 volatility=float(analysis.get("volatility", 0.01)),
@@ -1001,9 +1220,7 @@ class BotEngine:
 
         return fill_price, qty
 
-    def _entry_kill_switch_check(
-        self, symbol: str, dctx: Optional[Any]
-    ) -> bool:
+    def _entry_kill_switch_check(self, symbol: str, dctx: Optional[Any]) -> bool:
         """Hard limit kill switch kontrolü. True ise engellendi."""
         br = self._hard_limits.can_submit_order()
         if not br:
@@ -1030,6 +1247,18 @@ class BotEngine:
         if signal not in VALID_BUY_SIGNALS:
             return
 
+        if self._safe_mode_block_new_entries:
+            log.warning(
+                "SAFE_MODE | BUY bloklandi | %s | %s",
+                symbol,
+                self._safe_mode_reason or "recon_or_operator",
+            )
+            if dctx is not None:
+                dctx.entry_blocked = "SAFE_MODE_BLOCK_NEW_ENTRIES"
+                dctx.add_trace(DecisionStage.ENTRY.value, "safe_mode")
+            out.setdefault("decision_reason", "SAFE_MODE_BLOCK_NEW_ENTRIES")
+            return
+
         ok, bar_ts = self._entry_check_gates(symbol, signal, confidence, candles, dctx)
         if not ok:
             return
@@ -1040,6 +1269,19 @@ class BotEngine:
         if not ok_size:
             return
 
+        ok_lv, block_lv = gate_leverage_notional(
+            self.equity,
+            max(float(size), float(raw_size)),
+            float(RISK["max_position_pct"]),
+            float(RISK.get("max_leverage", 1.0)),
+        )
+        if not ok_lv:
+            if dctx is not None:
+                dctx.entry_blocked = block_lv
+                dctx.add_trace(DecisionStage.ENTRY.value, f"hard:{block_lv}")
+            log.info("GIRIS | engellendi | symbol=%s | neden=%s", symbol, block_lv)
+            return
+
         if not self._entry_safety_checks(symbol, size, raw_size, analysis, dctx):
             return
 
@@ -1048,7 +1290,7 @@ class BotEngine:
 
         self._last_order_bar_ts[symbol] = bar_ts
 
-        _order_id_attempt = f"{symbol}_{int(time.time()*1000)}_attempt"
+        _order_id_attempt = f"{symbol}_{int(time.time() * 1000)}_attempt"
         if not self.capital.reserve_margin(_order_id_attempt, size):
             log.warning("GIRIS | rezervasyon basarisiz | %s | size=%.2f", symbol, size)
             return
@@ -1056,14 +1298,17 @@ class BotEngine:
         fill_price, qty = await self._entry_execute_order(symbol, price, size, analysis)
 
         # Pozisyon kaydı
-        order_id = f"{symbol}_{int(time.time()*1000)}"
+        order_id = f"{symbol}_{int(time.time() * 1000)}"
         pos: Dict[str, Any] = {
-            "entry":     fill_price,
-            "qty":       qty,
-            "size":      size,
-            "peak":      fill_price,
+            "entry": fill_price,
+            "qty": qty,
+            "size": size,
+            "initial_qty": qty,
+            "peak": fill_price,
             "hold_bars": 0,
-            "order_id":  order_id,
+            "exit_stage": 0,
+            "stage_defer_bars": 0,
+            "order_id": order_id,
         }
         _ds = out.get("dynamic_stop")
         if _ds is not None:
@@ -1071,6 +1316,22 @@ class BotEngine:
                 pos["dynamic_stop"] = float(_ds)
             except (TypeError, ValueError):
                 pass
+        _snap = _compact_phase_chain_for_attribution(
+            getattr(dctx, "phase_chain", None) if dctx is not None else None
+        )
+        if _snap:
+            pos["entry_phase_chain"] = _snap
+        # PROMPT-A9 — BUY anı meta_regime özeti (rejim × aile × PnL korelasyonu için)
+        try:
+            from super_otonom.meta_regime_orchestrator import (
+                compact_meta_regime_for_attribution,
+            )
+
+            _mr_snap = compact_meta_regime_for_attribution(analysis.get("meta_regime"))
+            if _mr_snap:
+                pos["entry_meta_regime"] = _mr_snap
+        except ImportError:
+            pass
         self.open_positions[symbol] = pos
         # CapitalEngine ledger
         self.capital.release_reservation(_order_id_attempt, size)
@@ -1083,13 +1344,13 @@ class BotEngine:
             fee=float(analysis.get("fee", 0.0)),
         )
         self.free_capital = self.capital.available_cash
-        self.equity       = self.capital.nav
+        self.equity = self.capital.nav
 
         self.metrics.record_slippage(symbol, price, fill_price)
 
         # TCA anomali tespiti
         _expected_slip_pct = float(analysis.get("volatility", 0.01)) * 0.1 * 100
-        _actual_slip_pct   = abs(fill_price - price) / max(price, 1e-9) * 100
+        _actual_slip_pct = abs(fill_price - price) / max(price, 1e-9) * 100
         if _actual_slip_pct > _expected_slip_pct * 3 and self.alerts is not None:
             self.alerts.tca_anomaly(symbol, _expected_slip_pct, _actual_slip_pct)
 
@@ -1106,21 +1367,23 @@ class BotEngine:
                 nav=self.capital.nav,
                 cash=self.capital._cash,
                 open_positions=len(self.open_positions),
-                meta={"sizing_source": dctx.sizing_source if dctx else "",
-                      "signal": out.get("final_signal", "BUY")},
+                meta={
+                    "sizing_source": dctx.sizing_source if dctx else "",
+                    "signal": out.get("final_signal", "BUY"),
+                },
             )
 
         action = {
-            "type":            "BUY",
-            "symbol":          symbol,
-            "price":           fill_price,
-            "qty":             qty,
-            "size":            size,
+            "type": "BUY",
+            "symbol": symbol,
+            "price": fill_price,
+            "qty": qty,
+            "size": size,
             "corr_multiplier": corr_multiplier,
-            "sizing_source":   dctx.sizing_source if dctx is not None else "",
+            "sizing_source": dctx.sizing_source if dctx is not None else "",
             "notional_merged": raw_size,
-            "notional_tech":   dctx.notional_technical if dctx is not None else None,
-            "ai_explain":      out.get("ai_explain", ""),
+            "notional_tech": dctx.notional_technical if dctx is not None else None,
+            "ai_explain": out.get("ai_explain", ""),
         }
         out["actions"].append(action)
         self._hard_limits.record_order()
@@ -1128,11 +1391,18 @@ class BotEngine:
         log.info(
             "GIRIS | buy | symbol=%s | fiyat=%.6f | tutar=%.2f (birlesik=%.2f × corr=%.2f) "
             "| src=%s | qty=%.8f | guven=%.3f | slip=%.5f%%",
-            symbol, fill_price, size, raw_size, corr_multiplier,
-            dctx.sizing_source if dctx else "?", qty, confidence,
+            symbol,
+            fill_price,
+            size,
+            raw_size,
+            corr_multiplier,
+            dctx.sizing_source if dctx else "?",
+            qty,
+            confidence,
             abs(fill_price - price) / (price + 1e-9) * 100,
         )
         log.info("TRADE_WHY | BUY | %s | %s", symbol, out.get("ai_explain", ""))
+        self._last_entry_wall_ts[symbol] = time.monotonic()
         self._save_state()
 
     # ── Çıkış ────────────────────────────────────────────────────────────────
@@ -1140,34 +1410,119 @@ class BotEngine:
     async def _handle_exit(
         self, symbol: str, price: float, signal: str, out: Dict, analysis: Dict
     ) -> None:
-        pos     = self.open_positions[symbol]
-        # FIX 3: .get() ile korumalı erişim
-        entry   = float(pos.get("entry", price))
-        pnl_pct = (price - entry) / entry if entry else 0.0
+        from super_otonom.staged_exit import apply_staged_exit
 
-        if price > pos.get("peak", entry):
-            pos["peak"] = price
-        pos["hold_bars"] = pos.get("hold_bars", 0) + 1
+        await apply_staged_exit(self, symbol, price, signal, out, analysis)
 
-        take_profit = pnl_pct >= _TAKE_PROFIT_PCT
-        stop_loss   = pnl_pct <= -_STOP_LOSS_PCT
-        trailing    = self.risk.should_trailing_stop(
-            entry, price, float(pos.get("peak", entry))
+    async def _close_partial(
+        self,
+        symbol: str,
+        price: float,
+        ratio: float,
+        out: Dict,
+        reason: str,
+        analysis: Dict,
+        new_stage: int,
+    ) -> None:
+        pos = self.open_positions.get(symbol)
+        if not pos:
+            return
+
+        entry = float(pos.get("entry", price))
+        qty = float(pos.get("qty", 0.0) or 0.0)
+        size = float(pos.get("size", 0.0) or 0.0)
+        initial_qty = float(pos.get("initial_qty", qty) or qty)
+        if qty <= 0 or size <= 0:
+            return
+
+        sell_qty = min(qty, max(0.0, initial_qty * float(ratio)))
+        if sell_qty <= 0:
+            return
+        sell_ratio = sell_qty / qty
+        sell_size = size * sell_ratio
+        avg_vol = float(analysis.get("avg_volume") or 1.0)
+
+        if self.mode == "PAPER":
+            sim_result = await self.exec_sim.simulate_order(
+                side="sell", price=price, size=sell_size, paper=True
+            )
+            exit_px = sim_result["executed_price"]
+            filled_qty = sell_qty * sim_result["fill_ratio"]
+        else:
+            exit_px = self.slippage.adjusted_price(
+                "sell",
+                float(price),
+                order_size=sell_size,
+                avg_volume=max(avg_vol, 1.0),
+                volatility=float(analysis.get("volatility", 0.01)),
+            )
+            filled_qty = sell_qty
+
+        _cap_pnl = self.capital.close_partial(
+            symbol=symbol,
+            order_id=pos.get("order_id", f"{symbol}_partial_{int(time.time() * 1000)}"),
+            exit_price=exit_px,
+            ratio=filled_qty / qty if qty > 0 else 1.0,
+            fee=float(analysis.get("fee", 0.0)),
         )
-        signal_exit = signal in VALID_SELL_SIGNALS
+        pnl = _cap_pnl if _cap_pnl is not None else (exit_px - entry) * filled_qty
 
-        reason = None
-        if take_profit:
-            reason = "TAKE_PROFIT"
-        elif stop_loss:
-            reason = "STOP_LOSS"
-        elif trailing:
-            reason = "TRAILING_STOP"
-        elif signal_exit:
-            reason = "SIGNAL_EXIT"
+        pos["qty"] = max(0.0, qty - filled_qty)
+        pos["size"] = max(0.0, size - sell_size)
+        pos["exit_stage"] = int(new_stage)
+        final_stage = int(new_stage)
+        if pos["qty"] <= 1e-10 or pos["size"] <= 1e-8:
+            self.open_positions.pop(symbol, None)
+            final_stage = 3
 
-        if reason:
-            await self._close(symbol, price, out, reason, analysis)
+        self.equity = self.capital.nav
+        self.free_capital = self.capital.available_cash
+        self.risk.record_pnl(pnl)
+        if hasattr(self.risk, "record_omega_trade_outcome"):
+            self.risk.record_omega_trade_outcome(pnl)
+        self.onto.update(
+            nav=self.capital.nav,
+            positions=self.open_positions,
+            realized_pnl_delta=pnl,
+        )
+
+        trade_record = {
+            "symbol": symbol,
+            "entry": entry,
+            "exit": exit_px,
+            "qty": filled_qty,
+            "pnl": round(pnl, 4),
+            "reason": reason,
+            "partial": True,
+            "exit_stage": final_stage,
+            "hold_bars": int(pos.get("hold_bars", 0)),
+            "regime": str(analysis.get("regime", "")),
+            "pnl_pct": round((exit_px - entry) / entry * 100, 4) if entry else 0.0,
+        }
+        self.trade_log.append(trade_record)
+        self.trade_logger.log_trade(trade_record)
+        out["actions"].append(
+            {
+                "type": "SELL_PARTIAL",
+                "symbol": symbol,
+                "price": exit_px,
+                "qty": filled_qty,
+                "pnl": round(pnl, 4),
+                "reason": reason,
+                "exit_stage": final_stage,
+            }
+        )
+        log.info(
+            "CIKIS | partial | symbol=%s | fiyat=%.6f | pnl=%.4f | reason=%s | stage=%s",
+            symbol,
+            exit_px,
+            pnl,
+            reason,
+            pos.get("exit_stage", new_stage),
+        )
+        self.metrics.record_slippage(symbol, price, exit_px)
+        self.metrics.record_trade(pnl=pnl, reason=reason)
+        self._save_state()
 
     async def _close(
         self, symbol: str, price: float, out: Dict, reason: str, analysis: Dict
@@ -1177,9 +1532,9 @@ class BotEngine:
             return
 
         # FIX 3: .get() ile KeyError koruması
-        size    = float(pos.get("size") or 0.0)
-        entry   = float(pos.get("entry") or price)
-        qty     = float(pos.get("qty") or 0.0)
+        size = float(pos.get("size") or 0.0)
+        entry = float(pos.get("entry") or price)
+        qty = float(pos.get("qty") or 0.0)
         avg_vol = float(analysis.get("avg_volume") or 1.0)
 
         # FIX 4: Paper modda ExecutionSimulator
@@ -1187,11 +1542,12 @@ class BotEngine:
             sim_result = await self.exec_sim.simulate_order(
                 side="sell", price=price, size=size, paper=True
             )
-            exit_px     = sim_result["executed_price"]
-            filled_qty  = qty * sim_result["fill_ratio"]
+            exit_px = sim_result["executed_price"]
+            filled_qty = qty * sim_result["fill_ratio"]
         else:
-            exit_px    = self.slippage.adjusted_price(
-                "sell", float(price),
+            exit_px = self.slippage.adjusted_price(
+                "sell",
+                float(price),
                 order_size=size,
                 avg_volume=max(avg_vol, 1.0),
                 volatility=float(analysis.get("volatility", 0.01)),
@@ -1201,7 +1557,7 @@ class BotEngine:
         # v9 — CapitalEngine ledger kapanış
         _cap_pnl = self.capital.close_position(
             symbol=symbol,
-            order_id=pos.get("order_id", f"{symbol}_close_{int(time.time()*1000)}"),
+            order_id=pos.get("order_id", f"{symbol}_close_{int(time.time() * 1000)}"),
             exit_price=exit_px,
             filled_qty=filled_qty,
             fee=float(analysis.get("fee", 0.0)),
@@ -1210,7 +1566,7 @@ class BotEngine:
         if _cap_pnl is None:
             log.warning("CapitalEngine: pozisyon ledgerde yok, fallback pnl=%.4f", pnl)
         # Geriye dönük uyumluluk
-        self.equity       = self.capital.nav
+        self.equity = self.capital.nav
         self.free_capital = self.capital.available_cash
         self._trades_today += 1
         self.risk.record_pnl(pnl)
@@ -1224,23 +1580,27 @@ class BotEngine:
         )
 
         trade_record = {
-            "symbol":     symbol,
-            "entry":      entry,
-            "exit":       exit_px,
-            "qty":        filled_qty,
-            "pnl":        round(pnl, 4),
-            "reason":     reason,
+            "symbol": symbol,
+            "entry": entry,
+            "exit": exit_px,
+            "qty": filled_qty,
+            "pnl": round(pnl, 4),
+            "reason": reason,
             "strategist": str(analysis.get("strategist", "trend")),
             # Sprint 3 M2 — PnL attribution
-            "signal_type":    str(analysis.get("signal", "UNKNOWN")),
+            "signal_type": str(analysis.get("signal", "UNKNOWN")),
             "signal_confidence": float(analysis.get("ai_confidence", 0.0)),
-            "sizing_source":  str(analysis.get("sizing_source", "")),
-            "hold_bars":      int(pos.get("hold_bars", 0)),
-            "volatility":     float(analysis.get("volatility", 0.0)),
-            "regime":         str(analysis.get("regime", "")),
-            "pnl_pct":        round((exit_px - entry) / entry * 100, 4) if entry else 0.0,
-            "slippage_pct":   round(abs(exit_px - float(analysis.get("close", exit_px)))
-                                    / max(exit_px, 1e-9) * 100, 4),
+            "sizing_source": str(analysis.get("sizing_source", "")),
+            "hold_bars": int(pos.get("hold_bars", 0)),
+            "volatility": float(analysis.get("volatility", 0.0)),
+            "regime": str(analysis.get("regime", "")),
+            "pnl_pct": round((exit_px - entry) / entry * 100, 4) if entry else 0.0,
+            "slippage_pct": round(
+                abs(exit_px - float(analysis.get("close", exit_px))) / max(exit_px, 1e-9) * 100, 4
+            ),
+            "entry_phase_chain": pos.get("entry_phase_chain"),
+            # PROMPT-A9 — meta_regime özeti (BUY anında snapshot)
+            "entry_meta_regime": pos.get("entry_meta_regime"),
         }
 
         self.trade_log.append(trade_record)
@@ -1271,18 +1631,23 @@ class BotEngine:
                 reason=reason,
             )
 
-        out["actions"].append({
-            "type":       "SELL",
-            "symbol":     symbol,
-            "price":      exit_px,
-            "qty":        filled_qty,
-            "pnl":        round(pnl, 4),
-            "reason":     reason,
-            "ai_explain": out.get("ai_explain", ""),
-        })
+        out["actions"].append(
+            {
+                "type": "SELL",
+                "symbol": symbol,
+                "price": exit_px,
+                "qty": filled_qty,
+                "pnl": round(pnl, 4),
+                "reason": reason,
+                "ai_explain": out.get("ai_explain", ""),
+            }
+        )
         log.info(
             "CIKIS | sell | symbol=%s | fiyat=%.6f | pnl=%.4f | reason=%s | slip=%.5f%%",
-            symbol, exit_px, pnl, reason,
+            symbol,
+            exit_px,
+            pnl,
+            reason,
             abs(exit_px - price) / (price + 1e-9) * 100,
         )
         log.info("TRADE_WHY | SELL | %s | %s", symbol, out.get("ai_explain", ""))
@@ -1298,21 +1663,19 @@ class BotEngine:
     ) -> Dict[str, Any]:
         self._reset_daily_if_needed()
         out: Dict[str, Any] = {
-            "symbol":           symbol,
-            "actions":          [],
-            "ai_confidence":    None,
-            "final_signal":     "HOLD",
-            "decision_reason":  "STRATEGY_CHANGE",
+            "symbol": symbol,
+            "actions": [],
+            "ai_confidence": None,
+            "final_signal": "HOLD",
+            "decision_reason": "STRATEGY_CHANGE",
             "sentiment_status": "N/A",
-            "corr_multiplier":  1.0,
+            "corr_multiplier": 1.0,
         }
         if not candles or symbol not in self.open_positions:
             return out
         analysis = dict(analysis or {})
         price = float(candles[-1]["close"])
-        analysis["avg_volume"] = float(
-            analysis.get("avg_volume") or self._avg_volume(candles)
-        )
+        analysis["avg_volume"] = float(analysis.get("avg_volume") or self._avg_volume(candles))
         analysis.setdefault("strategist", "trend")
         await self._close(symbol, price, out, "STRATEGY_CHANGE", analysis)
         return out
@@ -1321,20 +1684,21 @@ class BotEngine:
 
     def status(self) -> Dict[str, Any]:
         total_pnl = self.equity - self.initial_capital
-        pnl_pct   = (total_pnl / self.initial_capital) * 100.0 if self.initial_capital else 0.0
-        peak_dd   = (
+        pnl_pct = (total_pnl / self.initial_capital) * 100.0 if self.initial_capital else 0.0
+        peak_dd = (
             (self._peak_equity - self.equity) / self._peak_equity * 100.0
-            if self._peak_equity > 0 else 0.0
+            if self._peak_equity > 0
+            else 0.0
         )
-        risk_st       = self.risk.status_dict()
+        risk_st = self.risk.status_dict()
         wr, rr, guven = self._calc_wr_rr()
-        corr_summary  = self.correlation_mgr.summary()
+        corr_summary = self.correlation_mgr.summary()
         open_exp = 0.0
         for p in self.open_positions.values():
             open_exp += float(p.get("qty", 0)) * float(p.get("entry", 0))
         exp_pct = (open_exp / self.equity * 100.0) if self.equity > 0 else 0.0
         emg = bool(risk_st.get("emergency_stop"))
-        er  = risk_st.get("emergency_reason")
+        er = risk_st.get("emergency_reason")
         if emg and er:
             ecode_line = f"EMERGENCY_STOP:{er}"
         elif emg:
@@ -1342,37 +1706,40 @@ class BotEngine:
         else:
             ecode_line = "—"
         return {
-            "mode":                  self.mode,
-            "initial_capital":       round(self.initial_capital, 2),
-            "equity":                round(self.equity, 2),
-            "free_capital":          round(self.free_capital, 2),
-            "total_pnl":             round(total_pnl, 2),
-            "pnl_pct":               round(pnl_pct, 2),
-            "peak_drawdown_pct":     round(peak_dd, 2),
-            "exposure_notional":     round(open_exp, 2),
-            "exposure_pct":          round(exp_pct, 1),
-            "open_positions":        len(self.open_positions),
-            "trades_today":          self._trades_today,
-            "total_trades":          len(self.trade_log),
-            "win_rate":              None if wr is None else round(wr * 100, 1),
-            "rr_ratio":              None if rr is None else round(rr, 2),
-            "metrik_guveni":         guven,
-            "var_95":                risk_st["var_95"],
-            "daily_loss":            risk_st["daily_loss"],
-            "emergency_stop":        risk_st["emergency_stop"],
-            "emergency_reason":      risk_st.get("emergency_reason"),
-            "emergency_code_line":   ecode_line,
-            "last_risk_deny":        risk_st.get("last_risk_deny"),
-            "omega_qmin_tighten":   risk_st.get("omega_qmin_tighten"),
-            "dynamic_daily_limit":   risk_st.get("dynamic_daily_limit_pct"),
-            "hard_limits":           self._hard_limits.status_line(),
-            "rate_limit":            get_rate_limit_storm_tracker().status_dict(),
-            "corr_tracked_symbols":  corr_summary["tracked_symbols"],
-            "order_tracker_active":  self._order_tracker is not None,
-            "capital":               self.capital.snapshot(),
-            "risk_ontology":         self.onto.snapshot(),
+            "mode": self.mode,
+            "initial_capital": round(self.initial_capital, 2),
+            "equity": round(self.equity, 2),
+            "free_capital": round(self.free_capital, 2),
+            "total_pnl": round(total_pnl, 2),
+            "pnl_pct": round(pnl_pct, 2),
+            "peak_drawdown_pct": round(peak_dd, 2),
+            "exposure_notional": round(open_exp, 2),
+            "exposure_pct": round(exp_pct, 1),
+            "open_positions": len(self.open_positions),
+            "trades_today": self._trades_today,
+            "total_trades": len(self.trade_log),
+            "win_rate": None if wr is None else round(wr * 100, 1),
+            "rr_ratio": None if rr is None else round(rr, 2),
+            "metrik_guveni": guven,
+            "var_95": risk_st["var_95"],
+            "daily_loss": risk_st["daily_loss"],
+            "emergency_stop": risk_st["emergency_stop"],
+            "emergency_reason": risk_st.get("emergency_reason"),
+            "emergency_code_line": ecode_line,
+            "last_risk_deny": risk_st.get("last_risk_deny"),
+            "omega_qmin_tighten": risk_st.get("omega_qmin_tighten"),
+            "dynamic_daily_limit": risk_st.get("dynamic_daily_limit_pct"),
+            "hard_limits": self._hard_limits.status_line(),
+            "rate_limit": get_rate_limit_storm_tracker().status_dict(),
+            "corr_tracked_symbols": corr_summary["tracked_symbols"],
+            "order_tracker_active": self._order_tracker is not None,
+            "capital": self.capital.snapshot(),
+            "risk_ontology": self.onto.snapshot(),
             # Sprint 4 M2 — Monitoring
-            "alerts":                self.alerts.snapshot() if self.alerts else None,
+            "alerts": self.alerts.snapshot() if self.alerts else None,
+            "state_corrupt_fallback": self._state_corrupt_fallback,
+            "safe_mode_block_new_entries": self._safe_mode_block_new_entries,
+            "safe_mode_reason": self._safe_mode_reason,
         }
 
     def _calc_wr_rr(self) -> Tuple[Optional[float], Optional[float], str]:
@@ -1380,11 +1747,11 @@ class BotEngine:
         if n == 0:
             return None, None, "kapanan_islem_yok"
         recent = self.trade_log[-50:]
-        wins   = [t for t in recent if t["pnl"] > 0]
+        wins = [t for t in recent if t["pnl"] > 0]
         losses = [t for t in recent if t["pnl"] <= 0]
-        wr  = len(wins) / len(recent) if recent else 0.0
-        aw  = sum(t["pnl"] for t in wins)        / len(wins)   if wins   else 1.0
-        al  = sum(abs(t["pnl"]) for t in losses) / len(losses) if losses else 1.0
-        rr  = aw / al if al > 0 else 2.0
+        wr = len(wins) / len(recent) if recent else 0.0
+        aw = sum(t["pnl"] for t in wins) / len(wins) if wins else 1.0
+        al = sum(abs(t["pnl"]) for t in losses) / len(losses) if losses else 1.0
+        rr = aw / al if al > 0 else 2.0
         guven = f"dusuk_ornek n={n}" if n < 5 else f"son {len(recent)} islem_ozet"
         return float(wr), float(rr), guven

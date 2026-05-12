@@ -1,6 +1,7 @@
 """
 Ek geniş tarama: +4500 parametreli case (toplam 5000 test hedefi).
 """
+
 from __future__ import annotations
 
 import math

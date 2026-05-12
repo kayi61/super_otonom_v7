@@ -1,4 +1,5 @@
 """Faz 19 — ML tahmin: ml_client.enrich_analysis ince sarmalayıcı."""
+
 from __future__ import annotations
 
 import time
@@ -28,8 +29,10 @@ async def run_ml_enrichment_phase(
     ml = analysis.get("ml_score")
     conf = float(ml) if ml is not None else 0.0
     conf = max(0.0, min(1.0, conf))
-    dh = 1.0 if ml is not None and analysis.get("external_ai_latency_ms") is not None else (
-        0.85 if ml is not None else 0.75
+    dh = (
+        1.0
+        if ml is not None and analysis.get("external_ai_latency_ms") is not None
+        else (0.85 if ml is not None else 0.75)
     )
     perm = "ALLOW"
 

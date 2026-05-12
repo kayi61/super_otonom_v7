@@ -18,7 +18,6 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional
 
-
 TradePermission = Literal["HALT", "BLOCK", "ALLOW"]
 TrapSide = Literal["long", "short", "none", "unknown"]
 SpreadRegime = Literal["tight", "normal", "wide", "unknown"]
@@ -211,4 +210,3 @@ def infer_dealer_intent(
         spread_pct=spread_pct,
         ob_imbalance=ob_imb,
     )
-

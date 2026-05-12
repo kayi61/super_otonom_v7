@@ -1,4 +1,5 @@
 """v8 mimarisi: pipelines, state_machine, FORCE_ALL_CLOSE, explain."""
+
 from __future__ import annotations
 
 import asyncio
@@ -28,9 +29,7 @@ def test_compute_trading_state_defensive_omega_tighten(
     assert st == TradingState.DEFENSIVE
 
 
-def test_force_all_close_open_position(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_force_all_close_open_position(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("FORCE_ALL_CLOSE", "1")
     monkeypatch.delenv("GLOBAL_TRADE_DISABLE", raising=False)
@@ -43,9 +42,11 @@ def test_force_all_close_open_position(
         "hold_bars": 0,
     }
     c = [{"close": 1.0, "volume": 1.0}]
-    with patch.object(bemod, "compute_signal_quality", return_value=(90, [], {}, "m")), patch.object(
-        bemod, "compute_omega_regime", return_value=("TRENDING", 1.0, 1.0, 90, "om")
-    ), patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")):
+    with (
+        patch.object(bemod, "compute_signal_quality", return_value=(90, [], {}, "m")),
+        patch.object(bemod, "compute_omega_regime", return_value=("TRENDING", 1.0, 1.0, 90, "om")),
+        patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")),
+    ):
         out = asyncio.run(
             e.tick("X", {"signal": "BUY", "volatility": 0.01, "regime": "TRENDING"}, c)
         )
@@ -53,17 +54,17 @@ def test_force_all_close_open_position(
     assert "FORCE_ALL_CLOSE" in (out.get("decision_reason") or "")
 
 
-def test_force_all_close_no_position_hold(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_force_all_close_no_position_hold(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("FORCE_ALL_CLOSE", "true")
     monkeypatch.delenv("GLOBAL_TRADE_DISABLE", raising=False)
     e = BotEngine(1000.0, paper=True)
     c = [{"close": 1.0, "volume": 1.0}]
-    with patch.object(bemod, "compute_signal_quality", return_value=(90, [], {}, "m")), patch.object(
-        bemod, "compute_omega_regime", return_value=("TRENDING", 1.0, 1.0, 90, "om")
-    ), patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")):
+    with (
+        patch.object(bemod, "compute_signal_quality", return_value=(90, [], {}, "m")),
+        patch.object(bemod, "compute_omega_regime", return_value=("TRENDING", 1.0, 1.0, 90, "om")),
+        patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")),
+    ):
         out = asyncio.run(
             e.tick("Z", {"signal": "BUY", "volatility": 0.01, "regime": "TRENDING"}, c)
         )
@@ -87,5 +88,7 @@ def test_ai_explain_method() -> None:
     from super_otonom.ai_layer import AILayer
 
     a = AILayer(model_path="___nope___")
-    s = a.explain("S", "BUY", {"regime": "TRENDING", "hurst": 0.5, "volatility": 0.02}, "BUY", 0.7, "ok")
+    s = a.explain(
+        "S", "BUY", {"regime": "TRENDING", "hurst": 0.5, "volatility": 0.02}, "BUY", 0.7, "ok"
+    )
     assert "symbol=S" in s and "BUY" in s and "lstm=off" in s

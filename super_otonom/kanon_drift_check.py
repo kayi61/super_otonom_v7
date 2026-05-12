@@ -2,6 +2,7 @@
 
 `scripts/check_kanon_drift.py` ve release_gate testleri aynı mantığı kullanır.
 """
+
 from __future__ import annotations
 
 import ast
@@ -88,9 +89,7 @@ def parse_phase_chain_keys_from_pipeline(pipeline_path: Path) -> frozenset[str] 
 def canonical_phase_chain_keys() -> frozenset[str]:
     """execute_trade_phase giriş dalı ile uyumlu beklenen küme."""
     return frozenset(
-        [f"faz{n}" for n in range(66, 71)]
-        + [f"faz{n}" for n in range(71, 80)]
-        + ["faz47", "faz80"]
+        [f"faz{n}" for n in range(66, 71)] + [f"faz{n}" for n in range(71, 80)] + ["faz47", "faz80"]
     )
 
 
@@ -115,9 +114,7 @@ def run_all_checks(repo_root: Path | None = None) -> Tuple[bool, list[str]]:
     forbidden_present = sorted(actual_dirs & forbidden)
 
     if missing_dirs:
-        issues.append(
-            f"src/phases eksik klasör (dokümana göre): {', '.join(missing_dirs)}"
-        )
+        issues.append(f"src/phases eksik klasör (dokümana göre): {', '.join(missing_dirs)}")
     if extra_dirs:
         issues.append(
             f"src/phases beklenmeyen ek klasör: {', '.join(extra_dirs)} — envanter/PROMPT güncellenmeli"

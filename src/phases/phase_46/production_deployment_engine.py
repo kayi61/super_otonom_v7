@@ -137,11 +137,7 @@ def analyze(market_data: dict | None) -> dict:
     perf_score = _clip01((paper_s + shadow_s) / 4.0)
     uptime_score = _clip01(uptime_h / 72.0)
 
-    alpha_score = _clip01(
-        0.4 * float(d_score)
-        + 0.4 * perf_score
-        + 0.2 * uptime_score
-    )
+    alpha_score = _clip01(0.4 * float(d_score) + 0.4 * perf_score + 0.2 * uptime_score)
     risk_score = _clip01(1.0 - alpha_score)
 
     if paper_s < 0.5:

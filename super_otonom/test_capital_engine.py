@@ -12,18 +12,22 @@ Kapsam:
   - Serileştirme (to_dict / from_dict round-trip)
   - Hypothesis property testleri
 """
+
 from __future__ import annotations
 
+import os
+import sys
+
 import pytest
-from hypothesis import given, settings, assume
+
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
-import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from capital_engine import CapitalEngine
 
-
 # ── Yardımcılar ──────────────────────────────────────────────────────────────
+
 
 def make_engine(capital: float = 10_000.0) -> CapitalEngine:
     return CapitalEngine(
@@ -36,18 +40,15 @@ def make_engine(capital: float = 10_000.0) -> CapitalEngine:
 
 def _invariant_ok(engine: CapitalEngine) -> bool:
     expected = (
-        engine.initial_capital
-        + engine._realized_pnl
-        + engine._unrealized_pnl
-        - engine._fees_paid
+        engine.initial_capital + engine._realized_pnl + engine._unrealized_pnl - engine._fees_paid
     )
     return abs(engine.nav - expected) < 0.01
 
 
 # ── Temel ledger testleri ─────────────────────────────────────────────────────
 
-class TestBasicLedger:
 
+class TestBasicLedger:
     def test_initial_state(self):
         e = make_engine(10_000)
         assert e.nav == 10_000.0
@@ -121,8 +122,8 @@ class TestBasicLedger:
 
 # ── Kenar durumlar ────────────────────────────────────────────────────────────
 
-class TestEdgeCases:
 
+class TestEdgeCases:
     def test_insufficient_cash_blocked(self):
         e = make_engine(1_000)
         ok = e.open_position("BTC/USDT", "ord-1", 50_000.0, 1.0, 2_000.0)
@@ -173,8 +174,8 @@ class TestEdgeCases:
 
 # ── Unrealized PnL ───────────────────────────────────────────────────────────
 
-class TestUnrealizedPnL:
 
+class TestUnrealizedPnL:
     def test_update_unrealized_increases_nav(self):
         e = make_engine(10_000)
         e.open_position("BTC/USDT", "ord-1", 50_000.0, 0.1, 5_000.0)
@@ -199,8 +200,8 @@ class TestUnrealizedPnL:
 
 # ── Partial fill ─────────────────────────────────────────────────────────────
 
-class TestPartialFill:
 
+class TestPartialFill:
     def test_partial_fill_correct_pnl(self):
         e = make_engine(10_000)
         # Açılış: 0.1 BTC @ 50000 → notional=5000 (kapital içinde)
@@ -214,8 +215,8 @@ class TestPartialFill:
 
 # ── Journal ───────────────────────────────────────────────────────────────────
 
-class TestJournal:
 
+class TestJournal:
     def test_journal_records_open_and_close(self):
         e = make_engine(10_000)
         e.open_position("BTC/USDT", "ord-1", 50_000.0, 0.02, 1_000.0, fee=1.0)
@@ -236,8 +237,8 @@ class TestJournal:
 
 # ── Serileştirme ──────────────────────────────────────────────────────────────
 
-class TestSerialization:
 
+class TestSerialization:
     def test_round_trip_no_positions(self):
         e = make_engine(10_000)
         d = e.to_dict()
@@ -258,13 +259,23 @@ class TestSerialization:
     def test_snapshot_keys(self):
         e = make_engine(10_000)
         snap = e.snapshot()
-        for key in ["nav", "cash", "margin_used", "unrealized_pnl",
-                    "realized_pnl", "fees_paid", "available_cash",
-                    "buying_power", "open_positions", "total_return_pct"]:
+        for key in [
+            "nav",
+            "cash",
+            "margin_used",
+            "unrealized_pnl",
+            "realized_pnl",
+            "fees_paid",
+            "available_cash",
+            "buying_power",
+            "open_positions",
+            "total_return_pct",
+        ]:
             assert key in snap
 
 
 # ── Hypothesis property testleri ─────────────────────────────────────────────
+
 
 @given(
     capital=st.floats(min_value=1_000, max_value=1_000_000, allow_nan=False, allow_infinity=False),
@@ -305,7 +316,8 @@ def test_fees_never_exceed_cash(capital, fee):
     n_trades=st.integers(min_value=1, max_value=10),
     price_changes=st.lists(
         st.floats(min_value=0.8, max_value=1.2, allow_nan=False, allow_infinity=False),
-        min_size=1, max_size=10,
+        min_size=1,
+        max_size=10,
     ),
 )
 @settings(max_examples=100)

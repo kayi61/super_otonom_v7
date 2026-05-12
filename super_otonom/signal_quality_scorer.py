@@ -17,6 +17,7 @@ Sinerji Taslağı (AI Confidence ile)::
 
 MarketAnalyzer: `score_signal_quality` delegasyonu analyzer.py üzerinden erişilebilir.
 """
+
 from __future__ import annotations
 
 import os
@@ -136,10 +137,10 @@ def compute_signal_quality(
     score = int(max(0, min(100, round(total))))
     all_pen: List[str] = list(dict.fromkeys(ph + pv + pl + pm))
     components = {
-        "hurst":      round(sh, 1),
+        "hurst": round(sh, 1),
         "volatility": round(sv, 1),
-        "liquidity":  round(sl, 1),
-        "mtf":        round(sm, 1),
+        "liquidity": round(sl, 1),
+        "mtf": round(sm, 1),
     }
     min_k = min(components, key=components.get)  # type: ignore[arg-type]
     if components[min_k] < 50.0:

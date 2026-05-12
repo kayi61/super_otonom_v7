@@ -149,9 +149,7 @@ def analyze(market_data: dict | None) -> dict:
     rolling_score = _clip01(rolling_mean / 3.0)
 
     third_term = float(chall_score if promotion_candidate else champ_score * 0.8)
-    alpha_score = _clip01(
-        0.5 * champ_score + 0.3 * rolling_score + 0.2 * third_term
-    )
+    alpha_score = _clip01(0.5 * champ_score + 0.3 * rolling_score + 0.2 * third_term)
     risk_score = _clip01(1.0 - alpha_score)
 
     if rolling_mean < _ROLLING_BAD_THRESHOLD:

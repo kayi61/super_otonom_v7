@@ -20,7 +20,6 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional
 
-
 TradePermission = Literal["HALT", "BLOCK", "ALLOW"]
 
 
@@ -144,4 +143,3 @@ def monitor_alpha_decay(
         event_ts=int(event_ms),
         half_life_ms=int(hl),
     )
-

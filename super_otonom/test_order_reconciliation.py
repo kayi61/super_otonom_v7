@@ -14,25 +14,27 @@ Kapsam:
   - ReconciliationEngine: NAV farkı tespiti ve adjustment
   - Hard block eşiği
 """
+
 from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
-import time
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from order_engine import OrderEngine, OrderState, OrderRecord
-from reconciliation_engine import ReconciliationEngine, ReconResult
-
+from order_engine import OrderEngine, OrderState
+from reconciliation_engine import ReconciliationEngine
 
 # ── Yardımcılar ──────────────────────────────────────────────────────────────
+
 
 def make_order_engine(tmp_path: str) -> OrderEngine:
     return OrderEngine(
@@ -45,19 +47,19 @@ def make_order_engine(tmp_path: str) -> OrderEngine:
 def make_capital_mock(nav: float = 10_000.0) -> MagicMock:
     """Minimal CapitalEngine mock."""
     cap = MagicMock()
-    cap.nav        = nav
-    cap._cash      = nav
-    cap._margin_used   = 0.0
+    cap.nav = nav
+    cap._cash = nav
+    cap._margin_used = 0.0
     cap._unrealized_pnl = 0.0
     cap._positions = {}
-    cap._record    = MagicMock()
+    cap._record = MagicMock()
     return cap
 
 
 # ── OrderEngine Testleri ──────────────────────────────────────────────────────
 
-class TestOrderEngineBasic:
 
+class TestOrderEngineBasic:
     def test_intent_creates_unique_ids(self, tmp_path):
         e = make_order_engine(str(tmp_path))
         ids = {e.intent("BTC/USDT", "BUY", 0.1, 50_000) for _ in range(100)}
@@ -116,7 +118,6 @@ class TestOrderEngineBasic:
 
 
 class TestIdempotency:
-
     def test_duplicate_filled_is_idempotent(self, tmp_path):
         """FILLED emri tekrar confirm edilirse state değişmez."""
         e = make_order_engine(str(tmp_path))
@@ -152,7 +153,6 @@ class TestIdempotency:
 
 
 class TestRetry:
-
     def test_can_retry_failed_order(self, tmp_path):
         e = make_order_engine(str(tmp_path))
         oid = e.intent("BTC/USDT", "BUY", 0.1, 50_000)
@@ -175,7 +175,6 @@ class TestRetry:
 
 
 class TestPersistence:
-
     def test_pending_saved_and_loaded(self, tmp_path):
         e1 = make_order_engine(str(tmp_path))
         oid = e1.intent("BTC/USDT", "BUY", 0.1, 50_000)
@@ -208,9 +207,9 @@ class TestPersistence:
         log_file = os.path.join(str(tmp_path), "orders.jsonl")
         with open(log_file) as f:
             lines = f.readlines()
-        events = [json.loads(l)["event"] for l in lines]
+        events = [json.loads(line)["event"] for line in lines]
         assert "INTENT" in events
-        assert "SENT"   in events
+        assert "SENT" in events
         assert "FILLED" in events
 
     def test_atomic_write_no_corruption(self, tmp_path):
@@ -224,33 +223,32 @@ class TestPersistence:
 
 
 class TestSnapshot:
-
     def test_snapshot_keys(self, tmp_path):
         e = make_order_engine(str(tmp_path))
         snap = e.snapshot()
-        assert "total_orders"  in snap
-        assert "by_state"      in snap
+        assert "total_orders" in snap
+        assert "by_state" in snap
         assert "pending_count" in snap
-        assert "filled_count"  in snap
+        assert "filled_count" in snap
 
     def test_snapshot_counts_correct(self, tmp_path):
         e = make_order_engine(str(tmp_path))
         oid1 = e.intent("BTC/USDT", "BUY", 0.1, 50_000)
-        oid2 = e.intent("ETH/USDT", "BUY", 1.0, 3_000)
+        _oid2 = e.intent("ETH/USDT", "BUY", 1.0, 3_000)
         e.sent(oid1)
         e.confirm(oid1, 0.1, 50_000)
         snap = e.snapshot()
-        assert snap["filled_count"]  == 1
+        assert snap["filled_count"] == 1
         assert snap["pending_count"] == 1
 
 
 # ── ReconciliationEngine Testleri ─────────────────────────────────────────────
 
-class TestReconciliationEngine:
 
+class TestReconciliationEngine:
     def _make_recon(self, tmp_path, nav=10_000.0, tolerance=0.02, hard_block=0.10):
-        cap          = make_capital_mock(nav)
-        order_eng    = MagicMock()
+        cap = make_capital_mock(nav)
+        order_eng = MagicMock()
         order_eng.recover = AsyncMock(return_value=[])
         recon = ReconciliationEngine(
             capital=cap,
@@ -263,17 +261,15 @@ class TestReconciliationEngine:
 
     def _make_handler(self, ex_nav=10_000.0, positions=None):
         handler = MagicMock()
-        handler.fetch_balance = AsyncMock(
-            return_value={"total": {"USDT": ex_nav}}
-        )
+        handler.fetch_balance = AsyncMock(return_value={"total": {"USDT": ex_nav}})
         handler.fetch_positions = AsyncMock(return_value=positions or [])
         return handler
 
     @pytest.mark.asyncio
     async def test_startup_passes_when_navs_match(self, tmp_path):
         recon, _ = self._make_recon(tmp_path, nav=10_000.0)
-        handler  = self._make_handler(ex_nav=10_000.0)
-        result   = await recon.startup_handshake(handler)
+        handler = self._make_handler(ex_nav=10_000.0)
+        result = await recon.startup_handshake(handler)
         assert result.nav_ok is True
         assert result.hard_blocked is False
         assert result.passed is True
@@ -282,34 +278,34 @@ class TestReconciliationEngine:
     async def test_startup_detects_small_diff(self, tmp_path):
         """%1 fark — uyarı verir ama hard block yok."""
         recon, _ = self._make_recon(tmp_path, nav=10_000.0, tolerance=0.02)
-        handler  = self._make_handler(ex_nav=10_100.0)   # +%1
-        result   = await recon.startup_handshake(handler)
-        assert result.nav_ok is True    # %1 < %2 tolerans
+        handler = self._make_handler(ex_nav=10_100.0)  # +%1
+        result = await recon.startup_handshake(handler)
+        assert result.nav_ok is True  # %1 < %2 tolerans
         assert result.hard_blocked is False
 
     @pytest.mark.asyncio
     async def test_startup_warns_on_tolerance_breach(self, tmp_path):
         """%-5 fark — tolerans aşıldı, uyarı var."""
         recon, _ = self._make_recon(tmp_path, nav=10_000.0, tolerance=0.02)
-        handler  = self._make_handler(ex_nav=9_500.0)   # -%5
-        result   = await recon.startup_handshake(handler)
+        handler = self._make_handler(ex_nav=9_500.0)  # -%5
+        result = await recon.startup_handshake(handler)
         assert result.nav_ok is False
         assert len(result.warnings) > 0
-        assert result.hard_blocked is False   # %5 < %10 hard block
+        assert result.hard_blocked is False  # %5 < %10 hard block
 
     @pytest.mark.asyncio
     async def test_startup_hard_blocks_on_large_diff(self, tmp_path):
         """%-15 fark — hard block tetiklenmeli."""
         recon, _ = self._make_recon(tmp_path, nav=10_000.0, hard_block=0.10)
-        handler  = self._make_handler(ex_nav=8_500.0)   # -%15
-        result   = await recon.startup_handshake(handler)
+        handler = self._make_handler(ex_nav=8_500.0)  # -%15
+        result = await recon.startup_handshake(handler)
         assert result.hard_blocked is True
 
     @pytest.mark.asyncio
     async def test_adjustment_applied_on_diff(self, tmp_path):
         """Fark tespit edilince CapitalEngine._cash güncellenmeli."""
         recon, cap = self._make_recon(tmp_path, nav=10_000.0, tolerance=0.02)
-        handler    = self._make_handler(ex_nav=9_700.0)   # -%3 → tolerance aşıldı
+        handler = self._make_handler(ex_nav=9_700.0)  # -%3 → tolerance aşıldı
         await recon.startup_handshake(handler)
         # _record çağrıldı (RECON_ADJUSTMENT journal)
         assert cap._record.called
@@ -317,7 +313,7 @@ class TestReconciliationEngine:
     @pytest.mark.asyncio
     async def test_recon_file_saved(self, tmp_path):
         recon, _ = self._make_recon(tmp_path, nav=10_000.0)
-        handler  = self._make_handler(ex_nav=10_000.0)
+        handler = self._make_handler(ex_nav=10_000.0)
         await recon.startup_handshake(handler)
         files = os.listdir(str(tmp_path))
         assert any(f.startswith("recon_") and f.endswith(".json") for f in files)
@@ -325,12 +321,12 @@ class TestReconciliationEngine:
     @pytest.mark.asyncio
     async def test_snapshot_after_run(self, tmp_path):
         recon, _ = self._make_recon(tmp_path, nav=10_000.0)
-        handler  = self._make_handler(ex_nav=10_000.0)
+        handler = self._make_handler(ex_nav=10_000.0)
         await recon.startup_handshake(handler)
         snap = recon.snapshot()
         assert "last_run_ts" in snap
-        assert "nav_diff"    in snap
-        assert "passed"      in snap
+        assert "nav_diff" in snap
+        assert "passed" in snap
 
     def test_snapshot_before_run(self, tmp_path):
         recon, _ = self._make_recon(tmp_path)
@@ -339,6 +335,7 @@ class TestReconciliationEngine:
 
 
 # ── Hypothesis: OrderEngine property testleri ─────────────────────────────────
+
 
 @given(
     qty=st.floats(min_value=0.001, max_value=10.0, allow_nan=False, allow_infinity=False),
@@ -349,7 +346,7 @@ class TestReconciliationEngine:
 def test_order_lifecycle_always_valid(qty, price, exit_mult):
     """Her koşulda state machine tutarlı olmalı."""
     with tempfile.TemporaryDirectory() as tmp:
-        e   = make_order_engine(tmp)
+        e = make_order_engine(tmp)
         oid = e.intent("X/USDT", "BUY", qty, price)
         assert e.get(oid).state == OrderState.PENDING
         e.sent(oid)
@@ -366,6 +363,6 @@ def test_order_lifecycle_always_valid(qty, price, exit_mult):
 def test_all_ids_unique(n):
     """n emir üretildiğinde hepsi farklı ID'ye sahip olmalı."""
     with tempfile.TemporaryDirectory() as tmp:
-        e   = make_order_engine(tmp)
+        e = make_order_engine(tmp)
         ids = [e.intent("BTC/USDT", "BUY", 0.01, 50_000) for _ in range(n)]
         assert len(set(ids)) == n

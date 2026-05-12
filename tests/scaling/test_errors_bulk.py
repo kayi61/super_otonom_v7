@@ -1,4 +1,5 @@
 """Hata / geçersiz veri / ağ benzeri koşullar (mock, 80)."""
+
 from __future__ import annotations
 
 import contextlib
@@ -135,5 +136,7 @@ def test_error_sentiment_json_decode(raw: str) -> None:
 @pytest.mark.parametrize("n", range(5))
 def test_error_risk_with_large_numbers(n: int) -> None:
     rm = RiskManager(max(1.0, 10 ** (n % 4)))
-    rm.check_risk(float(n * 1_000_000), open_exposure=float(n % 7) * 1e6, current_vol=0.01 + n * 0.001)
+    rm.check_risk(
+        float(n * 1_000_000), open_exposure=float(n % 7) * 1e6, current_vol=0.01 + n * 0.001
+    )
     assert isinstance(rm.get_last_deny(), str)

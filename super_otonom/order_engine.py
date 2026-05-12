@@ -28,56 +28,60 @@ import logging
 import os
 import time
 import uuid
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
 log = logging.getLogger("super_otonom.order_engine")
 
 _ORDER_LOG_FILE = "data/orders.jsonl"
-_PENDING_FILE   = "data/pending_orders.json"
+_PENDING_FILE = "data/pending_orders.json"
 
 
 # ── Order State ───────────────────────────────────────────────────────────────
 
+
 class OrderState(str, Enum):
-    PENDING   = "PENDING"    # UUID üretildi, borsaya henüz gönderilmedi / yanıt bekleniyor
-    SENT      = "SENT"       # Borsaya gönderildi, fill onayı bekleniyor
-    FILLED    = "FILLED"     # Borsadan onay geldi
-    PARTIAL   = "PARTIAL"    # Kısmi dolum
-    FAILED    = "FAILED"     # Gönderme hatası
+    PENDING = "PENDING"  # UUID üretildi, borsaya henüz gönderilmedi / yanıt bekleniyor
+    SENT = "SENT"  # Borsaya gönderildi, fill onayı bekleniyor
+    FILLED = "FILLED"  # Borsadan onay geldi
+    PARTIAL = "PARTIAL"  # Kısmi dolum
+    FAILED = "FAILED"  # Gönderme hatası
     CANCELLED = "CANCELLED"  # İptal edildi
 
 
 # ── Order Record ──────────────────────────────────────────────────────────────
 
+
 @dataclass
 class OrderRecord:
     """Tek bir emrin tam yaşam döngüsü kaydı."""
-    order_id:        str          # super_otonom_{uuid4}
-    symbol:          str
-    side:            str          # BUY / SELL
-    qty:             float
-    price:           float
-    notional:        float
-    state:           str          # OrderState değeri
-    created_at:      float
-    updated_at:      float
+
+    order_id: str  # super_otonom_{uuid4}
+    symbol: str
+    side: str  # BUY / SELL
+    qty: float
+    price: float
+    notional: float
+    state: str  # OrderState değeri
+    created_at: float
+    updated_at: float
     # Fill detayları
-    filled_qty:      float        = 0.0
-    fill_price:      float        = 0.0
-    fee:             float        = 0.0
+    filled_qty: float = 0.0
+    fill_price: float = 0.0
+    fee: float = 0.0
     # Exchange yanıtı
-    exchange_order_id: str        = ""
-    exchange_raw:    Dict[str, Any] = field(default_factory=dict)
+    exchange_order_id: str = ""
+    exchange_raw: Dict[str, Any] = field(default_factory=dict)
     # Hata
-    error_msg:       str          = ""
+    error_msg: str = ""
     # Retry
-    retry_count:     int          = 0
-    max_retries:     int          = 3
+    retry_count: int = 0
+    max_retries: int = 3
 
 
 # ── OrderEngine ───────────────────────────────────────────────────────────────
+
 
 class OrderEngine:
     """
@@ -105,23 +109,23 @@ class OrderEngine:
     def __init__(
         self,
         order_log_file: str = _ORDER_LOG_FILE,
-        pending_file:   str = _PENDING_FILE,
-        max_retries:    int = 3,
-        max_memory:     int = 1000,
-        batch_mode:     bool = False,  # True → disk yazımını geciktir (test/perf)
+        pending_file: str = _PENDING_FILE,
+        max_retries: int = 3,
+        max_memory: int = 1000,
+        batch_mode: bool = False,  # True → disk yazımını geciktir (test/perf)
     ):
         self._order_log_file = order_log_file
-        self._pending_file   = pending_file
-        self._max_retries    = max_retries
-        self._max_memory     = max_memory
-        self._batch_mode     = batch_mode
+        self._pending_file = pending_file
+        self._max_retries = max_retries
+        self._max_memory = max_memory
+        self._batch_mode = batch_mode
         self._orders: Dict[str, OrderRecord] = {}
 
         os.makedirs(os.path.dirname(order_log_file) or ".", exist_ok=True)
         self._load_pending()
         log.info(
             "OrderEngine başlatıldı | pending=%d",
-            len([o for o in self._orders.values() if o.state == OrderState.PENDING])
+            len([o for o in self._orders.values() if o.state == OrderState.PENDING]),
         )
 
     # ── State machine ─────────────────────────────────────────────────────────
@@ -158,17 +162,22 @@ class OrderEngine:
         if len(self._orders) > self._max_memory:
             # Tamamlanmış emirleri sil (FILLED/CANCELLED/FAILED)
             completed = [
-                oid for oid, r in self._orders.items()
+                oid
+                for oid, r in self._orders.items()
                 if r.state in (OrderState.FILLED, OrderState.CANCELLED, OrderState.FAILED)
             ]
-            for oid in completed[:len(completed)//2]:
+            for oid in completed[: len(completed) // 2]:
                 del self._orders[oid]
         self._write_log(record, "INTENT")
         self._save_pending()
 
         log.info(
             "ORDER | INTENT | %s | %s | qty=%.6f price=%.4f | id=%s",
-            symbol, side, qty, price, order_id,
+            symbol,
+            side,
+            qty,
+            price,
+            order_id,
         )
         return order_id
 
@@ -181,9 +190,9 @@ class OrderEngine:
         if rec.state not in (OrderState.PENDING, OrderState.FAILED):
             log.warning("ORDER | SENT | geçersiz state=%s id=%s", rec.state, order_id)
             return False
-        rec.state             = OrderState.SENT
+        rec.state = OrderState.SENT
         rec.exchange_order_id = exchange_order_id
-        rec.updated_at        = time.time()
+        rec.updated_at = time.time()
         self._write_log(rec, "SENT")
         self._save_pending()
         return True
@@ -210,10 +219,10 @@ class OrderEngine:
             log.warning("ORDER | CONFIRM | zaten FILLED | id=%s (idempotent, skip)", order_id)
             return True
 
-        rec.state      = OrderState.FILLED
+        rec.state = OrderState.FILLED
         rec.filled_qty = float(filled_qty)
         rec.fill_price = float(fill_price)
-        rec.fee        = float(fee)
+        rec.fee = float(fee)
         rec.updated_at = time.time()
         if exchange_raw:
             rec.exchange_raw = exchange_raw
@@ -222,7 +231,11 @@ class OrderEngine:
 
         log.info(
             "ORDER | FILLED | %s | filled_qty=%.6f fill_price=%.4f fee=%.4f | id=%s",
-            rec.symbol, filled_qty, fill_price, fee, order_id,
+            rec.symbol,
+            filled_qty,
+            fill_price,
+            fee,
+            order_id,
         )
         return True
 
@@ -237,16 +250,19 @@ class OrderEngine:
         rec = self._orders.get(order_id)
         if rec is None:
             return False
-        rec.state      = OrderState.PARTIAL
+        rec.state = OrderState.PARTIAL
         rec.filled_qty = float(filled_qty)
         rec.fill_price = float(fill_price)
-        rec.fee        += float(fee)
+        rec.fee += float(fee)
         rec.updated_at = time.time()
         self._write_log(rec, "PARTIAL")
         self._save_pending()
         log.info(
             "ORDER | PARTIAL | %s | filled=%.6f/%.6f | id=%s",
-            rec.symbol, filled_qty, rec.qty, order_id,
+            rec.symbol,
+            filled_qty,
+            rec.qty,
+            order_id,
         )
         return True
 
@@ -258,9 +274,11 @@ class OrderEngine:
             return False
         # Terminal state koruması — FILLED/CANCELLED değiştirilemez
         if rec.state in (OrderState.FILLED, OrderState.CANCELLED):
-            log.debug("ORDER | FAIL | terminal state=%s değiştirilemez | id=%s", rec.state, order_id)
+            log.debug(
+                "ORDER | FAIL | terminal state=%s değiştirilemez | id=%s", rec.state, order_id
+            )
             return False
-        rec.state     = OrderState.FAILED
+        rec.state = OrderState.FAILED
         rec.error_msg = error_msg
         rec.retry_count += 1
         rec.updated_at = time.time()
@@ -268,7 +286,11 @@ class OrderEngine:
         self._save_pending()
         log.warning(
             "ORDER | FAILED | %s | hata=%s | retry=%d/%d | id=%s",
-            rec.symbol, error_msg, rec.retry_count, rec.max_retries, order_id,
+            rec.symbol,
+            error_msg,
+            rec.retry_count,
+            rec.max_retries,
+            order_id,
         )
         return True
 
@@ -281,7 +303,7 @@ class OrderEngine:
         if rec.state == OrderState.FILLED:
             log.debug("ORDER | CANCEL | FILLED değiştirilemez | id=%s", order_id)
             return False
-        rec.state     = OrderState.CANCELLED
+        rec.state = OrderState.CANCELLED
         rec.error_msg = reason
         rec.updated_at = time.time()
         self._write_log(rec, "CANCELLED")
@@ -317,8 +339,7 @@ class OrderEngine:
         Dönüş: işlem yapılan order_id listesi
         """
         pending = [
-            r for r in self._orders.values()
-            if r.state in (OrderState.PENDING, OrderState.SENT)
+            r for r in self._orders.values() if r.state in (OrderState.PENDING, OrderState.SENT)
         ]
         if not pending:
             log.info("OrderEngine | recovery | PENDING emir yok")
@@ -336,19 +357,20 @@ class OrderEngine:
                 recovered.append(rec.order_id)
                 log.info(
                     "OrderEngine | recovery | %s | %s → %s",
-                    rec.symbol, rec.order_id, result,
+                    rec.symbol,
+                    rec.order_id,
+                    result,
                 )
             except Exception as exc:
                 log.error(
                     "OrderEngine | recovery | sorgu hatası | %s | %s",
-                    rec.order_id, exc,
+                    rec.order_id,
+                    exc,
                 )
 
         return recovered
 
-    async def _fetch_order_from_exchange(
-        self, rec: OrderRecord, handler: Any
-    ) -> Optional[Any]:
+    async def _fetch_order_from_exchange(self, rec: OrderRecord, handler: Any) -> Optional[Any]:
         """Exchange'den order verisini çeker. None → sorgu metodu yok."""
         if hasattr(handler, "fetch_order_by_client_id"):
             return await handler.fetch_order_by_client_id(rec.symbol, rec.order_id)
@@ -368,7 +390,7 @@ class OrderEngine:
         if status in ("closed", "filled"):
             filled_qty = float(order.get("filled", rec.qty))
             fill_price = float(order.get("average", rec.price) or rec.price)
-            fee        = float((order.get("fee") or {}).get("cost", 0.0))
+            fee = float((order.get("fee") or {}).get("cost", 0.0))
             self.confirm(rec.order_id, filled_qty, fill_price, fee, order)
             return "FILLED"
         if status in ("canceled", "cancelled", "expired"):
@@ -408,8 +430,9 @@ class OrderEngine:
         return self._orders.get(order_id)
 
     def pending_orders(self) -> List[OrderRecord]:
-        return [r for r in self._orders.values()
-                if r.state in (OrderState.PENDING, OrderState.SENT)]
+        return [
+            r for r in self._orders.values() if r.state in (OrderState.PENDING, OrderState.SENT)
+        ]
 
     def failed_retryable(self) -> List[OrderRecord]:
         return [r for r in self._orders.values() if self.can_retry(r.order_id)]
@@ -419,11 +442,11 @@ class OrderEngine:
         for r in self._orders.values():
             counts[r.state] = counts.get(r.state, 0) + 1
         return {
-            "total_orders":   len(self._orders),
-            "by_state":       counts,
-            "pending_count":  counts.get(OrderState.PENDING, 0),
-            "filled_count":   counts.get(OrderState.FILLED, 0),
-            "failed_count":   counts.get(OrderState.FAILED, 0),
+            "total_orders": len(self._orders),
+            "by_state": counts,
+            "pending_count": counts.get(OrderState.PENDING, 0),
+            "filled_count": counts.get(OrderState.FILLED, 0),
+            "failed_count": counts.get(OrderState.FAILED, 0),
         }
 
     # ── Persistence ───────────────────────────────────────────────────────────
@@ -456,7 +479,7 @@ class OrderEngine:
         try:
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(pending, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, self._pending_file)   # atomic rename
+            os.replace(tmp, self._pending_file)  # atomic rename
         except Exception as exc:
             log.error("OrderEngine | pending kaydetme hatası: %s", exc)
 
@@ -472,8 +495,6 @@ class OrderEngine:
                 if isinstance(rec_dict.get("exchange_raw"), str):
                     rec_dict["exchange_raw"] = {}
                 self._orders[oid] = OrderRecord(**rec_dict)
-            log.info(
-                "OrderEngine | %d PENDING emir diskten yüklendi", len(data)
-            )
+            log.info("OrderEngine | %d PENDING emir diskten yüklendi", len(data))
         except Exception as exc:
             log.error("OrderEngine | pending yükleme hatası: %s", exc)

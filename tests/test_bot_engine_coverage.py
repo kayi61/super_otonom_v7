@@ -1,8 +1,10 @@
 """BotEngine ve yardımcı sınıflar— yüksek kapsam (mock + tmp)."""
+
 from __future__ import annotations
 
 import asyncio
 import json
+import random
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -27,12 +29,13 @@ def test_min_entry_confidence_clamp(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_execution_simulator_buy_paper(monkeypatch: pytest.MonkeyPatch) -> None:
+    # ExecutionSimulator stdlib random.Random kullanır; sınıf metodunu sabitle.
+    monkeypatch.setattr(random.Random, "uniform", lambda self, a, b: float(a))
     sim = ExecutionSimulator(
         slippage_range=(0.001, 0.001),
         latency_range=(0.0, 0.0),
         fill_ratio_range=(1.0, 1.0),
     )
-    monkeypatch.setattr(be.random, "uniform", lambda a, b: a)
     monkeypatch.setattr(be.asyncio, "sleep", AsyncMock())
 
     async def _run() -> None:
@@ -44,12 +47,12 @@ def test_execution_simulator_buy_paper(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_execution_simulator_sell_not_paper(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(random.Random, "uniform", lambda self, a, b: float(a))
     sim = ExecutionSimulator(
         slippage_range=(0.001, 0.001),
         latency_range=(0.05, 0.05),
         fill_ratio_range=(1.0, 1.0),
     )
-    monkeypatch.setattr(be.random, "uniform", lambda a, b: a)
 
     async def _run() -> None:
         r = await sim.simulate_order("sell", 100.0, 50.0, paper=False)
@@ -169,9 +172,7 @@ def test_global_trade_disable_short_circuit(
     monkeypatch.setenv("GLOBAL_TRADE_DISABLE", "0")
 
 
-def test_close_on_strategy_change(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_close_on_strategy_change(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "s.json"))
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
     e = BotEngine(capital=1000.0, paper=True)
@@ -179,9 +180,7 @@ def test_close_on_strategy_change(
     async def _run() -> None:
         r = await e.close_on_strategy_change("A", [], {})
         assert r["final_signal"] == "HOLD"
-        e.open_positions["A"] = {
-            "entry": 1.0, "qty": 1.0, "size": 1.0, "peak": 1.0, "hold_bars": 0
-        }
+        e.open_positions["A"] = {"entry": 1.0, "qty": 1.0, "size": 1.0, "peak": 1.0, "hold_bars": 0}
         c = [{"close": 1.0, "volume": 1.0}]
         r2 = await e.close_on_strategy_change("A", c, {"strategist": "t", "volatility": 0.01})
         assert "A" not in e.open_positions
@@ -190,9 +189,7 @@ def test_close_on_strategy_change(
     asyncio.run(_run())
 
 
-def test_set_exchange_and_shutdown(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_set_exchange_and_shutdown(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "s.json"))
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
     e = BotEngine(capital=100.0, paper=True)
@@ -201,9 +198,7 @@ def test_set_exchange_and_shutdown(
     e.shutdown()
 
 
-def test_tick_async_order_tracker(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_tick_async_order_tracker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "s.json"))
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
     ex = MagicMock()
@@ -226,9 +221,7 @@ def test_tick_async_order_tracker(
     asyncio.run(_run())
 
 
-def test_check_orders(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_check_orders(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "s.json"))
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
 
@@ -241,9 +234,7 @@ def test_check_orders(
     asyncio.run(_run())
 
 
-def test_load_state_mode_mismatch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_load_state_mode_mismatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     p = tmp_path / "st.json"
     p.write_text(
         json.dumps(
@@ -262,9 +253,7 @@ def test_load_state_mode_mismatch(
     assert e.mode == "PAPER"
 
 
-def test_load_state_happy(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_load_state_happy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     p = tmp_path / "st.json"
     p.write_text(
         json.dumps(

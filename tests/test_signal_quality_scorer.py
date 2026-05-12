@@ -1,4 +1,5 @@
 """Signal quality scorer — 0-100 ağırlık."""
+
 from __future__ import annotations
 
 from super_otonom.signal_quality_scorer import compute_signal_quality

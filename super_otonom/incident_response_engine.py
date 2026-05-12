@@ -26,7 +26,6 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional
 
-
 TradePermission = Literal["HALT", "BLOCK", "ALLOW"]
 IncidentSeverity = Literal["none", "low", "medium", "high", "critical"]
 
@@ -114,7 +113,11 @@ def evaluate_incident_response(
     Faz 70 — olay müdahalesi özeti.
     """
     a = analysis or {}
-    ts = int(event_ts) if isinstance(event_ts, (int, float)) and int(event_ts) > 0 else int(a.get("event_ts") or _now_ms())
+    ts = (
+        int(event_ts)
+        if isinstance(event_ts, (int, float)) and int(event_ts) > 0
+        else int(a.get("event_ts") or _now_ms())
+    )
     hl = int(a.get("half_life_ms") or half_life_ms)
     hl = max(2_000, min(600_000, hl))
 
@@ -138,7 +141,9 @@ def evaluate_incident_response(
     if recorded_in is not None:
         incident_recorded = bool(recorded_in)
     else:
-        incident_recorded = incident_active or slo_breach or (_SEVERITY_RANK[incident_severity] >= 2)
+        incident_recorded = (
+            incident_active or slo_breach or (_SEVERITY_RANK[incident_severity] >= 2)
+        )
 
     rank = _SEVERITY_RANK[incident_severity]
 

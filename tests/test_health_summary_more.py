@@ -1,4 +1,5 @@
 """health_summary — format ve tekil log kurulumu."""
+
 from __future__ import annotations
 
 import logging

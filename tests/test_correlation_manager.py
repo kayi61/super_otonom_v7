@@ -1,4 +1,5 @@
 """CorrelationManager — getiri ve korelasyon."""
+
 from __future__ import annotations
 
 from super_otonom.correlation_manager import CorrelationManager

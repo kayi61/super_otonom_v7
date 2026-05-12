@@ -1,4 +1,5 @@
 """Faz 26 — Piyasa rejimi: compute_omega_regime ince sarmalayıcı."""
+
 from __future__ import annotations
 
 from typing import Any, Dict, Tuple

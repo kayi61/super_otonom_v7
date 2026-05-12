@@ -1,4 +1,5 @@
 """WFAManager / WFAFold— tam modül dolaşımı (kapsam)."""
+
 from __future__ import annotations
 
 import logging

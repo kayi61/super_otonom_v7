@@ -18,7 +18,6 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional
 
-
 TradePermission = Literal["HALT", "BLOCK", "ALLOW"]
 TrailMode = Literal["off", "atr", "chandelier", "unknown"]
 StopPlacementHint = Literal["widen", "tighten", "keep", "unknown"]
@@ -193,4 +192,3 @@ def compute_smart_stop(
         atr=float(atr) if atr is not None else None,
         side=str(side),
     )
-

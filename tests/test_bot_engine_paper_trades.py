@@ -1,4 +1,5 @@
 """BotEngine: paper modda tam BUY + take-profit SELL (mock ağırlıklı)."""
+
 from __future__ import annotations
 
 import asyncio
@@ -47,6 +48,11 @@ def test_paper_buy_then_take_profit(tmp_path, monkeypatch: pytest.MonkeyPatch) -
     e._hard_limits.record_order = MagicMock()
     e.risk.get_omega_effective_qmin = MagicMock(return_value=30)
 
+    async def _filters_ok(*_a, **_k):
+        return True
+
+    e.apply_filters = _filters_ok
+
     monkeypatch.setattr(
         be,
         "compute_signal_quality",
@@ -77,11 +83,13 @@ def test_paper_buy_then_take_profit(tmp_path, monkeypatch: pytest.MonkeyPatch) -
     asyncio.run(run_buy())
     assert sym in e.open_positions
 
-    c2 = [{"close": 104.0, "volume": 1e6} for _ in range(3)]
     a2 = _base_analysis()
     a2["signal"] = "HOLD"
     a2["ob_safe_size"] = 500.0
     a2["avg_volume"] = 1e6
+    a2["omega_regime"] = "RANGING"
+    a2["adj_signal_quality"] = 55
+    a2["atr"] = 2.0
 
     async def run_tp():
         monkeypatch.setattr(
@@ -89,18 +97,23 @@ def test_paper_buy_then_take_profit(tmp_path, monkeypatch: pytest.MonkeyPatch) -
             "validate_signal",
             lambda *x: ("HOLD", 0.5, "h"),
         )
-        e.exec_sim.simulate_order = AsyncMock(
-            return_value={
-                "executed_price": 104.0,
-                "filled_size": 200.0,
-                "fill_ratio": 1.0,
-                "latency": 0.0,
-                "slippage": 0.0,
-            }
-        )
-        r2 = await e.tick(sym, a2, c2)
+        r2 = {"actions": []}
+        for close_px in (116.0, 124.0, 132.0, 140.0, 150.0):
+            candles = [{"close": close_px, "volume": 1e6} for _ in range(3)]
+            e.exec_sim.simulate_order = AsyncMock(
+                return_value={
+                    "executed_price": close_px,
+                    "filled_size": 200.0,
+                    "fill_ratio": 1.0,
+                    "latency": 0.0,
+                    "slippage": 0.0,
+                }
+            )
+            r2 = await e.tick(sym, a2, candles)
+            if sym not in e.open_positions:
+                break
         assert sym not in e.open_positions
-        assert any(x.get("type") == "SELL" for x in r2.get("actions", []))
+        assert any(x.get("type") in ("SELL", "SELL_PARTIAL") for x in r2.get("actions", []))
 
     asyncio.run(run_tp())
 
@@ -116,9 +129,7 @@ def test_tick_trend_follow_override(tmp_path, monkeypatch: pytest.MonkeyPatch) -
     e._hard_limits.record_order = MagicMock()
     e.risk.get_omega_effective_qmin = MagicMock(return_value=20)
     monkeypatch.setattr(be, "compute_signal_quality", lambda a: (90, [], {}, "n"))
-    monkeypatch.setattr(
-        be, "compute_omega_regime", lambda a, b: ("TRENDING", 1.0, 1.0, 90, "x")
-    )
+    monkeypatch.setattr(be, "compute_omega_regime", lambda a, b: ("TRENDING", 1.0, 1.0, 90, "x"))
     e.exec_sim.simulate_order = AsyncMock(
         return_value={
             "executed_price": 1.0,
@@ -149,9 +160,7 @@ def test_sentiment_veto_blocks_buy(tmp_path, monkeypatch: pytest.MonkeyPatch) ->
     e._hard_limits.check_price_tick = MagicMock(return_value=None)
     e.risk.get_omega_effective_qmin = MagicMock(return_value=20)
     monkeypatch.setattr(be, "compute_signal_quality", lambda a: (80, [], {}, "n"))
-    monkeypatch.setattr(
-        be, "compute_omega_regime", lambda a, b: ("TRENDING", 1.0, 1.0, 80, "x")
-    )
+    monkeypatch.setattr(be, "compute_omega_regime", lambda a, b: ("TRENDING", 1.0, 1.0, 80, "x"))
     monkeypatch.setattr(e.ai, "validate_signal", lambda *a: ("BUY", 0.9, "b"))
 
     async def go():

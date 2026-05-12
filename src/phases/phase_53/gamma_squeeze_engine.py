@@ -127,9 +127,7 @@ def analyze(market_data: dict | None) -> dict:
     min_idx = int(np.argmin(pains))
     max_pain_strike = float(strikes[min_idx])
 
-    distance_to_max_pain = float(
-        (current_price - max_pain_strike) / max(max_pain_strike, _EPS)
-    )
+    distance_to_max_pain = float((current_price - max_pain_strike) / max(max_pain_strike, _EPS))
     max_pain_pull = _clip01(1.0 - abs(distance_to_max_pain) / 0.1)
 
     gamma_squeeze_risk = _clip01(-dealer_gamma / 1000.0)
@@ -145,19 +143,13 @@ def analyze(market_data: dict | None) -> dict:
     gamma_imbalance = float(net_gamma / denom_g)
     gamma_score = _clip01((gamma_imbalance + 1.0) / 2.0)
 
-    delta_hedge_pressure = _clip01(
-        gamma_squeeze_risk * abs(distance_to_max_pain) * 10.0
-    )
+    delta_hedge_pressure = _clip01(gamma_squeeze_risk * abs(distance_to_max_pain) * 10.0)
 
     alpha_score = _clip01(
-        0.4 * max_pain_pull
-        + 0.3 * gamma_score
-        + 0.3 * (1.0 - delta_hedge_pressure)
+        0.4 * max_pain_pull + 0.3 * gamma_score + 0.3 * (1.0 - delta_hedge_pressure)
     )
     risk_score = _clip01(
-        0.5 * gamma_squeeze_risk
-        + 0.3 * delta_hedge_pressure
-        + 0.2 * (1.0 - max_pain_pull)
+        0.5 * gamma_squeeze_risk + 0.3 * delta_hedge_pressure + 0.2 * (1.0 - max_pain_pull)
     )
 
     n = len(chain)

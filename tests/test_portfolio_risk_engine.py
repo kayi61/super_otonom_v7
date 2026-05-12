@@ -1,4 +1,5 @@
 """Faz 24 — portfolio_risk_engine (VaR / CVaR / Herfindahl / stres)."""
+
 from __future__ import annotations
 
 from super_otonom.portfolio_risk_engine import analyze_portfolio_risk, run_portfolio_risk_phase

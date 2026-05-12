@@ -3,6 +3,7 @@ deploy_env_check başarı kaydı ve canlı ``main_loop`` kilidi (P0).
 
 Dosya: ``data/reports/deploy_env_check_last_ok.json`` (repo köküne göre).
 """
+
 from __future__ import annotations
 
 import json
@@ -88,7 +89,7 @@ def verify_stamp_for_live_start(
     if age_sec > max_sec:
         return (
             False,
-            f"deploy_env_check kaydı eski: {age_sec/3600:.1f} saat > izin {mh:.0f} saat — "
+            f"deploy_env_check kaydı eski: {age_sec / 3600:.1f} saat > izin {mh:.0f} saat — "
             f"son PASS: {data.get('passed_at_iso', '?')}",
         )
     iso = data.get("passed_at_iso", "")

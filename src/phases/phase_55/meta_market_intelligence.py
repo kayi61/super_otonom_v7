@@ -117,9 +117,7 @@ def analyze(market_data: dict | None) -> dict:
         whale_mm_alpha = 0.5
         whale_mm_risk = 0.5
 
-    whale_mm_composite = float(
-        0.6 * whale_mm_alpha + 0.4 * (1.0 - whale_mm_risk)
-    )
+    whale_mm_composite = float(0.6 * whale_mm_alpha + 0.4 * (1.0 - whale_mm_risk))
 
     allow_phases = [p for p in outputs if p["trade_permission"] == "ALLOW"]
     block_phases = [p for p in outputs if p["trade_permission"] == "BLOCK"]
@@ -136,14 +134,10 @@ def analyze(market_data: dict | None) -> dict:
     avg_confidence = float(np.mean(confs))
     high_conf_count = int(np.sum(confs > 0.7))
     high_confidence_ratio = float(high_conf_count / max(n, 1))
-    entry_timing_score = float(
-        0.5 * avg_confidence + 0.5 * high_confidence_ratio
-    )
+    entry_timing_score = float(0.5 * avg_confidence + 0.5 * high_confidence_ratio)
 
     alpha_score = _clip01(
-        0.40 * whale_mm_composite
-        + 0.35 * synergy_amplifier
-        + 0.25 * entry_timing_score
+        0.40 * whale_mm_composite + 0.35 * synergy_amplifier + 0.25 * entry_timing_score
     )
 
     all_risks = [float(p["risk_score"]) for p in outputs]

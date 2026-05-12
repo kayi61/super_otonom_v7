@@ -6,16 +6,17 @@ Bu modül Python botunun o veriyi okumasını sağlar.
 
 Kullanım:
     bridge = RedisBridge()
-    
+
     # Tek sembol oku
     kline = bridge.get_kline("BTCUSDT")
-    
+
     # Tüm sembolleri oku
     all_klines = bridge.get_all_klines()
-    
+
     # Pub/Sub ile anlık bildirim dinle
     bridge.subscribe(callback)
 """
+
 from __future__ import annotations
 
 import json
@@ -28,41 +29,61 @@ log = logging.getLogger("super_otonom.redis_bridge")
 
 try:
     import redis
+
     _REDIS_AVAILABLE = True
 except ImportError:
     _REDIS_AVAILABLE = False
     log.warning("redis-py kurulu değil — pip install redis")
 
 
-REDIS_URL    = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-SYMBOLS      = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"]
-_STALE_MS    = 15_000  # 15 saniyeden eski veri → stale
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"]
+_STALE_MS = 15_000  # 15 saniyeden eski veri → stale
 
 
 class RedisBridge:
     """
     Go → Redis → Python köprüsü.
-    
+
     Redis'te veri yoksa veya Redis bağlantısı yoksa
     None döner — bot REST API'ye düşer, sistem durmuyor.
+
+    Bağlantı yoksa ``redis_klines_available=False`` — Redis üzerinden gelen
+    kline hızlandırması devre dışı; OHLCV ana kaynak olarak kalır (sessiz başarısızlık yok).
     """
 
     def __init__(self, url: str = REDIS_URL):
         self._client: Any = None
         self._pubsub: Any = None
         self._connected = False
+        self.degraded_reason: Optional[str] = None
 
         if not _REDIS_AVAILABLE:
-            log.warning("RedisBridge: redis-py yok, köprü devre dışı")
+            self.degraded_reason = "redis-py not installed"
+            log.error(
+                "RedisBridge: redis-py kurulu degil — Redis kline ozelligi devre disi "
+                "(pip install redis). OHLCV kullanilacak."
+            )
             return
 
         try:
             self._client = redis.from_url(url, decode_responses=True)
             self._client.ping()
             self._connected = True
-            log.info("RedisBridge: ✅ Redis bağlantısı kuruldu | %s", url)
+            log.info("RedisBridge: Redis baglantisi kuruldu | %s", url)
         except Exception as exc:
-            log.warning("RedisBridge: Redis bağlanamadı: %s — REST fallback aktif", exc)
+            self.degraded_reason = str(exc)
+            log.error(
+                "RedisBridge: Redis baglanamadi — DEGRADE MOD | redis_kline kapali | "
+                "url=%s | hata=%s | Ana veri yolu: REST OHLCV (Go koprusu verisi yok).",
+                url,
+                exc,
+            )
+
+    @property
+    def redis_klines_available(self) -> bool:
+        """Redis'ten kline okumaya uygun mu (bagli ve kutuphane var mi)."""
+        return self._connected and _REDIS_AVAILABLE
 
     @property
     def is_connected(self) -> bool:
@@ -71,7 +92,7 @@ class RedisBridge:
     def get_kline(self, symbol: str) -> Optional[Dict[str, Any]]:
         """
         Redis'ten son kline verisini çeker.
-        
+
         Dönüş: kline dict veya None (veri yok / stale / bağlantı yok)
         """
         if not self._connected:
@@ -113,7 +134,7 @@ class RedisBridge:
         """
         Pub/Sub ile Go servisinden anlık bildirim dinler.
         callback(symbol) → yeni kline geldiğinde çağrılır.
-        
+
         Not: Ayrı thread'de çalıştır.
         """
         if not self._connected:
@@ -139,7 +160,12 @@ class RedisBridge:
     def status(self) -> Dict[str, Any]:
         """Köprü durumu — monitoring için."""
         if not self._connected:
-            return {"connected": False, "symbols": {}}
+            return {
+                "connected": False,
+                "redis_klines_available": False,
+                "degraded_reason": self.degraded_reason,
+                "symbols": {},
+            }
 
         symbol_status = {}
         for sym in SYMBOLS:
@@ -151,6 +177,7 @@ class RedisBridge:
 
         return {
             "connected": True,
+            "redis_klines_available": True,
             "redis_url": REDIS_URL,
             "symbols": symbol_status,
         }

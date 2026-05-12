@@ -1,9 +1,9 @@
 """Faz 40 — system_watchdog birim testleri."""
+
 from __future__ import annotations
 
 import numpy as np
 import pytest
-
 from phases.phase_40 import system_watchdog as wd_mod
 from phases.phase_40.system_watchdog import (
     analyze,

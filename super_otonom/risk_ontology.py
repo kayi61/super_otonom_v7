@@ -40,8 +40,8 @@ import numpy as np
 
 log = logging.getLogger("super_otonom.risk_ontology")
 
-_SOD_RESET_SECONDS  = 86400   # 24 saat
-_SOW_RESET_SECONDS  = 604800  # 7 gün
+_SOD_RESET_SECONDS = 86400  # 24 saat
+_SOW_RESET_SECONDS = 604800  # 7 gün
 
 
 @dataclass
@@ -57,35 +57,35 @@ class RiskOntology:
     """
 
     # ── Başlangıç ──────────────────────────────────────────────────────────────
-    initial_nav:    float = 10_000.0
+    initial_nav: float = 10_000.0
 
     # ── NAV serileri ───────────────────────────────────────────────────────────
-    nav:            float = field(default=0.0)
-    sod_nav:        float = field(default=0.0)   # start-of-day
-    sow_nav:        float = field(default=0.0)   # start-of-week
-    peak_nav:       float = field(default=0.0)
+    nav: float = field(default=0.0)
+    sod_nav: float = field(default=0.0)  # start-of-day
+    sow_nav: float = field(default=0.0)  # start-of-week
+    peak_nav: float = field(default=0.0)
 
     # ── Türetilmiş metrikler ───────────────────────────────────────────────────
-    intraday_dd_pct:   float = 0.0   # (peak_nav - nav) / peak_nav
-    daily_loss_pct:    float = 0.0   # (sod_nav - nav) / sod_nav
-    weekly_loss_pct:   float = 0.0   # (sow_nav - nav) / sow_nav
+    intraday_dd_pct: float = 0.0  # (peak_nav - nav) / peak_nav
+    daily_loss_pct: float = 0.0  # (sod_nav - nav) / sod_nav
+    weekly_loss_pct: float = 0.0  # (sow_nav - nav) / sow_nav
 
     # ── Exposure ───────────────────────────────────────────────────────────────
-    gross_exp:      float = 0.0   # long + short notional
-    net_exp:        float = 0.0   # long - short (long only → gross == net)
-    exp_pct:        float = 0.0   # gross_exp / nav
+    gross_exp: float = 0.0  # long + short notional
+    net_exp: float = 0.0  # long - short (long only → gross == net)
+    exp_pct: float = 0.0  # gross_exp / nav
 
     # ── VaR ────────────────────────────────────────────────────────────────────
-    var_1d:         float = 0.0
+    var_1d: float = 0.0
 
     # ── Dinamik limit ──────────────────────────────────────────────────────────
-    dynamic_daily_limit: float = 0.03   # volatiliteye göre güncellenir
+    dynamic_daily_limit: float = 0.03  # volatiliteye göre güncellenir
 
     # ── İç durum ───────────────────────────────────────────────────────────────
-    _day_start:     float = field(default_factory=time.time)
-    _week_start:    float = field(default_factory=time.time)
-    _pnl_history:   List[float] = field(default_factory=list)
-    _vol_history:   List[float] = field(default_factory=list)
+    _day_start: float = field(default_factory=time.time)
+    _week_start: float = field(default_factory=time.time)
+    _pnl_history: List[float] = field(default_factory=list)
+    _vol_history: List[float] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if abs(self.nav) < 1e-9:
@@ -130,7 +130,7 @@ class RiskOntology:
         if self.peak_nav > 0:
             self.intraday_dd_pct = (self.peak_nav - self.nav) / self.peak_nav
         if self.sod_nav > 0:
-            self.daily_loss_pct  = max(0.0, (self.sod_nav - self.nav) / self.sod_nav)
+            self.daily_loss_pct = max(0.0, (self.sod_nav - self.nav) / self.sod_nav)
         if self.sow_nav > 0:
             self.weekly_loss_pct = max(0.0, (self.sow_nav - self.nav) / self.sow_nav)
 
@@ -169,24 +169,24 @@ class RiskOntology:
         """Long only sistem — gross == net."""
         total = 0.0
         for pos in positions.values():
-            qty     = float(pos.get("qty", 0))
-            entry   = float(pos.get("entry", 0))
-            total  += qty * entry
+            qty = float(pos.get("qty", 0))
+            entry = float(pos.get("entry", 0))
+            total += qty * entry
         self.gross_exp = total
-        self.net_exp   = total   # long only
-        self.exp_pct   = (total / self.nav) if self.nav > 0 else 0.0
+        self.net_exp = total  # long only
+        self.exp_pct = (total / self.nav) if self.nav > 0 else 0.0
 
     def _maybe_reset_day(self) -> None:
         now = time.time()
         if now - self._day_start >= _SOD_RESET_SECONDS:
-            self.sod_nav    = self.nav
+            self.sod_nav = self.nav
             self._day_start = now
             log.info("RiskOntology: gün sıfırlandı | sod_nav=%.2f", self.sod_nav)
 
     def _maybe_reset_week(self) -> None:
         now = time.time()
         if now - self._week_start >= _SOW_RESET_SECONDS:
-            self.sow_nav     = self.nav
+            self.sow_nav = self.nav
             self._week_start = now
             log.info("RiskOntology: hafta sıfırlandı | sow_nav=%.2f", self.sow_nav)
 
@@ -215,50 +215,52 @@ class RiskOntology:
     def snapshot(self) -> Dict[str, Any]:
         """status() içinde kullanılacak — tek kaynak."""
         return {
-            "nav":                   round(self.nav, 2),
-            "sod_nav":               round(self.sod_nav, 2),
-            "sow_nav":               round(self.sow_nav, 2),
-            "peak_nav":              round(self.peak_nav, 2),
-            "intraday_dd_pct":       round(self.intraday_dd_pct * 100, 2),
-            "daily_loss_pct":        round(self.daily_loss_pct * 100, 2),
-            "weekly_loss_pct":       round(self.weekly_loss_pct * 100, 2),
-            "dynamic_daily_limit":   round(self.dynamic_daily_limit * 100, 2),
-            "gross_exp":             round(self.gross_exp, 2),
-            "net_exp":               round(self.net_exp, 2),
-            "exp_pct":               round(self.exp_pct * 100, 2),
-            "var_1d":                self.var_1d,
+            "nav": round(self.nav, 2),
+            "sod_nav": round(self.sod_nav, 2),
+            "sow_nav": round(self.sow_nav, 2),
+            "peak_nav": round(self.peak_nav, 2),
+            "intraday_dd_pct": round(self.intraday_dd_pct * 100, 2),
+            "daily_loss_pct": round(self.daily_loss_pct * 100, 2),
+            "weekly_loss_pct": round(self.weekly_loss_pct * 100, 2),
+            "dynamic_daily_limit": round(self.dynamic_daily_limit * 100, 2),
+            "gross_exp": round(self.gross_exp, 2),
+            "net_exp": round(self.net_exp, 2),
+            "exp_pct": round(self.exp_pct * 100, 2),
+            "var_1d": self.var_1d,
         }
 
     def to_dict(self) -> Dict[str, Any]:
         """_save_state() için."""
         return {
-            "initial_nav":        self.initial_nav,
-            "nav":                self.nav,
-            "sod_nav":            self.sod_nav,
-            "sow_nav":            self.sow_nav,
-            "peak_nav":           self.peak_nav,
+            "initial_nav": self.initial_nav,
+            "nav": self.nav,
+            "sod_nav": self.sod_nav,
+            "sow_nav": self.sow_nav,
+            "peak_nav": self.peak_nav,
             "dynamic_daily_limit": self.dynamic_daily_limit,
-            "day_start":          self._day_start,
-            "week_start":         self._week_start,
-            "pnl_history":        self._pnl_history[-500:],
-            "vol_history":        self._vol_history[-200:],
+            "day_start": self._day_start,
+            "week_start": self._week_start,
+            "pnl_history": self._pnl_history[-500:],
+            "vol_history": self._vol_history[-200:],
         }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "RiskOntology":
         """_load_state() için."""
         onto = cls(initial_nav=float(data.get("initial_nav", 10_000.0)))
-        onto.nav         = float(data.get("nav",      onto.initial_nav))
-        onto.sod_nav     = float(data.get("sod_nav",  onto.initial_nav))
-        onto.sow_nav     = float(data.get("sow_nav",  onto.initial_nav))
-        onto.peak_nav    = float(data.get("peak_nav", onto.initial_nav))
+        onto.nav = float(data.get("nav", onto.initial_nav))
+        onto.sod_nav = float(data.get("sod_nav", onto.initial_nav))
+        onto.sow_nav = float(data.get("sow_nav", onto.initial_nav))
+        onto.peak_nav = float(data.get("peak_nav", onto.initial_nav))
         onto.dynamic_daily_limit = float(data.get("dynamic_daily_limit", 0.03))
-        onto._day_start  = float(data.get("day_start",  time.time()))
+        onto._day_start = float(data.get("day_start", time.time()))
         onto._week_start = float(data.get("week_start", time.time()))
         onto._pnl_history = [float(x) for x in data.get("pnl_history", [])]
         onto._vol_history = [float(x) for x in data.get("vol_history", [])]
         log.info(
             "RiskOntology yüklendi | nav=%.2f | sod=%.2f | peak=%.2f",
-            onto.nav, onto.sod_nav, onto.peak_nav,
+            onto.nav,
+            onto.sod_nav,
+            onto.peak_nav,
         )
         return onto

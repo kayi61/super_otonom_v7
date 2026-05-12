@@ -18,7 +18,6 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional
 
-
 TradePermission = Literal["HALT", "BLOCK", "ALLOW"]
 WhaleIntent = Literal["accumulate", "distribute", "hunt", "exit", "none", "unknown"]
 EntryTimingHint = Literal["enter_now", "wait_pullback", "wait_confirm", "avoid", "unknown"]
@@ -215,8 +214,10 @@ def infer_whale_intent(
     else:
         intent_strength = 0.10
 
-    alpha_score = _clamp100(100.0 * (intent_strength * _clamp01(data_health) * (1.0 - sweep_risk / 120.0)))
-    risk_score = _clamp100(max(sweep_risk, 100.0 * (1.0 - _clamp01(data_health))) )
+    alpha_score = _clamp100(
+        100.0 * (intent_strength * _clamp01(data_health) * (1.0 - sweep_risk / 120.0))
+    )
+    risk_score = _clamp100(max(sweep_risk, 100.0 * (1.0 - _clamp01(data_health))))
 
     # Confidence:
     confidence = _clamp01(0.20 + 0.60 * _clamp01(data_health) + 0.20 * (absorption_score / 100.0))
@@ -248,4 +249,3 @@ def infer_whale_intent(
         spread_pct=spread_pct,
         absorption_proxy=absorption_p,
     )
-

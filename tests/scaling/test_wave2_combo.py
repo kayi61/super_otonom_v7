@@ -1,4 +1,5 @@
 """Çok modüllü kombinasyonlar + health formatları (74)."""
+
 from __future__ import annotations
 
 import pytest

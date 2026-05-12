@@ -37,7 +37,9 @@ def _normalize_status(st: Any) -> str:
     return str(st).strip().lower()
 
 
-def compute_service_metrics(services: List[Dict[str, Any]]) -> Tuple[float, float, List[str], float]:
+def compute_service_metrics(
+    services: List[Dict[str, Any]],
+) -> Tuple[float, float, List[str], float]:
     """service_health, avg_latency, critical_down_names, latency_score."""
     if not services:
         return 0.0, 0.0, [], 1.0

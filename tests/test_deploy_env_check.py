@@ -109,4 +109,8 @@ def test_deploy_env_check_ok_live_shadow_with_confirm():
     assert "LIVE_CONFIRM='YES'" in (r.stdout or "") or "LIVE_CONFIRM=" in (r.stdout or "")
     assert "max_daily_loss_pct" in (r.stdout or "")
     assert "P0 - INSTITUTIONAL" in (r.stdout or "") or "sect.1 alignment" in (r.stdout or "")
-    assert "deploy_env_check_last_ok" in (r.stdout or "") or "zaman damgası" in (r.stdout or "") or "basari" in (r.stdout or "").lower()
+    assert (
+        "deploy_env_check_last_ok" in (r.stdout or "")
+        or "zaman damgası" in (r.stdout or "")
+        or "basari" in (r.stdout or "").lower()
+    )

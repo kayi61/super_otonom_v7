@@ -1,9 +1,9 @@
 """Faz 38 — trade_explainability birim testleri."""
+
 from __future__ import annotations
 
 import numpy as np
 import pytest
-
 from phases.phase_38 import trade_explainability as te_mod
 from phases.phase_38.trade_explainability import (
     analyze,
@@ -165,7 +165,9 @@ def test_top_blockers_top3() -> None:
 
 
 def test_explain_text_contains_decision() -> None:
-    txt = build_explain_text("ENTER", 5, 2, 0, [{"phase": 9, "score": 0.7}], [{"phase": 3, "score": 0.6}])
+    txt = build_explain_text(
+        "ENTER", 5, 2, 0, [{"phase": 9, "score": 0.7}], [{"phase": 3, "score": 0.6}]
+    )
     assert "Karar: ENTER" in txt
     assert "5✅" in txt and "2🚫" in txt
     assert "Faz 9" in txt and "Faz 3" in txt
@@ -273,6 +275,13 @@ def test_all_scores_clipped() -> None:
 
 
 def test_parse_failure_empty_arrays_blocked() -> None:
-    bad = {"phase": "NaN", "alpha_score": 1.0, "risk_score": 0.0, "trade_permission": "ALLOW", "confidence": 1.0, "score_type": "X"}
+    bad = {
+        "phase": "NaN",
+        "alpha_score": 1.0,
+        "risk_score": 0.0,
+        "trade_permission": "ALLOW",
+        "confidence": 1.0,
+        "score_type": "X",
+    }
     r = analyze({"phase_outputs": [bad], "final_decision": "WAIT"})
     assert r["trade_permission"] == "BLOCK"

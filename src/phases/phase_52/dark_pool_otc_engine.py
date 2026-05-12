@@ -7,7 +7,7 @@ Sadece NumPy.
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Tuple
 
 import numpy as np
 
@@ -180,9 +180,7 @@ def analyze(market_data: dict | None) -> dict:
 
     burn_dominance = bool(total_burn > total_mint * 2.0)
 
-    alpha_score = _clip01(
-        0.40 * otc_signal + 0.35 * block_score + 0.25 * mint_score
-    )
+    alpha_score = _clip01(0.40 * otc_signal + 0.35 * block_score + 0.25 * mint_score)
 
     high_impact = bool(abs(net_block_impact) > 3.0)
     risk_score = _clip01(

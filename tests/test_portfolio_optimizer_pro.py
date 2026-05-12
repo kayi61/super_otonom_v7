@@ -1,4 +1,5 @@
 """Faz 29 — portfolio_optimizer_pro (Black–Litterman, ERC, 5-faktör, Sharpe)."""
+
 from __future__ import annotations
 
 import ast
@@ -6,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
 import super_otonom.portfolio_optimizer_pro as po_mod
 from super_otonom.portfolio_optimizer_pro import (
     analyze_portfolio_optimizer,
@@ -37,7 +37,9 @@ def test_po_empty_blocks_quality() -> None:
 @pytest.mark.parametrize(
     "portfolio_data",
     [
-        pytest.param({"asset_returns": {"A": (0.0001 * np.arange(40)).tolist()}}, id="single_asset"),
+        pytest.param(
+            {"asset_returns": {"A": (0.0001 * np.arange(40)).tolist()}}, id="single_asset"
+        ),
         pytest.param({"asset_returns": {"A": [0.001] * 30, "B": [0.001] * 30}}, id="short_series"),
     ],
 )
@@ -54,7 +56,9 @@ def test_po_normal_portfolio_allow_optimal_sum() -> None:
     np.random.seed(42)
     ar = _five_asset_equal_vol_returns(42)
     r = analyze_portfolio_optimizer(
-        "OK/USDT", {"asset_returns": ar, "sharpe_erc_blend": 0.45}, {},
+        "OK/USDT",
+        {"asset_returns": ar, "sharpe_erc_blend": 0.45},
+        {},
         attach_to_analysis=False,
     )
     assert r["trade_permission"] == "ALLOW"
@@ -70,7 +74,9 @@ def test_po_negative_sharpe_blocks() -> None:
     syms = ["A", "B", "C", "D", "E"]
     ar = {s: (-0.001 + np.random.randn(n) * 0.003).tolist() for s in syms}
     r = analyze_portfolio_optimizer(
-        "NEG/USDT", {"asset_returns": ar, "sharpe_erc_blend": 0.45}, {},
+        "NEG/USDT",
+        {"asset_returns": ar, "sharpe_erc_blend": 0.45},
+        {},
         attach_to_analysis=False,
     )
     assert r["portfolio_optimizer"]["portfolio_sharpe_ratio"] < 0
@@ -86,7 +92,9 @@ def test_po_concentration_over_40_blocks() -> None:
         "B": (-0.0005 + np.random.randn(n) * 0.004).tolist(),
     }
     r = analyze_portfolio_optimizer(
-        "CONC/USDT", {"asset_returns": ar, "sharpe_erc_blend": 0.55}, {},
+        "CONC/USDT",
+        {"asset_returns": ar, "sharpe_erc_blend": 0.55},
+        {},
         attach_to_analysis=False,
     )
     assert r["portfolio_optimizer"]["max_single_asset_weight"] > 0.40
@@ -98,7 +106,9 @@ def test_po_black_litterman_posterior_mu_changes() -> None:
     np.random.seed(42)
     ar = _five_asset_equal_vol_returns(42)
     base = analyze_portfolio_optimizer(
-        "BL/USDT", {"asset_returns": ar, "sharpe_erc_blend": 0.45}, {},
+        "BL/USDT",
+        {"asset_returns": ar, "sharpe_erc_blend": 0.45},
+        {},
         attach_to_analysis=False,
     )
     bl_views = {
@@ -135,7 +145,9 @@ def test_po_alpha_score_zero_one() -> None:
     np.random.seed(42)
     ar = _five_asset_equal_vol_returns(42)
     r = analyze_portfolio_optimizer(
-        "AL/USDT", {"asset_returns": ar, "sharpe_erc_blend": 0.45}, {},
+        "AL/USDT",
+        {"asset_returns": ar, "sharpe_erc_blend": 0.45},
+        {},
         attach_to_analysis=False,
     )
     a = r["alpha_score"]

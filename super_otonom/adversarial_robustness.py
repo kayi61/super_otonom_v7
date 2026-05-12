@@ -87,7 +87,9 @@ def _series_from_dict(d: Dict[str, Any], key: str) -> Optional[np.ndarray]:
     return np.asarray(out, dtype=float)
 
 
-def extract_ohlcv(d: Dict[str, Any]) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
+def extract_ohlcv(
+    d: Dict[str, Any],
+) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
     """OHLCV dizileri; eksikse close üzerinden sentez."""
     ohlcv = d.get("ohlcv") or d.get("candles") or d.get("klines")
     if isinstance(ohlcv, list) and len(ohlcv) >= _MIN_BARS:
@@ -123,23 +125,23 @@ def extract_ohlcv(d: Dict[str, Any]) -> Optional[Tuple[np.ndarray, np.ndarray, n
     if c is None:
         return None
     h = _series_from_dict(d, "high")
-    l = _series_from_dict(d, "low")
+    low = _series_from_dict(d, "low")
     o = _series_from_dict(d, "open")
     if h is None:
         h = c.copy()
-    if l is None:
-        l = c.copy()
+    if low is None:
+        low = c.copy()
     if o is None:
         o = np.roll(c, 1)
         o[0] = c[0]
     vol = _series_from_dict(d, "volume")
     if vol is None:
         vol = np.zeros_like(c)
-    n = min(len(c), len(h), len(l), len(o), len(vol))
-    return o[:n], h[:n], l[:n], c[:n], vol[:n]
+    n = min(len(c), len(h), len(low), len(o), len(vol))
+    return o[:n], h[:n], low[:n], c[:n], vol[:n]
 
 
-def score_flash_crash(c: np.ndarray, l: np.ndarray) -> float:
+def score_flash_crash(c: np.ndarray, low: np.ndarray) -> float:
     """Tek/çok barlı ani düşüş (wick ve kapanış)."""
     if c.size < 8:
         return 0.0
@@ -148,7 +150,7 @@ def score_flash_crash(c: np.ndarray, l: np.ndarray) -> float:
     bar_ret = np.log(np.maximum(c / np.maximum(prev, _EPS), _EPS))
     worst_bar = float(np.min(bar_ret))
     # Düşük vs önceki kapanış (intrabar çöküş)
-    wick_to_prev = np.log(np.maximum(l / np.maximum(prev, _EPS), _EPS))
+    wick_to_prev = np.log(np.maximum(low / np.maximum(prev, _EPS), _EPS))
     worst_wick = float(np.min(wick_to_prev[1:]))
     tail = min(worst_bar, worst_wick)
     # kümülatif 3 bar düşüş
@@ -179,7 +181,9 @@ def score_pump_dump(c: np.ndarray, v: np.ndarray) -> float:
                     vr = float(np.mean(num_v) / (np.mean(den_v) + _EPS))
                     vol_ratio = _clamp01((vr - 1.0) / 3.0 + 0.5)
             if pump > 0.04 and dump < -0.035:
-                cand = _clamp01((pump / 0.22) * 0.55 + (abs(dump) / 0.18) * 0.45) * (0.75 + 0.25 * vol_ratio)
+                cand = _clamp01((pump / 0.22) * 0.55 + (abs(dump) / 0.18) * 0.45) * (
+                    0.75 + 0.25 * vol_ratio
+                )
                 best = max(best, cand)
     peak_i = int(np.argmax(c[-36:])) + max(0, c.size - 36)
     pk = float(c[peak_i])
@@ -235,7 +239,7 @@ def score_volatility_spike(c: np.ndarray) -> float:
     return _clamp01((ratio - 1.15) / 1.85)
 
 
-def score_fake_breakout(h: np.ndarray, l: np.ndarray, c: np.ndarray) -> float:
+def score_fake_breakout(h: np.ndarray, low: np.ndarray, c: np.ndarray) -> float:
     """Direnç üstü fitil / teğet sonra kapanışın geri dönmesi."""
     if c.size < 35:
         return 0.0
@@ -245,7 +249,7 @@ def score_fake_breakout(h: np.ndarray, l: np.ndarray, c: np.ndarray) -> float:
     prev_high = float(np.max(h[-look:-2]))
     poke = hb > resist * 1.001 and hb > prev_high * 1.0005
     fail_close = float(c[-1]) < resist * 1.0005 or float(c[-1]) < float(c[-2])
-    upper_wick = hb > max(float(c[-1]), float(l[-1])) * 1.0002
+    upper_wick = hb > max(float(c[-1]), float(low[-1])) * 1.0002
     if poke and (fail_close or upper_wick):
         depth = (hb - float(c[-1])) / max(hb, _EPS)
         return _clamp01(0.45 + 0.55 * _clamp01(depth / 0.05))
@@ -287,26 +291,22 @@ def analyze_adversarial_robustness(
             attach_phase_alias(a, "33", payload)
         return payload
 
-    _o, h, l, c, v = ohlc
+    _o, h, low, c, v = ohlc
     if c.size < _MIN_BARS:
         payload = _empty_phase33(ts, half_life_ms, "insufficient_bars")
         if attach_to_analysis:
             attach_phase_alias(a, "33", payload)
         return payload
 
-    s_flash = score_flash_crash(c, l)
+    s_flash = score_flash_crash(c, low)
     s_pump = score_pump_dump(c, v)
     s_bleed = score_slow_bleed(c)
     s_vol = score_volatility_spike(c)
-    s_fake = score_fake_breakout(h, l, c)
+    s_fake = score_fake_breakout(h, low, c)
 
     # Risk: slow bleed ağırlıklı; vol ve yapısal senaryolar
     risk_01 = _clamp01(
-        0.22 * s_flash
-        + 0.22 * s_pump
-        + 0.20 * s_bleed
-        + 0.22 * s_vol
-        + 0.14 * s_fake
+        0.22 * s_flash + 0.22 * s_pump + 0.20 * s_bleed + 0.22 * s_vol + 0.14 * s_fake
     )
     risk_01 = _clamp01(risk_01 + 0.12 * s_bleed)
 
@@ -315,8 +315,15 @@ def analyze_adversarial_robustness(
     alpha_01 = _clamp01(alpha_base * (1.0 - 0.55 * s_fake) * (1.0 - 0.25 * s_bleed))
 
     hist_ok = c.size >= 64
-    conf = _clamp01(0.22 + 0.38 * (1.0 - s_vol * 0.7) * (1.0 - s_fake * 0.5) + 0.18 * (1.0 if hist_ok else 0.4))
-    dh = _clamp01(0.26 + 0.30 * (1.0 - s_flash) * (1.0 - s_pump) + 0.24 * (1.0 - s_fake) + 0.20 * (1.0 if hist_ok else 0.35))
+    conf = _clamp01(
+        0.22 + 0.38 * (1.0 - s_vol * 0.7) * (1.0 - s_fake * 0.5) + 0.18 * (1.0 if hist_ok else 0.4)
+    )
+    dh = _clamp01(
+        0.26
+        + 0.30 * (1.0 - s_flash) * (1.0 - s_pump)
+        + 0.24 * (1.0 - s_fake)
+        + 0.20 * (1.0 if hist_ok else 0.35)
+    )
 
     perm: TradePermission = "ALLOW"
     if s_flash >= 0.42:

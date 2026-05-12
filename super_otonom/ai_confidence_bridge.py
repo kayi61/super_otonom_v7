@@ -10,6 +10,7 @@ Mevcut AILayer.model_path akışı değişmez; bu köprü ek bir besleme kanalı
 Öncelik: `ml_client.MLClient.enrich_analysis` tick içinde `analysis['ml_score']` doldurur;
 yoksa burada no_external_ml kalır.
 """
+
 from __future__ import annotations
 
 import os
@@ -46,6 +47,6 @@ def blend_omega_confidence(base_confidence: float, analysis: Dict[str, Any]) -> 
         return max(0.0, min(1.0, float(base_confidence))), "ml_score_invalid"
 
     ml = max(0.0, min(1.0, ml))
-    b  = max(0.0, min(1.0, float(base_confidence)))
+    b = max(0.0, min(1.0, float(base_confidence)))
     merged = (1.0 - _BLEND) * b + _BLEND * ml
     return round(merged, 4), f"ml_fusion w={_BLEND:.2f}"

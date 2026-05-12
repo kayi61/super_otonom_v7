@@ -4,6 +4,7 @@ Kill-Switch (sert sınırlar) — borsa CircuitBreaker'ından ayrı: işlem ve a
 - exchange_async.CircuitBreaker: sadece OHLCV/HTTP hata izolasyonu + retry
 - burada: fiyat sapması, emir frekansı, (isteğe bağlı) global env ile trading dondurma
 """
+
 from __future__ import annotations
 
 import os
@@ -107,13 +108,14 @@ class HardLimitTracker:
         self._prune_orders()
         return {
             "orders_in_window": len(self._order_times),
-            "order_limit":        self._max_orders,
-            "window_sec":         self._window,
+            "order_limit": self._max_orders,
+            "window_sec": self._window,
             "max_price_jump_pct": self._max_jump,
         }
 
 
 # ══ Rate-Limit fırtınası (429) — üst üste gelince Kill-Switch ══
+
 
 def is_ratelimit_error(exc: BaseException) -> bool:
     """
@@ -164,7 +166,7 @@ class RateLimitStormTracker:
     def status_dict(self) -> dict:
         return {
             "rl_streak": self._streak,
-            "rl_trip":   self._max,
+            "rl_trip": self._max,
         }
 
 

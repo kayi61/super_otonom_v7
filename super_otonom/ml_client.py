@@ -5,6 +5,7 @@ ML Service Wrapper — dış sinir ağı (HTTP JSON POST).
   protokol dalı eklenebilir (ortak `MLInferenceResult`).
 - Hata/timeout: `analysis` içinde `ml_score` set edilmez → `blend_omega_confidence` no_external_ml.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -33,30 +34,32 @@ class MLInferenceResult:
     error: Optional[str] = None
 
 
-def format_ml_inference_payload(symbol: str, analysis: Dict[str, Any], *, tick_id: int = 0) -> Dict[str, Any]:
+def format_ml_inference_payload(
+    symbol: str, analysis: Dict[str, Any], *, tick_id: int = 0
+) -> Dict[str, Any]:
     """
     MarketAnalyzer + zenginleştirme alanlarını dış servise uygun hafif JSON.
     (Büyük OHLCV dizisi yok; sadece özet sayılar — bant genişliği dostu.)
     """
     a = analysis or {}
     return {
-        "schema":    "super_otonom.ml.inference.v1",
-        "symbol":    symbol,
-        "tick_id":   int(tick_id),
-        "signal":    str(a.get("signal", "HOLD")),
-        "regime":    str(a.get("regime", "NOISY")),
-        "hurst":     float(a.get("hurst", 0.5) or 0.5),
+        "schema": "super_otonom.ml.inference.v1",
+        "symbol": symbol,
+        "tick_id": int(tick_id),
+        "signal": str(a.get("signal", "HOLD")),
+        "regime": str(a.get("regime", "NOISY")),
+        "hurst": float(a.get("hurst", 0.5) or 0.5),
         "volatility": float(a.get("volatility", 0.02) or 0.02),
-        "rsi":       float(a.get("rsi", 50.0) or 50.0),
-        "bb_pct_b":  float(a.get("bb_pct_b", 0.5) or 0.5),
-        "ema_diff":  float(a.get("ema_diff", 0.0) or 0.0),
+        "rsi": float(a.get("rsi", 50.0) or 50.0),
+        "bb_pct_b": float(a.get("bb_pct_b", 0.5) or 0.5),
+        "ema_diff": float(a.get("ema_diff", 0.0) or 0.0),
         "vol_ratio": float(a.get("vol_ratio", 1.0) or 1.0),
         "flash_crash": bool(a.get("flash_crash", False)),
         "high_tf_trend": a.get("high_tf_trend"),
         "mtf_filtered": bool(a.get("mtf_filtered", False)),
         "liquidity_ratio": a.get("liquidity_ratio"),
-        "entry_scale":   str(a.get("entry_scale", "unknown") or "unknown"),
-        "ob_safe_size":  a.get("ob_safe_size"),
+        "entry_scale": str(a.get("entry_scale", "unknown") or "unknown"),
+        "ob_safe_size": a.get("ob_safe_size"),
         "quality_score": a.get("quality_score"),
     }
 
@@ -79,9 +82,12 @@ class MLClient:
     @classmethod
     def from_env(cls) -> "MLClient":
         url = os.getenv("ML_SERVICE_URL", "") or os.getenv("OMEGA_ML_SERVICE_URL", "")
-        to  = float(os.getenv("ML_SERVICE_TIMEOUT", "2.0") or 2.0)
-        en  = (os.getenv("ML_SERVICE_ENABLED", "false") or "false").lower() in (
-            "1", "true", "yes", "on"
+        to = float(os.getenv("ML_SERVICE_TIMEOUT", "2.0") or 2.0)
+        en = (os.getenv("ML_SERVICE_ENABLED", "false") or "false").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
         )
         return cls(service_url=url, timeout_sec=to, enabled=en)
 
@@ -170,8 +176,7 @@ class MLClient:
             dctx.external_ai_latency_ms = res.latency_ms
             dctx.external_ai_confidence = float(res.score)
             dctx.external_ai_log = (
-                f"[EXTERNAL-AI] ok latency_ms={res.latency_ms:.0f} "
-                f"score={res.score:.4f}"
+                f"[EXTERNAL-AI] ok latency_ms={res.latency_ms:.0f} score={res.score:.4f}"
             )
 
 

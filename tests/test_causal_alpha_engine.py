@@ -1,8 +1,8 @@
 """Faz 31 — causal_alpha_engine (Granger proxy, transfer entropy, sahte korelasyon)."""
+
 from __future__ import annotations
 
 import numpy as np
-
 from super_otonom.causal_alpha_engine import analyze_causal_alpha, run_causal_alpha_phase
 
 

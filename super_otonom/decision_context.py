@@ -1,33 +1,44 @@
 """
 DecisionContext — karar izi (audit) ve ileride tek noktadan politika.
 
-Mevcut BotEngine.tick sırası (özet)::
+PROMPT-A11: analyzer yalnızca ``main_loop`` öncesi; ``tick`` / ``_tick_impl`` tek tur;
+donmuş çekirdek + reentrancy ``self_feedback_guard``.
 
-    [main_loop: OHLCV → analyzer → (order book ob_safe_size) → engine.tick]
+Politika özeti (madde listesi) ``docs/GOVERNANCE_CHECKLIST_TR.md`` §0.1 ile hizalı tutulur; büyük sıra
+değişikliğinde A1 güncelleme kuralı — aynı PR.
 
-    engine.tick (symbol, analysis, candles)::
+**Döngü dışı** — ``main_loop.prep_symbol_for_tick``::
 
-        0) correlation_mgr.update_returns(symbol, price)
-        1) risk.check_risk(equity, exposure, current_vol)  →  hayır: çık
-        2) ai.update_buffer; base = analysis["signal"]
-           TREND_FOLLOW? → (final, conf, reason) aksi halde
-           ai.validate_signal(symbol, base, analysis)      →  final, conf, reason
-        3) final BUY/SELL ise sentiment_layer.validate_with_sentiment
-           → HOLD olabilir: erken dön (açık poz. varsa _handle_exit HOLD yolu)
-        4) final BUY ve açık poz. yok → corr_multiplier = adjust_risk_exposure
-        5) Açık poz. var? _handle_exit : _handle_entry
-        6) metrics (status, record_analysis)
+    OHLCV → analyzer → (OB / ob_safe_size / likidite) → opsiyonel ``record_analyzer_snapshot``
+    → ``await engine.tick(symbol, analysis, candles)``.
 
-    ob_safe_size: main_loop (order book) → pre_trade_gate.merge_entry_notional
-    ile sizer.calculate tek tavanda birleşir (min).
-    apply_liquidity_context: liquidity_ratio, entry_scale (full|scaled|minimal|blocked|unknown)
-    signal_quality (ham), adj_signal_quality (OMEGA rejim çarpanı sonrası), penalty_reasons,
-    quality_main_penalty, effective_quality_min (env + RiskManager OMEGA sıkılaşması).
-    omega_*: rejim, çarpan, notional faktörü, [OMEGA-AI] birleşik log.
-    external_ai_*: dış ML servis (HTTP) gecikme + skor; [EXTERNAL-AI] log.
+**``BotEngine._tick_impl`` sırası (v8 gerçek çağrı; ``bot_engine.py``)**::
 
-    entry_blocked: giriş yapılamadıysa kısa kod (log/metrik); low_quality = LOW_QUALITY_REJECT
+    1) ``analysis`` zenginleştirme (avg_volume, candle_ts) + ``attach_tick_frozen_mark``
+    2) ``DecisionContext.start`` + ``compute_trading_state``
+    3) unrealized PnL, peak equity / ``risk.update_peak``
+    4) funding / ``RiskOntology.update``
+    5) ``correlation_mgr.update_returns``
+    6) ``run_system_gate_phase`` (Faz 50) → ``kill`` / ``risk`` ise erken çıkış
+    7) ``process_signal`` → ``run_signal_fusion_phase`` → ``signal_pipeline.process_signal_phase``
+       (AI buffer, ML, ``validate_signal``, omega blend, explain → ``out`` / ``dctx``)
+    8) ``apply_filters`` → ``apply_filters_phase`` (sentiment veto; ``run_unified_alpha_phase``)
+    9) ``calculate_position`` (BUY için korelasyon × drawdown ölçeği)
+    10) diğer semboller için trailing stop kontrolü
+    11) ``attach_override_phases_to_analysis`` (köprü fazlar)
+    12) ``execute_trade`` → ``execution_pipeline.execute_trade_phase``
+        (açık pozisyon: ``_handle_exit``; yok: Faz 71→80 + 47 zinciri sonra ``_handle_entry``)
+    13) ``signal_lineage``, ``metrics``
+
+Grafik ve tablo: ``docs/HOT_TICK_PATH.md``.
+
+**Giriş emri sırasında** (``_handle_entry`` içi, özet): ``ob_safe_size`` / ``merge_entry_notional``,
+``apply_liquidity_context``, ``signal_quality`` / OMEGA cezaları, ``pre_trade_gate`` slotları.
+``omega_*``, ``external_ai_*``: çoğunlukla ``signal_pipeline`` / üst akış logları.
+
+``entry_blocked``: giriş yapılamadıysa kısa kod; ``low_quality`` = LOW_QUALITY_REJECT.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -100,6 +111,8 @@ class DecisionContext:
     ai_explain: str = ""
     # Faz zinciri (71+ gibi) — pipeline içi observability
     phase_chain: Dict[str, Any] = field(default_factory=dict)
+    # PROMPT-A7 — tick son kararı özeti (``signal_lineage.build_signal_lineage``)
+    signal_lineage: Optional[Dict[str, Any]] = None
     # İzlenebilir adımlar: (aşama, kısa not)
     trace: List[Tuple[str, str]] = field(default_factory=list)
 
@@ -144,6 +157,7 @@ class DecisionContext:
             "trading_state": self.trading_state,
             "ai_explain": self.ai_explain,
             "phase_chain": dict(self.phase_chain),
+            "signal_lineage": self.signal_lineage,
             "trace": [{"stage": s, "note": n} for s, n in self.trace],
         }
 

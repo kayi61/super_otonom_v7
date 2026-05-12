@@ -10,8 +10,12 @@ from super_otonom.ml_client import MLClient
 
 def test_format_payload_includes_key_fields() -> None:
     a = {
-        "signal": "BUY", "regime": "TRENDING", "hurst": 0.6,
-        "volatility": 0.02, "rsi": 55.0, "ob_safe_size": 100.0,
+        "signal": "BUY",
+        "regime": "TRENDING",
+        "hurst": 0.6,
+        "volatility": 0.02,
+        "rsi": 55.0,
+        "ob_safe_size": 100.0,
     }
     p = format_ml_inference_payload("BTC/USDT", a, tick_id=3)
     assert p["schema"] == "super_otonom.ml.inference.v1"

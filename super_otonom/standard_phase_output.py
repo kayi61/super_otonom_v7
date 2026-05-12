@@ -1,4 +1,5 @@
 """Ortak faz çıktı şeması — tüm faz modülleri aynı anahtarları üretir."""
+
 from __future__ import annotations
 
 import time
