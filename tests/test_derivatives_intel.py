@@ -2,7 +2,24 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from super_otonom.derivatives_intel import analyze_derivatives_intel, run_derivatives_phase
+
+
+def _strip_event_ts_keys(obj: Any) -> Any:
+    """Dict/list/tuple içinde tüm seviyelerde `event_ts` anahtarını çıkar (flake önleme)."""
+    if isinstance(obj, dict):
+        return {k: _strip_event_ts_keys(v) for k, v in obj.items() if k != "event_ts"}
+    if isinstance(obj, list):
+        return [_strip_event_ts_keys(x) for x in obj]
+    if isinstance(obj, tuple):
+        return tuple(_strip_event_ts_keys(x) for x in obj)
+    return obj
+
+
+def _assert_dicts_equal_ignore_event_ts(a: dict, b: dict) -> None:
+    assert _strip_event_ts_keys(a) == _strip_event_ts_keys(b)
 
 
 def test_derivatives_empty_dict_blocks_quality_health_zero() -> None:
@@ -100,7 +117,5 @@ def test_run_derivatives_phase_matches_analyze() -> None:
     r1 = run_derivatives_phase("Q/USDT", d, a1, attach_to_analysis=True)
     r2 = analyze_derivatives_intel("Q/USDT", d, a2, attach_to_analysis=True)
 
-    assert r1["trade_permission"] == r2["trade_permission"]
-    assert r1["alpha_score"] == r2["alpha_score"]
-    assert r1["risk_score"] == r2["risk_score"]
-    assert a1["phase18"] == a2["phase18"]
+    _assert_dicts_equal_ignore_event_ts(r1, r2)
+    _assert_dicts_equal_ignore_event_ts(a1["phase18"], a2["phase18"])

@@ -2,7 +2,24 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from super_otonom.smart_money_tracker import analyze_smart_money, run_smart_money_phase
+
+
+def _strip_event_ts_keys(obj: Any) -> Any:
+    """Dict/list/tuple içinde tüm seviyelerde `event_ts` anahtarını çıkar (flake önleme)."""
+    if isinstance(obj, dict):
+        return {k: _strip_event_ts_keys(v) for k, v in obj.items() if k != "event_ts"}
+    if isinstance(obj, list):
+        return [_strip_event_ts_keys(x) for x in obj]
+    if isinstance(obj, tuple):
+        return tuple(_strip_event_ts_keys(x) for x in obj)
+    return obj
+
+
+def _assert_dicts_equal_ignore_event_ts(a: dict, b: dict) -> None:
+    assert _strip_event_ts_keys(a) == _strip_event_ts_keys(b)
 
 
 def test_smart_money_empty_blocks_quality() -> None:
@@ -104,13 +121,5 @@ def test_run_smart_money_phase_matches_analyze() -> None:
     r1 = run_smart_money_phase("Q/USDT", d, a1, attach_to_analysis=True)
     r2 = analyze_smart_money("Q/USDT", d, a2, attach_to_analysis=True)
 
-    assert r1["trade_permission"] == r2["trade_permission"]
-    assert r1["alpha_score"] == r2["alpha_score"]
-    assert r1["risk_score"] == r2["risk_score"]
-    # event_ts iki ayrı time.time() çağrısında 1 ms kayabilir — tam dict eşitliği flake üretir
-    p1 = dict(a1["phase17"])
-    p2 = dict(a2["phase17"])
-    ts1 = p1.pop("event_ts")
-    ts2 = p2.pop("event_ts")
-    assert p1 == p2
-    assert abs(float(ts1) - float(ts2)) <= 2.0
+    _assert_dicts_equal_ignore_event_ts(r1, r2)
+    _assert_dicts_equal_ignore_event_ts(a1["phase17"], a2["phase17"])

@@ -2,7 +2,25 @@
 
 from __future__ import annotations
 
+import asyncio
+from typing import Any
+
 import pytest
+
+
+def _strip_event_ts_keys(obj: Any) -> Any:
+    """Dict/list/tuple içinde tüm seviyelerde `event_ts` anahtarını çıkar (flake önleme)."""
+    if isinstance(obj, dict):
+        return {k: _strip_event_ts_keys(v) for k, v in obj.items() if k != "event_ts"}
+    if isinstance(obj, list):
+        return [_strip_event_ts_keys(x) for x in obj]
+    if isinstance(obj, tuple):
+        return tuple(_strip_event_ts_keys(x) for x in obj)
+    return obj
+
+
+def _assert_dicts_equal_ignore_event_ts(a: dict, b: dict) -> None:
+    assert _strip_event_ts_keys(a) == _strip_event_ts_keys(b)
 
 
 def test_hard_safety_contract_namespace() -> None:
@@ -383,8 +401,8 @@ def test_standard_phase_output_phase_source_and_alias() -> None:
 
     analysis: dict = {}
     attach_phase_alias(analysis, "12", {"x": 1})
+    _assert_dicts_equal_ignore_event_ts(analysis["phase12"], analysis["faz12"])
     assert analysis["phase12"]["x"] == 1
-    assert analysis["faz12"]["x"] == 1
 
 
 def test_run_signal_fusion_phase_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -679,3 +697,229 @@ def test_deploy_env_stamp_verify_enforce(monkeypatch: pytest.MonkeyPatch, tmp_pa
     des.write_last_ok(tmp_path)
     monkeypatch.setenv("DEPLOY_ENV_LOCK_BYPASS", "")
     des.enforce_live_deploy_env_lock(tmp_path)
+
+
+# --- coverage ~97%: benchmark live-OB (mocked exchange), coordination drift assert ---
+
+
+def test_coordination_assert_invariants_raises_on_drift(monkeypatch: pytest.MonkeyPatch) -> None:
+    from super_otonom import coordination_resilience as cr
+
+    def _fake_checks(repo_root=None):
+        return False, ["synthetic drift for coverage"]
+
+    monkeypatch.setattr(cr, "run_all_checks", _fake_checks)
+    with pytest.raises(AssertionError, match="synthetic drift"):
+        cr.assert_coordination_invariants()
+
+
+def _silence_benchmark_output(monkeypatch: pytest.MonkeyPatch, bka: object) -> None:
+    import builtins
+
+    monkeypatch.setattr(bka, "_summarize", lambda *a, **k: None)
+    monkeypatch.setattr(bka, "_print_omega_micro", lambda: None)
+    monkeypatch.setattr(builtins, "print", lambda *a, **k: None)
+
+
+def test_benchmark_live_ob_mocked_exchange(monkeypatch: pytest.MonkeyPatch) -> None:
+    import super_otonom.benchmark_katman_a as bka
+
+    class _FakeH:
+        async def fetch_order_book(self, symbol: str, limit: int = 20) -> dict:
+            _ = symbol, limit
+            return {"bids": [[100.0, 1.0]], "asks": [[100.1, 1.0]]}
+
+        def circuit_breaker_status(self) -> dict:
+            return {}
+
+    class _FakeAsyncEx:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        async def __aenter__(self) -> _FakeH:
+            return _FakeH()
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+    monkeypatch.setattr(bka, "AsyncExchangeHandler", _FakeAsyncEx)
+    _silence_benchmark_output(monkeypatch, bka)
+    asyncio.run(
+        bka._run_live_ob_benchmark(
+            iterations=1,
+            warmup=1,
+            scenario="normal",
+            symbol="BTC/USDT",
+            exchange_id="binance",
+        )
+    )
+
+
+def test_benchmark_run_benchmark_live_ob_true(monkeypatch: pytest.MonkeyPatch) -> None:
+    import super_otonom.benchmark_katman_a as bka
+
+    class _FakeH:
+        async def fetch_order_book(self, symbol: str, limit: int = 20) -> dict:
+            _ = symbol, limit
+            return {"bids": [[100.0, 1.0]], "asks": [[100.1, 1.0]]}
+
+        def circuit_breaker_status(self) -> dict:
+            return {}
+
+    class _FakeAsyncEx:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        async def __aenter__(self) -> _FakeH:
+            return _FakeH()
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+    monkeypatch.setattr(bka, "AsyncExchangeHandler", _FakeAsyncEx)
+    _silence_benchmark_output(monkeypatch, bka)
+    asyncio.run(
+        bka._run_benchmark(
+            iterations=1,
+            warmup=1,
+            scenario="normal",
+            symbol="BTC/USDT",
+            live_ob=True,
+            exchange_id="binance",
+        )
+    )
+
+
+def test_benchmark_live_ob_empty_order_book_warn(monkeypatch: pytest.MonkeyPatch) -> None:
+    import super_otonom.benchmark_katman_a as bka
+
+    n = {"i": 0}
+
+    class _FakeH:
+        async def fetch_order_book(self, symbol: str, limit: int = 20) -> dict:
+            _ = symbol, limit
+            n["i"] += 1
+            if n["i"] <= 2:
+                return {"bids": [], "asks": []}
+            return {"bids": [[100.0, 1.0]], "asks": [[100.1, 1.0]]}
+
+        def circuit_breaker_status(self) -> dict:
+            return {}
+
+    class _FakeAsyncEx:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        async def __aenter__(self) -> _FakeH:
+            return _FakeH()
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+    monkeypatch.setattr(bka, "AsyncExchangeHandler", _FakeAsyncEx)
+    _silence_benchmark_output(monkeypatch, bka)
+    asyncio.run(
+        bka._run_live_ob_benchmark(
+            iterations=2,
+            warmup=1,
+            scenario="normal",
+            symbol="BTC/USDT",
+            exchange_id="binance",
+        )
+    )
+
+
+def test_benchmark_kucoin_passphrase_in_extra_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    import super_otonom.benchmark_katman_a as bka
+
+    seen: dict = {}
+
+    class _FakeH:
+        async def fetch_order_book(self, symbol: str, limit: int = 20) -> dict:
+            _ = symbol, limit
+            return {"bids": [[100.0, 1.0]], "asks": [[100.1, 1.0]]}
+
+        def circuit_breaker_status(self) -> dict:
+            return {}
+
+    class _FakeAsyncEx:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            seen["extra"] = kwargs.get("extra_config")
+
+        async def __aenter__(self) -> _FakeH:
+            return _FakeH()
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+    monkeypatch.setattr(bka, "AsyncExchangeHandler", _FakeAsyncEx)
+    _silence_benchmark_output(monkeypatch, bka)
+    orig = dict(bka.EXCHANGES)
+    try:
+        bka.EXCHANGES["kucoin"] = {
+            "api_key": "k",
+            "api_secret": "s",
+            "api_passphrase": "ph",
+            "testnet": True,
+        }
+        asyncio.run(
+            bka._run_live_ob_benchmark(
+                iterations=1,
+                warmup=1,
+                scenario="normal",
+                symbol="BTC/USDT",
+                exchange_id="kucoin",
+            )
+        )
+        assert seen.get("extra") == {"password": "ph"}
+    finally:
+        bka.EXCHANGES.clear()
+        bka.EXCHANGES.update(orig)
+
+
+def test_benchmark_okx_password_in_extra_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    import super_otonom.benchmark_katman_a as bka
+
+    seen: dict = {}
+
+    class _FakeH:
+        async def fetch_order_book(self, symbol: str, limit: int = 20) -> dict:
+            _ = symbol, limit
+            return {"bids": [[100.0, 1.0]], "asks": [[100.1, 1.0]]}
+
+        def circuit_breaker_status(self) -> dict:
+            return {}
+
+    class _FakeAsyncEx:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            seen["extra"] = kwargs.get("extra_config")
+
+        async def __aenter__(self) -> _FakeH:
+            return _FakeH()
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+    monkeypatch.setattr(bka, "AsyncExchangeHandler", _FakeAsyncEx)
+    _silence_benchmark_output(monkeypatch, bka)
+    orig = dict(bka.EXCHANGES)
+    try:
+        bka.EXCHANGES["okx"] = {
+            "api_key": "k",
+            "api_secret": "s",
+            "api_password": "pwsecret",
+            "testnet": True,
+        }
+        asyncio.run(
+            bka._run_live_ob_benchmark(
+                iterations=1,
+                warmup=1,
+                scenario="normal",
+                symbol="BTC/USDT",
+                exchange_id="okx",
+            )
+        )
+        assert seen.get("extra") == {"password": "pwsecret"}
+    finally:
+        bka.EXCHANGES.clear()
+        bka.EXCHANGES.update(orig)
