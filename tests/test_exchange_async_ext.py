@@ -240,6 +240,10 @@ def test_ccxt_import_error_disables_exchange() -> None:
         sys.modules.pop("super_otonom.exchange_async", None)
         if saved is not None:
             sys.modules["super_otonom.exchange_async"] = saved
+            # import_module yalnızca sys.modules'u düzeltir; paket altı önbellek hâlâ bozuk modülü tutabilir.
+            import super_otonom as _so
+
+            _so.exchange_async = saved
         importlib.import_module("super_otonom.exchange_async")
 
 

@@ -21,7 +21,7 @@ import asyncio
 import json
 from pathlib import Path
 from typing import Any, Dict, List
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -935,3 +935,125 @@ def test_meta_regime_ack_path_shadow_returns_none() -> None:
     from super_otonom.meta_regime_orchestrator import advisory_ack_path_for_gate
 
     assert advisory_ack_path_for_gate("shadow") is None
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# execution_pipeline — saf yardımcılar + açık pozisyon çıkış dalı (gerçek coroutine)
+# ════════════════════════════════════════════════════════════════════════════
+
+
+def test_execution_pipeline_phase_helpers_pure() -> None:
+    from super_otonom.pipelines.execution_pipeline import (
+        _phase_dict_from_analysis,
+        _phase_override_from_analysis,
+    )
+
+    assert _phase_dict_from_analysis({}, "phase66", "faz66") == {}
+    assert _phase_dict_from_analysis({"phase66": "nope"}, "phase66", "faz66") == {}
+    assert _phase_dict_from_analysis({"phase66": {"z": 1}}, "faz66", "phase66") == {"z": 1}
+
+    assert _phase_override_from_analysis({}, "phase50", "faz50") is None
+    assert _phase_override_from_analysis({"phase50": 42}, "phase50", "faz50") == 42
+    assert _phase_override_from_analysis(
+        {"override_phases": {"faz50": 99}}, "phase50", "faz50"
+    ) == 99
+    assert _phase_override_from_analysis(
+        {"phase_overrides": {"phase50": 101}}, "phase50", "faz50"
+    ) == 101
+
+
+def test_execution_pipeline_calls_handle_exit_when_position_open() -> None:
+    from super_otonom.decision_context import DecisionContext
+    from super_otonom.pipelines.execution_pipeline import execute_trade_phase
+
+    engine = MagicMock()
+    engine.open_positions = {"ETH/USDT": {"qty": 1.0}}
+    engine._handle_exit = AsyncMock()
+
+    analysis: Dict[str, Any] = {}
+    out: Dict[str, Any] = {"final_signal": "SELL"}
+    dctx = DecisionContext.start(symbol="ETH/USDT", tick_id=1, analysis=analysis)
+
+    async def _go() -> None:
+        await execute_trade_phase(
+            engine, "ETH/USDT", 50.0, analysis, out, 1.0, dctx, []
+        )
+
+    asyncio.run(_go())
+    engine._handle_exit.assert_awaited_once()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# bot_engine — phase_chain özeti (saf)
+# ════════════════════════════════════════════════════════════════════════════
+
+
+def test_bot_engine_compact_phase_chain_for_attribution() -> None:
+    from super_otonom.bot_engine import _compact_phase_chain_for_attribution
+
+    assert _compact_phase_chain_for_attribution(None) is None
+    assert _compact_phase_chain_for_attribution({}) is None
+    assert _compact_phase_chain_for_attribution({"faz71": "bad"}) is None
+    compact = _compact_phase_chain_for_attribution(
+        {
+            "faz71": {
+                "trade_permission": "ALLOW",
+                "alpha_score": 0.7,
+                "risk_score": 0.2,
+                "final_action": "WAIT",
+            }
+        }
+    )
+    assert compact is not None
+    assert compact["faz71"]["trade_permission"] == "ALLOW"
+    assert compact["faz71"]["alpha_score"] == 0.7
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# benchmark_katman_a — _percentile uçları
+# ════════════════════════════════════════════════════════════════════════════
+
+
+def test_benchmark_percentile_edges() -> None:
+    from super_otonom.benchmark_katman_a import _percentile
+
+    assert _percentile([], 50) == 0.0
+    assert _percentile([7.0], 50) == 7.0
+    xs = sorted([10.0, 20.0, 30.0, 40.0, 50.0])
+    assert _percentile(xs, 0) == 10.0
+    assert _percentile(xs, 100) == 50.0
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# redis_bridge — close() istemci hatalarını yutar
+# ════════════════════════════════════════════════════════════════════════════
+
+
+def test_redis_bridge_close_swallows_pubsub_client_errors() -> None:
+    import super_otonom.redis_bridge as rb
+
+    pytest.importorskip("redis")
+    bridge = rb.RedisBridge.__new__(rb.RedisBridge)
+    bridge._connected = True
+    bridge._pubsub = MagicMock()
+    bridge._pubsub.unsubscribe.side_effect = OSError("unsub")
+    bridge._pubsub.close.side_effect = OSError("psclose")
+    bridge._client = MagicMock()
+    bridge._client.close.side_effect = OSError("clclose")
+    bridge.close()
+    assert bridge._connected is False
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# exchange_async — DNS çözücü bayrağı (saf, ağ yok)
+# ════════════════════════════════════════════════════════════════════════════
+
+
+def test_exchange_async_use_aiohttp_resolver_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    from super_otonom import exchange_async as ea
+
+    monkeypatch.setattr("sys.platform", "linux")
+    monkeypatch.delenv("SUPER_OTONOM_AIOHTTP_DEFAULT_RESOLVER", raising=False)
+    assert ea._use_aiohttp_default_resolver() is False
+    monkeypatch.setenv("SUPER_OTONOM_AIOHTTP_DEFAULT_RESOLVER", "1")
+    assert ea._use_aiohttp_default_resolver() is True
