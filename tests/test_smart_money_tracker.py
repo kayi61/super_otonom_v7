@@ -107,4 +107,10 @@ def test_run_smart_money_phase_matches_analyze() -> None:
     assert r1["trade_permission"] == r2["trade_permission"]
     assert r1["alpha_score"] == r2["alpha_score"]
     assert r1["risk_score"] == r2["risk_score"]
-    assert a1["phase17"] == a2["phase17"]
+    # event_ts iki ayrı time.time() çağrısında 1 ms kayabilir — tam dict eşitliği flake üretir
+    p1 = dict(a1["phase17"])
+    p2 = dict(a2["phase17"])
+    ts1 = p1.pop("event_ts")
+    ts2 = p2.pop("event_ts")
+    assert p1 == p2
+    assert abs(float(ts1) - float(ts2)) <= 2.0

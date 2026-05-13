@@ -1,0 +1,42 @@
+{
+  "equity": 1000.0,
+  "free_capital": 1000.0,
+  "peak_equity": 1000.0,
+  "open_positions": {},
+  "trade_log": [],
+  "timestamp": 1778468673.6412435,
+  "mode": "PAPER",
+  "capital_engine": {
+    "initial_capital": 1000.0,
+    "cash": 1000.0,
+    "margin_used": 0.0,
+    "reserved_margin": 0.0,
+    "unrealized_pnl": 0.0,
+    "realized_pnl": 0.0,
+    "fees_paid": 0.0,
+    "net_deposits": 0.0,
+    "reserve_pct": 0.05,
+    "max_position_pct": 0.05,
+    "positions": {}
+  },
+  "risk_ontology": {
+    "initial_nav": 1000.0,
+    "nav": 1000.0,
+    "sod_nav": 1000.0,
+    "sow_nav": 1000.0,
+    "peak_nav": 1000.0,
+    "dynamic_daily_limit": 0.04,
+    "day_start": 1778468673.4593093,
+    "week_start": 1778468673.4593093,
+    "pnl_history": [],
+    "vol_history": [
+      0.02,
+      0.02
+    ]
+  },
+  "pnl_history": [],
+  "vol_history": [
+    0.02,
+    0.02
+  ]
+}

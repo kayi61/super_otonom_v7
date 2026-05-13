@@ -72,6 +72,7 @@ source = ["super_otonom"]
 branch = true
 omit = [
     "*/__init__.py",
+    "super_otonom/conftest.py",
     "super_otonom/test_*.py",
     "super_otonom/stress_test.py",
     "*/signal_quality_scorer.py",
