@@ -152,6 +152,11 @@ class StateManager:
             self._e.capital._cash = eq
             self._e.capital._margin_used = 0.0
             self._e.capital._unrealized_pnl = 0.0
+        self._e.capital.initial_capital = eq
+        self._e.initial_capital = eq
+        self._e.risk.initial_capital = eq
+        self._e.equity = self._e.capital.nav
+        self._e.free_capital = self._e.capital.available_cash
         onto = getattr(self._e, "onto", None)
         if onto is not None:
             try:

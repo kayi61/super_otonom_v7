@@ -1132,10 +1132,10 @@ def test_bot_engine_load_state_corrupt_json(tmp_path, monkeypatch) -> None:
 
 
 def test_bot_engine_atomic_write_json(tmp_path) -> None:
-    from super_otonom.bot_engine import _atomic_write_json
+    from super_otonom.engine_managers import atomic_write_json
 
     target = tmp_path / "subdir" / "data.json"
-    _atomic_write_json(str(target), {"key": "value", "num": 42})
+    atomic_write_json(str(target), {"key": "value", "num": 42})
 
     assert target.exists()
     import json as _json
