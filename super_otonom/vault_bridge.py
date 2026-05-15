@@ -358,7 +358,7 @@ class VaultBridge:
             for k, v in self._request_headers().items():
                 req.add_header(k, v)
             req.add_header("Content-Type", "application/json")
-            with urllib.request.urlopen(req, timeout=_VAULT_TIMEOUT) as resp:
+            with urllib.request.urlopen(req, timeout=_VAULT_TIMEOUT):
                 log.info("KV v2 secrets engine etkinleştirildi: %s", self._mount)
                 return True
         except urllib.error.HTTPError as exc:
