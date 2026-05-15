@@ -2,12 +2,14 @@ FROM python:3.14-slim
 
 WORKDIR /app
 
+# PyTorch: 2.2.x has no cp314 wheels on download.pytorch.org/whl/cpu (Python 3.14).
+# Keep CPU index; pin to lowest 3.14-supported line from that index (see pip error "from versions:").
 RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc && \
     rm -rf /var/lib/apt/lists/* && \
     pip install --upgrade pip --no-cache-dir && \
     pip install --no-cache-dir \
-        torch==2.2.0+cpu \
+        torch==2.9.0+cpu \
         --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir \
         ccxt>=4.0.0 \
