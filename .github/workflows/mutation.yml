@@ -20,8 +20,8 @@ jobs:
     name: "Mutation — risk_manager.py (eşik: %80)"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
@@ -47,8 +47,8 @@ jobs:
     name: "Mutation — capital_engine.py (eşik: %80)"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
@@ -74,8 +74,8 @@ jobs:
     name: "Mutation — risk_ontology.py (eşik: %80)"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle

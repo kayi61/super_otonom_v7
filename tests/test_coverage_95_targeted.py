@@ -30,10 +30,10 @@ import pytest
 
 
 def test_bot_engine_atomic_write_json(tmp_path: Path) -> None:
-    from super_otonom.bot_engine import _atomic_write_json
+    from super_otonom.engine_managers import atomic_write_json
 
     p = tmp_path / "subdir" / "state.json"
-    _atomic_write_json(str(p), {"a": 1, "b": "x"})
+    atomic_write_json(str(p), {"a": 1, "b": "x"})
     assert p.exists()
     data = json.loads(p.read_text(encoding="utf-8"))
     assert data == {"a": 1, "b": "x"}

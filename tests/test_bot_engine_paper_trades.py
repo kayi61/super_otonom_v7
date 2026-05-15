@@ -31,6 +31,8 @@ def test_paper_buy_then_take_profit(tmp_path, monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setenv("GLOBAL_TRADE_DISABLE", "0")
     monkeypatch.setitem(RISK, "min_notional", 1.0)
     monkeypatch.setitem(RISK, "signal_quality_min", 30)
+    monkeypatch.setitem(RISK, "max_exposure_pct", 1.0)
+    monkeypatch.setitem(RISK, "max_position_pct", 1.0)
 
     e = BotEngine(capital=50_000.0, paper=True, sentiment_mock_score=0.5)
     e.exec_sim.simulate_order = AsyncMock(
@@ -123,6 +125,9 @@ def test_tick_trend_follow_override(tmp_path, monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "t2.log"))
     monkeypatch.setenv("GLOBAL_TRADE_DISABLE", "0")
     monkeypatch.setitem(RISK, "min_notional", 1.0)
+    monkeypatch.setitem(RISK, "max_exposure_pct", 1.0)
+    monkeypatch.setitem(RISK, "max_position_pct", 1.0)
+    monkeypatch.setitem(RISK, "signal_quality_min", 30)
     e = BotEngine(100_000.0, paper=True, sentiment_mock_score=0.5)
     e._hard_limits.check_price_tick = MagicMock(return_value=None)
     e._hard_limits.can_submit_order = MagicMock(return_value=None)

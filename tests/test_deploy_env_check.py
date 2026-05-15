@@ -13,6 +13,10 @@ _ROOT = Path(__file__).resolve().parents[1]
 def _subenv(**extra: str) -> dict[str, str]:
     base = {k: v for k, v in os.environ.items() if k in ("SYSTEMROOT", "PATH", "WINDIR", "PATHEXT")}
     base["PYTHONPATH"] = str(_ROOT)
+    # CI / subprocess: Vault yokken canlı profil vault_only kilidini kapat
+    base.setdefault("SECRETS_VAULT_ONLY", "false")
+    base.setdefault("SECRETS_VAULT_ONLY_AUTO", "false")
+    base.setdefault("DEPLOY_ENV_SKIP_RISK_SUMMARY", "1")
     base.update(extra)
     return base
 

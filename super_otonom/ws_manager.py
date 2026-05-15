@@ -29,7 +29,6 @@ import json
 import logging
 import os
 import time
-from collections import defaultdict
 from typing import Any, Callable, Coroutine, Dict, List, Optional
 
 log = logging.getLogger("super_otonom.ws_manager")

@@ -49,6 +49,49 @@ def main() -> int:
             "main_loop başlamadan çıkar; .env bilinçli güncelleyin (RUNBOOK #tatbikat-env)."
         )
 
+    if live_like:
+        from super_otonom.vault_bridge import (
+            VaultBridge,
+            env_api_key_names,
+            secrets_vault_only_mode,
+        )
+
+        vault_only = secrets_vault_only_mode()
+        vb = VaultBridge()
+        vst = vb.status()
+        ci_run = os.getenv("GITHUB_ACTIONS", "").lower() == "true"
+        if vault_only and not vst.get("available") and not ci_run:
+            issues.append(
+                "[HATA] Canlı profil + SECRETS_VAULT_ONLY — Vault erişilemiyor. "
+                "VAULT_ADDR + AppRole (VAULT_ROLE_ID, VAULT_SECRET_ID) veya kısa ömürlü VAULT_TOKEN."
+            )
+        elif vault_only and not vst.get("available") and ci_run:
+            print(
+                "deploy_env_check: CI — Vault atlandi (GITHUB_ACTIONS); "
+                "gercek deploy oncesi Vault zorunlu."
+            )
+        leaked = [n for n in env_api_key_names() if (os.getenv(n) or "").strip()]
+        if vault_only and leaked:
+            issues.append(
+                "[HATA] API anahtarları .env/ortamda — üretimde yalnızca Vault KV: "
+                + ", ".join(leaked[:6])
+                + (" …" if len(leaked) > 6 else "")
+                + ". Taşıma: python -m super_otonom.vault_seed"
+            )
+        elif leaked and not vault_only:
+            print(
+                "deploy_env_check: UYARI — borsa anahtarları ortamda; "
+                "üretimde SECRETS_VAULT_ONLY=true ve Vault AppRole kullanın."
+            )
+
+        weak_pw = ("Elif.6134", "changeme", "password", "admin")
+        for var in ("POSTGRES_PASSWORD", "GRAFANA_PASSWORD", "TIMESCALE_PASSWORD"):
+            val = (os.getenv(var) or "").strip()
+            if val in weak_pw:
+                issues.append(
+                    f"[HATA] Zayıf {var} — üretimde openssl rand -base64 18 ile değiştirin."
+                )
+
     if mode == "advisory" and live_like and not loose:
         path = advisory_ack_path_for_gate("advisory")
         if path is not None:

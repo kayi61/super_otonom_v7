@@ -147,11 +147,12 @@ class WFAManager:
                 "test_score": test_score,
             }
         )
+        test_disp = f"{test_score:.4f}" if test_score is not None else "n/a"
         log.info(
-            "WFA fold %d kaydedildi | train_score=%.4f test_score=%.4f params=%s",
+            "WFA fold %d kaydedildi | train_score=%.4f test_score=%s params=%s",
             fold.fold_id,
             train_score,
-            test_score,
+            test_disp,
             params,
         )
 

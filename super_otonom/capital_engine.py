@@ -23,6 +23,7 @@ Invariant (her işlem sonrası doğrulanır):
 Journal:
     Her ledger değişikliği JournalEntry olarak kaydedilir.
     Son 1000 entry bellekte tutulur; tamamı audit log dosyasına yazılır.
+    İsteğe bağlı ``journal_sink`` ile aynı satır TimescaleDB vb. hedefe çoğaltılabilir (ölçek).
 """
 
 import json
@@ -30,7 +31,7 @@ import logging
 import os
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 log = logging.getLogger("super_otonom.capital")
 
@@ -118,9 +119,11 @@ class CapitalEngine:
         journal_file: str = _JOURNAL_FILE,
         max_position_pct: float = 0.95,  # available_cash'in max bu kadarı tek pozisyona
         reserve_pct: float = 0.05,  # nakit rezervi — bu kadarı hiç kullanılmaz
+        journal_sink: Optional[Callable[[Dict[str, Any]], None]] = None,
     ):
         self.initial_capital = float(initial_capital)
         self._journal_file = journal_file
+        self._journal_sink = journal_sink
         self._max_position_pct = float(max_position_pct)
         self._reserve_pct = float(reserve_pct)
 
@@ -684,6 +687,12 @@ class CapitalEngine:
                 f.write(json.dumps(asdict(entry), ensure_ascii=False) + "\n")
         except Exception as exc:
             log.error("CapitalEngine journal yazma hatası: %s", exc)
+
+        if self._journal_sink is not None:
+            try:
+                self._journal_sink(asdict(entry))
+            except Exception as exc:
+                log.error("CapitalEngine journal_sink hatası: %s", exc)
 
     def get_journal(self, last_n: int = 50) -> List[Dict[str, Any]]:
         """Son N journal entry'yi dict olarak döndür."""
