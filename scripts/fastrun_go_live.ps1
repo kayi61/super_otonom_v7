@@ -21,13 +21,15 @@ function Invoke-Step([string]$Label, [scriptblock]$Block) {
 
 Write-Host "fastrun_go_live: proje=$root"
 
-Invoke-Step "release_gate (PROMPT-A12)" {
-    python -m super_otonom.release_gate
+Invoke-Step "release_gate (PROMPT-A12, ~30-60 sn)" {
+    Write-Host "  pytest -m release_gate calisiyor..."
+    python -m pytest -m release_gate --tb=short -q
 }
 
 if (-not $SkipFastrun) {
-    Invoke-Step "pytest fastrun (5000 gate)" {
-        python -m pytest -m fastrun -q --tb=short
+    Invoke-Step "pytest fastrun (5000 gate, ~1-2 dk)" {
+        Write-Host "  pytest -m fastrun calisiyor..."
+        python -m pytest -m fastrun --tb=short -q
     }
 }
 
@@ -44,8 +46,11 @@ if (-not $SkipDeployCheck) {
 if (-not $SkipRiskSummary) {
     $riskScript = Join-Path $root "scripts\print_resolved_risk.py"
     if (Test-Path $riskScript) {
-        Invoke-Step "print_resolved_risk --summary" {
-            python $riskScript --summary
+        Write-Host ""
+        Write-Host "=== print_resolved_risk --summary ==="
+        python $riskScript --summary
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "UYARI: print_resolved_risk cikis $LASTEXITCODE (deploy_env_check zaten uyari verir)."
         }
     } else {
         Write-Host "UYARI: print_resolved_risk.py yok - atlandi."
