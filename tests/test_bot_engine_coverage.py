@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
 import random
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from super_otonom import bot_engine as be
 from super_otonom.bot_engine import (
     BotEngine,
     ExecutionSimulator,
@@ -17,6 +17,11 @@ from super_otonom.bot_engine import (
     TradeLogger,
     _min_entry_confidence,
 )
+
+
+def _be_mod():
+    """test_bot_engine_96 modülü drop/reload yapabiliyor; StateManager her zaman güncel ``bot_engine`` kullanır."""
+    return importlib.import_module("super_otonom.bot_engine")
 
 
 def test_min_entry_confidence_clamp(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -36,7 +41,7 @@ def test_execution_simulator_buy_paper(monkeypatch: pytest.MonkeyPatch) -> None:
         latency_range=(0.0, 0.0),
         fill_ratio_range=(1.0, 1.0),
     )
-    monkeypatch.setattr(be.asyncio, "sleep", AsyncMock())
+    monkeypatch.setattr(_be_mod().asyncio, "sleep", AsyncMock())
 
     async def _run() -> None:
         r = await sim.simulate_order("buy", 100.0, 50.0, paper=True)
@@ -103,8 +108,8 @@ def test_bot_engine_open_exposure_and_avg_volume() -> None:
 
 def test_bot_engine_status_and_calc_wr(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     st = tmp_path / "state.json"
-    monkeypatch.setattr(be, "_STATE_FILE", str(st))
-    monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "tr" / "trades.log"))
+    monkeypatch.setattr(_be_mod(), "_STATE_FILE", str(st))
+    monkeypatch.setattr(_be_mod(), "_TRADE_LOG_FILE", str(tmp_path / "tr" / "trades.log"))
     e = BotEngine(capital=1000.0, paper=True)
     e.trade_log.append({"pnl": 10.0})
     e.trade_log.append({"pnl": -2.0})
@@ -120,8 +125,8 @@ def test_bot_engine_status_and_calc_wr(tmp_path: Path, monkeypatch: pytest.Monke
 
 
 def test_tick_empty_candles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "s.json"))
-    monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
+    monkeypatch.setattr(_be_mod(), "_STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(_be_mod(), "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
     e = BotEngine(capital=1000.0, paper=True)
 
     async def _run() -> None:
@@ -133,8 +138,8 @@ def test_tick_empty_candles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_tick_hold_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "s.json"))
-    monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
+    monkeypatch.setattr(_be_mod(), "_STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(_be_mod(), "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
     monkeypatch.setenv("GLOBAL_TRADE_DISABLE", "0")
     e = BotEngine(capital=10000.0, paper=True)
     candles = [{"close": 100.0, "volume": 1e6}]
@@ -158,8 +163,8 @@ def test_tick_hold_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
 def test_global_trade_disable_short_circuit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "s.json"))
-    monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
+    monkeypatch.setattr(_be_mod(), "_STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(_be_mod(), "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
     monkeypatch.setenv("GLOBAL_TRADE_DISABLE", "1")
     e = BotEngine(capital=1000.0, paper=True)
     candles = [{"close": 1.0, "volume": 1.0}]
@@ -173,8 +178,8 @@ def test_global_trade_disable_short_circuit(
 
 
 def test_close_on_strategy_change(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "s.json"))
-    monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
+    monkeypatch.setattr(_be_mod(), "_STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(_be_mod(), "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
     e = BotEngine(capital=1000.0, paper=True)
 
     async def _run() -> None:
@@ -190,8 +195,8 @@ def test_close_on_strategy_change(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
 
 def test_set_exchange_and_shutdown(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "s.json"))
-    monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
+    monkeypatch.setattr(_be_mod(), "_STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(_be_mod(), "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
     e = BotEngine(capital=100.0, paper=True)
     e.set_exchange_handler(MagicMock())
     assert e.status()["order_tracker_active"] is True
@@ -199,8 +204,8 @@ def test_set_exchange_and_shutdown(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
 
 def test_tick_async_order_tracker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "s.json"))
-    monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
+    monkeypatch.setattr(_be_mod(), "_STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(_be_mod(), "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
     ex = MagicMock()
     ex.get_order_status = AsyncMock(return_value="filled")
     e = BotEngine(capital=2000.0, paper=True, exchange_handler=ex)
@@ -222,8 +227,8 @@ def test_tick_async_order_tracker(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
 
 def test_check_orders(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "s.json"))
-    monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
+    monkeypatch.setattr(_be_mod(), "_STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(_be_mod(), "_TRADE_LOG_FILE", str(tmp_path / "trades.log"))
 
     async def _run() -> None:
         e = BotEngine(100.0, paper=True)
@@ -247,8 +252,8 @@ def test_load_state_mode_mismatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(be, "_STATE_FILE", str(p))
-    monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "t.log"))
+    monkeypatch.setattr(_be_mod(), "_STATE_FILE", str(p))
+    monkeypatch.setattr(_be_mod(), "_TRADE_LOG_FILE", str(tmp_path / "t.log"))
     e = BotEngine(100.0, paper=True)
     assert e.mode == "PAPER"
 
@@ -268,7 +273,7 @@ def test_load_state_happy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(be, "_STATE_FILE", str(p))
-    monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "t.log"))
+    monkeypatch.setattr(_be_mod(), "_STATE_FILE", str(p))
+    monkeypatch.setattr(_be_mod(), "_TRADE_LOG_FILE", str(tmp_path / "t.log"))
     e2 = BotEngine(100.0, paper=True)
     assert e2.equity == 500.0

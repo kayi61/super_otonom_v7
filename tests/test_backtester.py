@@ -40,7 +40,11 @@ def _synthetic_candles(n: int, start: float = 100.0) -> list[dict]:
     return out
 
 
-def test_build_backtest_report_short_curve() -> None:
+def test_build_backtest_report_short_curve(tmp_path, monkeypatch) -> None:
+    # pytest -n auto: paylasilan data/ yok — bos engine + bos trade_log
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(bemod, "_STATE_FILE", str(tmp_path / "st_curve.json"))
+    monkeypatch.setattr(bemod, "_TRADE_LOG_FILE", str(tmp_path / "tr_curve.log"))
     e = BotEngine(1000.0, paper=True)
     r = build_backtest_report(e, [1000.0, 1005.0], 1000.0, bars_simulated=2)
     assert isinstance(r, BacktestReport)
@@ -48,7 +52,10 @@ def test_build_backtest_report_short_curve() -> None:
     assert r.n_trades == 0
 
 
-def test_build_backtest_report_sharpe_and_dd() -> None:
+def test_build_backtest_report_sharpe_and_dd(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(bemod, "_STATE_FILE", str(tmp_path / "st_sharpe.json"))
+    monkeypatch.setattr(bemod, "_TRADE_LOG_FILE", str(tmp_path / "tr_sharpe.log"))
     e = BotEngine(10_000.0, paper=True)
     eq = list(10_000.0 + np.cumsum(np.random.default_rng(42).normal(0, 50, 80)))
     r = build_backtest_report(e, eq, 10_000.0, bars_simulated=len(eq), periods_per_year=252.0)

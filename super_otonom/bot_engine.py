@@ -21,7 +21,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from super_otonom.ai_layer import AILayer
 from super_otonom.capital_engine import CapitalEngine
-from super_otonom.order_engine import OrderEngine
 from super_otonom.config import METRICS, RISK
 from super_otonom.correlation_manager import CorrelationManager
 from super_otonom.decision_context import DecisionContext, DecisionStage
@@ -29,6 +28,7 @@ from super_otonom.engine_managers import PositionManager, StateManager, TradeExe
 from super_otonom.kill_switch import HardLimitTracker, get_rate_limit_storm_tracker
 from super_otonom.metrics_exporter import MetricsExporter
 from super_otonom.omega_regime import compute_omega_regime  # noqa: F401 — test patch hedefi
+from super_otonom.order_engine import OrderEngine
 from super_otonom.pipelines import execution_pipeline, signal_pipeline
 from super_otonom.pipelines.override_phase_bridge import attach_override_phases_to_analysis
 from super_otonom.pre_trade_gate import (

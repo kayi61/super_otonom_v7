@@ -27,7 +27,7 @@ dependencies = [
 dev = [
     "pre-commit>=3.5.0",
     "hypothesis>=6.100",
-    "mutmut>=2.4.0,<3",
+    "mutmut>=2.4.0,<4",
     "pip-audit>=2.7.0",
     "pytest>=8.0",
     "pytest-asyncio>=1.0",
@@ -67,13 +67,17 @@ src = ["super_otonom", "tests"]
 [tool.ruff.lint]
 # E402: modül docstring + from __future__ sonrası import sırası (mevcut stil)
 # E501: satır uzunluğu — aşamalı temizliğe bırakıldı
-ignore = ["E402", "E501"]
+ignore = ["E402", "E501", "W293"]
 select = ["E", "F", "I", "W"]
 
 [tool.ruff.lint.per-file-ignores]
 # Dev coverage sweep: tek satırda çok ifade + özgün stil; yeniden formatlamak riskli.
 "super_otonom/test_10000.py" = ["E701", "E702", "E722", "E741"]
 "super_otonom/test_5000.py" = ["E701", "E702", "E722", "E741"]
+"tests/test_sweep_45k_to_50k.py" = ["E701", "E702", "E722", "E741", "I001", "F401"]
+"tests/test_sweep_ext_4500.py" = ["E701", "E702", "E722", "E741", "I001", "F401"]
+"tests/test_sweep_matrix_500.py" = ["E701", "E702", "E722", "E741", "I001", "F401"]
+"tests/test_5000_phase*.py" = ["E701", "E702", "E722"]
 
 [tool.coverage.run]
 source = ["super_otonom"]

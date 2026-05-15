@@ -31,7 +31,6 @@ Docker-compose / .env:
 
 import logging
 import os
-import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, Generator, List, Optional, Tuple
@@ -40,8 +39,8 @@ log = logging.getLogger("super_otonom.timescale_bridge")
 
 try:
     import psycopg2
-    import psycopg2.pool
     import psycopg2.extras
+    import psycopg2.pool
 
     _PG_AVAILABLE = True
 except ImportError:

@@ -21,7 +21,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from super_otonom import __version__ as _PKG_VERSION
 from super_otonom.analyzer import MarketAnalyzer
-from super_otonom.structured_logging import configure_logging
 from super_otonom.bot_engine import BotEngine
 from super_otonom.config import ALT_TF, ASYNC_EXCHANGE, GENERAL, MTF, PAIRS, RISK
 from super_otonom.deploy_env_stamp import enforce_live_deploy_env_lock
@@ -36,6 +35,7 @@ from super_otonom.market_snapshot import attach_market_snapshot
 from super_otonom.omega_regime import compute_omega_regime
 from super_otonom.reconciliation_engine import ReconciliationEngine
 from super_otonom.signal_fusion_engine import record_analyzer_snapshot
+from super_otonom.structured_logging import configure_logging
 
 try:
     from super_otonom.ws_manager import WebSocketManager
