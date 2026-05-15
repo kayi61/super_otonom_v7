@@ -77,6 +77,7 @@ select = ["E", "F", "I", "W"]
 "tests/test_sweep_45k_to_50k.py" = ["E701", "E702", "E722", "E741", "I001", "F401"]
 "tests/test_sweep_ext_4500.py" = ["E701", "E702", "E722", "E741", "I001", "F401"]
 "tests/test_sweep_matrix_500.py" = ["E701", "E702", "E722", "E741", "I001", "F401"]
+"tests/test_5000_phase*.py" = ["E701", "E702", "E722"]
 
 [tool.coverage.run]
 source = ["super_otonom"]
