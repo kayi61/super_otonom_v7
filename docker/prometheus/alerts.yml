@@ -1,0 +1,54 @@
+groups:
+  - name: super_otonom_bot
+    interval: 30s
+    rules:
+      - alert: BotDrawdownHigh
+        expr: bot_peak_drawdown_pct > 15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Bot peak drawdown > 15%"
+          description: "peak_drawdown_pct={{ $value | printf \"%.2f\" }}%"
+
+      - alert: BotEmergencyStop
+        expr: bot_emergency_stop == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Bot emergency stop aktif"
+
+      - alert: BotOrderErrors
+        expr: increase(bot_order_errors_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Emir hatalari artiyor"
+          description: "{{ $value | printf \"%.0f\" }} yeni hata (5dk)"
+
+      - alert: BotWsReconnectStorm
+        expr: increase(bot_ws_reconnects_total[10m]) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WebSocket sik yeniden baglaniyor"
+          description: "{{ $value | printf \"%.0f\" }} reconnect (10dk)"
+
+      - alert: BotVaultDown
+        expr: bot_dependency_up{name="vault"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Vault erisilemiyor"
+
+      - alert: BotTimescaleDown
+        expr: bot_dependency_up{name="timescale"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TimescaleDB baglantisi yok"

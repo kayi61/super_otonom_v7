@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from super_otonom import __version__ as _PKG_VERSION
 from super_otonom.analyzer import MarketAnalyzer
+from super_otonom.structured_logging import configure_logging
 from super_otonom.bot_engine import BotEngine
 from super_otonom.config import ALT_TF, ASYNC_EXCHANGE, GENERAL, MTF, PAIRS, RISK
 from super_otonom.deploy_env_stamp import enforce_live_deploy_env_lock
@@ -33,15 +34,18 @@ from super_otonom.health_summary import (
 from super_otonom.kill_switch import apply_storm_trip_to_risk
 from super_otonom.market_snapshot import attach_market_snapshot
 from super_otonom.omega_regime import compute_omega_regime
-from super_otonom.order_engine import OrderEngine
 from super_otonom.reconciliation_engine import ReconciliationEngine
 from super_otonom.signal_fusion_engine import record_analyzer_snapshot
 
+try:
+    from super_otonom.ws_manager import WebSocketManager
+
+    _WS_AVAILABLE = True
+except ImportError:
+    _WS_AVAILABLE = False
+
+configure_logging(level=getattr(logging, GENERAL["log_level"], logging.INFO))
 log = logging.getLogger("super_otonom.main")
-logging.basicConfig(
-    level=getattr(logging, GENERAL["log_level"], logging.INFO),
-    format="%(asctime)s %(levelname)-8s %(name)s | %(message)s",
-)
 
 # Sprint 4 M3 — Exchange heartbeat
 _LAST_SUCCESSFUL_FETCH: float = 0.0
@@ -53,6 +57,9 @@ _RATE_LIMIT_HITS: int = 0
 _ADAPTIVE_POLL_SEC: float = float(_POLL_INTERVAL)
 # 0 = sınırsız; >0 ise bu kadar başarılı tur sonrası temiz çıkış (testnet/kısa smoke).
 _MAX_LOOP_ITERATIONS = int(os.getenv("MAIN_LOOP_MAX_ITERATIONS", "0") or "0")
+
+# WebSocket modu: WS_ENABLED=true (varsayılan) → borsa WS + mum kapanınca tick; REST yalnızca seed/MTF/ALT
+_WS_ENABLED = os.getenv("WS_ENABLED", "true").lower() in ("1", "true", "yes", "on")
 
 if not GENERAL.get("paper_mode", True) and GENERAL.get("live_confirm") != "YES":
     log.critical(
@@ -68,6 +75,68 @@ enforce_live_deploy_env_lock()
 _shutdown = asyncio.Event()
 _loop_counter = 0
 _CB_OPEN_MSG = "CB_OPEN: %s atlandi"
+
+# WebSocket: MTF/ALT REST önbelleği (mum kapanışı başına değil, periyodik yenileme)
+_ws_mtf_raw: Dict[str, Any] = {}
+_ws_alt_raw: Dict[str, Any] = {}
+_ws_aux_cache_ts: float = 0.0
+_ws_mtf_lock: Optional[asyncio.Lock] = None
+
+
+def _touch_ws_stream_activity() -> None:
+    """Kline WS mesajı geldi — heartbeat için son başarılı veri zamanını güncelle."""
+    global _LAST_SUCCESSFUL_FETCH
+    _LAST_SUCCESSFUL_FETCH = time.time()
+
+
+def _candles_to_raw_ohlcv(candles: List[Dict[str, float]]) -> List[List[float]]:
+    """Candle dict listesini ccxt OHLCV satır listesine çevirir (prep_symbol_for_tick uyumu)."""
+    raw: List[List[float]] = []
+    for c in candles:
+        raw.append(
+            [
+                float(c.get("timestamp", 0)),
+                float(c.get("open", 0)),
+                float(c.get("high", 0)),
+                float(c.get("low", 0)),
+                float(c.get("close", 0)),
+                float(c.get("volume", 0)),
+            ]
+        )
+    return raw
+
+
+async def _ws_refresh_auxiliary(handler: Any) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """MTF ve isteğe bağlı ALT_TF mumlarını REST ile yeniler (throttle)."""
+    global _ws_mtf_raw, _ws_alt_raw, _ws_aux_cache_ts, _ws_mtf_lock
+    if _ws_mtf_lock is None:
+        _ws_mtf_lock = asyncio.Lock()
+    refresh_sec = float(os.getenv("WS_MTF_REFRESH_SEC", "300") or 300)
+    now = time.time()
+    async with _ws_mtf_lock:
+        now = time.time()
+        mtf_ok = (not MTF["enabled"]) or bool(_ws_mtf_raw)
+        alt_ok = (not ALT_TF.get("enabled")) or bool(_ws_alt_raw)
+        if (now - _ws_aux_cache_ts) < refresh_sec and mtf_ok and alt_ok:
+            return _ws_mtf_raw, _ws_alt_raw
+
+        mtf_r: Dict[str, Any] = {}
+        alt_r: Dict[str, Any] = {}
+        if MTF["enabled"]:
+            mtf_r = await handler.fetch_all_ohlcv(
+                symbols=PAIRS,
+                timeframe=MTF["timeframe"],
+                limit=MTF["candle_limit"],
+            )
+        if ALT_TF.get("enabled"):
+            alt_r = await handler.fetch_all_ohlcv(
+                symbols=PAIRS,
+                timeframe=ALT_TF["timeframe"],
+                limit=ALT_TF["candle_limit"],
+            )
+        _ws_mtf_raw, _ws_alt_raw = mtf_r, alt_r
+        _ws_aux_cache_ts = time.time()
+        return _ws_mtf_raw, _ws_alt_raw
 
 
 def _handle_signal(*_: Any) -> None:
@@ -393,6 +462,13 @@ async def _run_loop_iteration(handler: Any, analyzer: Any, engine: Any) -> None:
             limit=ALT_TF["candle_limit"],
         )
 
+    try:
+        from super_otonom.ops_metrics import refresh_dependencies
+
+        refresh_dependencies()
+    except Exception:
+        pass
+
     cb_status = handler.circuit_breaker_status()
     engine.metrics.update_circuit_breakers(cb_status)
     if any(s.startswith("OPEN") for s in cb_status.values()):
@@ -481,10 +557,10 @@ async def main() -> None:
         ) as handler:
             engine.set_exchange_handler(handler)
 
-            order_engine = OrderEngine()
+            # Tek OrderEngine: BotEngine ile aynı örnek (PENDING recover ↔ gerçek emir state)
             recon = ReconciliationEngine(
                 engine.capital,
-                order_engine,
+                engine.order_engine,
                 market=str(GENERAL.get("recon_market", "spot")),
             )
             startup_recon = await recon.startup_handshake(handler)
@@ -516,11 +592,20 @@ async def main() -> None:
                             level="CRITICAL",
                         )
 
+            if engine.mode == "LIVE":
+                log.warning(
+                    "CANLI EMIR MODU | Spot limit emirleri borsaya gonderilecek (buy/sell). "
+                    "exchange=%s testnet=%s | DRY_RUN=false ve LIVE_CONFIRM=YES ile acildi.",
+                    GENERAL["default_exchange"],
+                    ex_cfg.get("testnet", True),
+                )
+
             log.info(
-                "Bot baslatildi | mod=%s | exchange=%s | pairs=%s | poll=%ds | versiyon=%s | mtf=%s",
+                "Bot baslatildi | mod=%s | exchange=%s | pairs=%s | veri=%s | poll_rest=%ds | versiyon=%s | mtf=%s",
                 engine.mode,
                 GENERAL["default_exchange"],
                 PAIRS,
+                "ws_stream" if (_WS_ENABLED and _WS_AVAILABLE) else "rest_poll",
                 _POLL_INTERVAL,
                 GENERAL.get("version", _PKG_VERSION),
                 MTF["timeframe"] if MTF["enabled"] else "kapali",
@@ -534,9 +619,106 @@ async def main() -> None:
                 RISK.get("stop_loss_pct"),
             )
 
+            # ── WebSocket Event-Driven Mode ────────────────────────────
+            _ws_manager: Any = None
+            _ws_task: Any = None
+
+            if _WS_ENABLED and _WS_AVAILABLE:
+                _wm_candidate = WebSocketManager(
+                    symbols=PAIRS,
+                    exchange=GENERAL["default_exchange"],
+                    timeframe=ASYNC_EXCHANGE["timeframe"],
+                )
+                try:
+                    # REST ile tarihi mumları seed et (borsa hatası → WS yerine REST)
+                    seed_count = await _wm_candidate.seed_from_exchange(handler)
+                except Exception as exc:
+                    log.warning(
+                        "WebSocket seed basarisiz (%s) — REST polling kullanilacak",
+                        exc,
+                    )
+                    _ws_manager = None
+                else:
+                    _ws_manager = _wm_candidate
+                    log.info("WebSocket seed tamamlandı: %d mum", seed_count)
+
+                    _ws_manager.on_activity = _touch_ws_stream_activity
+
+                    # Mum kapandığında: REST ile aynı pipeline (prep_symbol_for_tick → tick)
+                    async def _on_candle_close(symbol: str, candles: list) -> None:
+                        global _loop_counter
+                        _loop_counter += 1
+                        _touch_ws_stream_activity()
+                        try:
+                            if not _ws_manager:
+                                return
+                            raw_data_1h: Dict[str, Any] = {}
+                            for p in PAIRS:
+                                buf_c = _ws_manager.get_candles(p)
+                                if not buf_c:
+                                    log.debug("WS tick atlandi | %s icin buffer bos", p)
+                                    continue
+                                raw_data_1h[p] = _candles_to_raw_ohlcv(buf_c)
+                            if symbol not in raw_data_1h:
+                                return
+
+                            raw_mtf, raw_alt = await _ws_refresh_auxiliary(handler)
+
+                            row = await prep_symbol_for_tick(
+                                symbol,
+                                handler,
+                                analyzer,
+                                engine,
+                                raw_data_1h,
+                                raw_mtf,
+                                raw_alt if ALT_TF.get("enabled") else None,
+                            )
+                            if row is None:
+                                return
+                            sym, analysis, candles_1h = row
+                            if _circuit_breaker_open(handler, sym):
+                                log.warning(_CB_OPEN_MSG, sym)
+                                return
+                            result = await engine.tick(sym, analysis, candles_1h)
+                            _process_tick_result(sym, result, candles_1h, engine)
+                            log.info(
+                                "WS_STREAM_TICK | %s | close=%.2f | sinyal=%s",
+                                sym,
+                                candles_1h[-1].get("close", 0) if candles_1h else 0,
+                                result.get("final_signal", result.get("signal", "?"))
+                                if isinstance(result, dict)
+                                else "?",
+                            )
+                        except Exception as exc:
+                            log.error("WS stream tick hatasi (%s): %s", symbol, exc)
+
+                    _ws_manager.on_candle_close = _on_candle_close
+                    _ws_task = asyncio.create_task(_ws_manager.start())
+                    log.info(
+                        "WebSocket modu AKTIF | exchange=%s | timeframe=%s | "
+                        "Mum kapanisi + canli kline ile tetiklenir; MTF/ALT REST yenileme araligi=%ds",
+                        GENERAL["default_exchange"],
+                        ASYNC_EXCHANGE["timeframe"],
+                        int(float(os.getenv("WS_MTF_REFRESH_SEC", "300") or 300)),
+                    )
+            elif _WS_ENABLED and not _WS_AVAILABLE:
+                log.warning("WS_ENABLED=true ama ws_manager import edilemedi — REST polling")
+
             try:
                 while not _shutdown.is_set():
                     try:
+                        if _ws_manager and _ws_manager.is_connected():
+                            await engine.check_orders()
+                            try:
+                                await asyncio.wait_for(
+                                    _shutdown.wait(), timeout=60
+                                )
+                            except asyncio.TimeoutError:
+                                pass
+                            _check_heartbeat(engine)
+                            continue
+
+                        # REST polling (varsayılan veya WS bağlantısı koptuğunda fallback)
                         await _run_loop_iteration(handler, analyzer, engine)
                         engine._consecutive_errors = 0
                         if _MAX_LOOP_ITERATIONS > 0 and _loop_counter >= _MAX_LOOP_ITERATIONS:
@@ -578,6 +760,14 @@ async def main() -> None:
                 _shutdown.set()
     finally:
         log.info("Bot kapatiliyor...")
+        # WebSocket temizliği
+        if _ws_manager is not None:
+            try:
+                await _ws_manager.stop()
+            except Exception as exc:
+                log.warning("ws_manager.stop hata: %s", exc)
+        if _ws_task is not None and not _ws_task.done():
+            _ws_task.cancel()
         try:
             engine.shutdown()
         except Exception as exc:

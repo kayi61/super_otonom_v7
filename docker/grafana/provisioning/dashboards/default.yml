@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: super_otonom
+    orgId: 1
+    folder: Super Otonom
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

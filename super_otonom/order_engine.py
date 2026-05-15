@@ -292,6 +292,12 @@ class OrderEngine:
             rec.max_retries,
             order_id,
         )
+        try:
+            from super_otonom.ops_metrics import inc_order_error
+
+            inc_order_error("order")
+        except Exception:
+            pass
         return True
 
     def cancel(self, order_id: str, reason: str = "") -> bool:

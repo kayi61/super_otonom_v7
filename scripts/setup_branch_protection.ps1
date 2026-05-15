@@ -8,7 +8,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$checks = @("kanon-drift", "ci-quick", "pytest-full", "coverage")
+$checks = @("kanon-drift", "ci-quick", "pytest-full", "coverage", "dependency-security")
 
 function Set-Protection-Gh {
     param([string]$OwnerRepo, [string]$BranchName, [string[]]$Contexts)
@@ -44,15 +44,23 @@ Write-Host "Hedef: $Repo @ $Branch"
 Write-Host "Zorunlu check'ler: $($checks -join ', ')"
 
 if (Get-Command gh -ErrorAction SilentlyContinue) {
-    $json = @{
-        required_status_checks        = @{ strict = $true; contexts = $checks }
-        enforce_admins                = $false
-        required_pull_request_reviews = @{ required_approving_review_count = 0 }
-        restrictions                  = $null
-    } | ConvertTo-Json -Depth 5 -Compress
-    $json | gh api -X PUT "repos/$Repo/branches/$Branch/protection" --input -
-    Write-Host "OK: branch protection (gh)"
-    exit 0
+    gh auth status 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "gh kurulu ama giris yok: gh auth login"
+    } else {
+        $json = @{
+            required_status_checks        = @{ strict = $true; contexts = $checks }
+            enforce_admins                = $false
+            required_pull_request_reviews = @{ required_approving_review_count = 0 }
+            restrictions                  = $null
+        } | ConvertTo-Json -Depth 5 -Compress
+        $json | gh api -X PUT "repos/$Repo/branches/$Branch/protection" --input -
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "OK: branch protection (gh)"
+            exit 0
+        }
+        Write-Host "gh API hatasi (exit $LASTEXITCODE)"
+    }
 }
 
 $token = $env:GITHUB_TOKEN
@@ -71,4 +79,8 @@ Write-Host "  Status checks (hepsini secin):"
 foreach ($c in $checks) { Write-Host "    - $c" }
 Write-Host ""
 Write-Host "Not: CI workflow push edildikten sonra check isimleri listede gorunur."
+$checks -join "`n" | Set-Clipboard
+$url = "https://github.com/$Repo/settings/branches"
+Write-Host "Tarayici aciliyor: $url"
+Start-Process $url
 exit 1

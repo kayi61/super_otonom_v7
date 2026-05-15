@@ -1,13 +1,20 @@
-version: "3.9"
-
 # ═══════════════════════════════════════════════════════
 #  SUPER OTONOM v7 — Docker Compose Stack
 # ═══════════════════════════════════════════════════════
+# go_bridge: varsayılan "docker compose up" ile başlamaz (çift Binance WS önlenir).
+# Tekrar açmak: docker compose --profile go-ws-bridge up -d go_bridge
+#
+# Parola / DB: compose içinde sabit şifre yok — proje kökündeki .env (bkz. .env.template).
+#
+# Ag guvenligi: Postgres/Vault/Grafana dis porta acilmaz (yalnizca bot_network).
+# Yerel UI: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# TLS:      scripts/gen_internal_tls.ps1 + docker-compose.tls.yml
 
 services:
 
   # ───────────────────────────────────────
   # ANA BOT
+  # Canlı emir: DRY_RUN=false, PAPER_MODE=false, LIVE_CONFIRM=YES; API anahtarları Vault KV
   # ───────────────────────────────────────
   bot:
     build:
@@ -20,17 +27,44 @@ services:
     environment:
       - DRY_RUN=${DRY_RUN:-true}
       - PAPER_MODE=${PAPER_MODE:-true}
+      - LIVE_CONFIRM=${LIVE_CONFIRM:-}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-text}
+      # Bot icinde localhost degil vault servisi (host VAULT_ADDR compose'u bozmasin)
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_ROLE_ID=${VAULT_ROLE_ID:-}
+      - VAULT_SECRET_ID=${VAULT_SECRET_ID:-}
+      - VAULT_MOUNT=${VAULT_MOUNT:-secret}
+      - VAULT_BASE_PATH=${VAULT_BASE_PATH:-trading}
+      - SECRETS_VAULT_ONLY=${SECRETS_VAULT_ONLY:-}
+      - SECRETS_VAULT_ONLY_AUTO=${SECRETS_VAULT_ONLY_AUTO:-true}
       - METRICS_PORT=8000
       - REDIS_URL=redis://redis:6379/0
+      - TIMESCALE_HOST=${TIMESCALE_HOST:-timescaledb}
+      - TIMESCALE_JOURNAL_MIRROR=${TIMESCALE_JOURNAL_MIRROR:-0}
+      - TIMESCALE_USER=${POSTGRES_USER:-superotonom}
+      - TIMESCALE_PASSWORD=${POSTGRES_PASSWORD}
+      - TIMESCALE_DB=${POSTGRES_DB:-trading}
+      - WS_ENABLED=${WS_ENABLED:-true}
+      - WS_MTF_REFRESH_SEC=${WS_MTF_REFRESH_SEC:-300}
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data
-    ports:
-      - "8000:8000"
     depends_on:
       redis:
         condition: service_healthy
+      vault:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/metrics', timeout=8).read(1)\"",
+        ]
+      interval: 15s
+      timeout: 12s
+      retries: 5
+      start_period: 180s
     networks:
       - bot_network
     logging:
@@ -40,9 +74,11 @@ services:
         max-file: "5"
 
   # ───────────────────────────────────────
-  # GO REDIS BRIDGE (WebSocket → Redis)
+  # GO REDIS BRIDGE (WebSocket → Redis) — profile: go-ws-bridge
   # ───────────────────────────────────────
   go_bridge:
+    profiles:
+      - go-ws-bridge
     build:
       context: ./go_service
       dockerfile: Dockerfile
@@ -50,8 +86,6 @@ services:
     restart: unless-stopped
     environment:
       - REDIS_URL=redis://redis:6379/0
-    ports:
-      - "8080:8080"
     depends_on:
       redis:
         condition: service_healthy
@@ -84,20 +118,56 @@ services:
   # ───────────────────────────────────────
   # PROMETHEUS
   # ───────────────────────────────────────
+  alert_telegram:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: super_otonom_alert_telegram
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - VAULT_ADDR=http://vault:8200
+      - ALERT_TELEGRAM_PORT=8081
+    command: ["python", "-m", "super_otonom.alertmanager_telegram_bridge"]
+    depends_on:
+      vault:
+        condition: service_started
+    networks:
+      - bot_network
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: super_otonom_alertmanager
+    restart: unless-stopped
+    environment:
+      - WEBHOOK_URL=${WEBHOOK_URL:-}
+    volumes:
+      - ./docker/alertmanager.yml:/etc/alertmanager/alertmanager.base.yml:ro
+      - ./docker/alertmanager-entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    depends_on:
+      alert_telegram:
+        condition: service_started
+    networks:
+      - bot_network
+
   prometheus:
     image: prom/prometheus:latest
     container_name: super_otonom_prometheus
     restart: unless-stopped
     volumes:
       - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
-    ports:
-      - "9090:9090"
+    depends_on:
+      - alertmanager
+      - alert_telegram
     networks:
       - bot_network
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.retention.time=30d'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
 
   # ───────────────────────────────────────
   # GRAFANA
@@ -107,14 +177,72 @@ services:
     container_name: super_otonom_grafana
     restart: unless-stopped
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s:%(http_port)s/grafana/
     volumes:
       - grafana_data:/var/lib/grafana
-    ports:
-      - "3000:3000"
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - prometheus
+    networks:
+      - bot_network
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: super_otonom_timescaledb
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-superotonom}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-trading}
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    networks:
+      - bot_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  vault:
+    image: hashicorp/vault:latest
+    container_name: super_otonom_vault
+    restart: unless-stopped
+    user: "0:0"
+    environment:
+      - SKIP_SETCAP=true
+      - VAULT_ADDR=http://127.0.0.1:8200
+    cap_add:
+      - IPC_LOCK
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "mkdir -p /vault/data && chmod -R 777 /vault/data; exec vault server -config=/vault/config/vault.hcl"
+    volumes:
+      - ./docker/vault.hcl:/vault/config/vault.hcl:ro
+      - vault_data:/vault/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8200/v1/sys/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+    networks:
+      - bot_network
+
+  nginx:
+    image: nginx:alpine
+    container_name: super_otonom_nginx
+    restart: unless-stopped
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "127.0.0.1:80:80"
+    depends_on:
+      bot:
+        condition: service_healthy
     networks:
       - bot_network
 
@@ -123,6 +251,8 @@ volumes:
   redis_data:
   prometheus_data:
   grafana_data:
+  timescale_data:
+  vault_data:
 
 networks:
   bot_network:

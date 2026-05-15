@@ -16,7 +16,8 @@ RUN apt-get update && \
         scikit-learn>=1.3.0 \
         joblib>=1.3.0 \
         python-dotenv>=1.0.0 \
-        prometheus-client>=0.19.0 redis>=5.0.0
+        prometheus-client>=0.19.0 redis>=5.0.0 aiohttp>=3.9.0 \
+        psycopg2-binary>=2.9.9
 
 COPY super_otonom/ ./super_otonom/
 COPY pyproject.toml .

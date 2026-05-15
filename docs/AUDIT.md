@@ -47,6 +47,23 @@ Aşağıdaki maddeler periyodik (ör. çeyrek) veya sürüm öncesi işaretleneb
 - [ ] `pip install -e ".[dev]"` veya kilit dosyası ile tekrarlanabilir kurulum.  
 - [ ] Bilinen kritik CVE’ler için bağımlılık taraması (manuel veya `pip audit` / GH Dependabot) yapıldı mı?
 
+#### 2.2.1 Otomatik (pip-audit + SBOM + SLA)
+
+| Araç | Rol |
+|------|-----|
+| **Dependabot** | `.github/dependabot.yml` — haftalık pip / Actions / Docker PR |
+| **pip-audit** | `requirements.txt` CVE taraması |
+| **SBOM** | `artifacts/sbom.cyclonedx.json` (CycloneDX) |
+| **SLA** | `config/dependency_security.json` — critical **7 gün**, high **30 gün** (CI: critical+high = fail) |
+
+Yerel fastrun:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/fastrun_security.ps1
+```
+
+CI: workflow `Security` / job `dependency-security`.
+
 ### 2.3 Ağ ve erişim
 
 - [ ] Bot çalışan host / konteyner için gereksiz portlar kapalı.  

@@ -134,6 +134,42 @@ class MetricsExporter:
             self._counters["trades"] = REGISTRY._names_to_collectors.get(
                 f"{namespace}_trades_total"
             )
+        try:
+            self._counters["order_errors"] = Counter(
+                f"{namespace}_order_errors_total",
+                "Emir ve borsa islem hatalari",
+                ["type"],
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._counters["order_errors"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_order_errors_total"
+            )
+        try:
+            self._counters["ws_reconnects"] = Counter(
+                f"{namespace}_ws_reconnects_total",
+                "WebSocket yeniden baglanti sayisi",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._counters["ws_reconnects"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_ws_reconnects_total"
+            )
+
+        try:
+            self._gauges["dependency_up"] = Gauge(
+                f"{namespace}_dependency_up",
+                "Bagimlilik sagligi: 1=up, 0=down",
+                ["name"],
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["dependency_up"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_dependency_up"
+            )
 
         # ── Histogram'lar ─────────────────────────────────────────────────────
         try:
@@ -281,6 +317,30 @@ class MetricsExporter:
             self._histos["pnl"].observe(float(pnl))
         except Exception as exc:
             log.debug("MetricsExporter.record_trade hata: %s", exc)
+
+    def inc_order_error(self, err_type: str = "order") -> None:
+        if not self._enabled:
+            return
+        try:
+            self._counters["order_errors"].labels(type=err_type).inc()
+        except Exception as exc:
+            log.debug("MetricsExporter.inc_order_error hata: %s", exc)
+
+    def inc_ws_reconnect(self) -> None:
+        if not self._enabled:
+            return
+        try:
+            self._counters["ws_reconnects"].inc()
+        except Exception as exc:
+            log.debug("MetricsExporter.inc_ws_reconnect hata: %s", exc)
+
+    def set_dependency_up(self, name: str, up: bool) -> None:
+        if not self._enabled:
+            return
+        try:
+            self._gauges["dependency_up"].labels(name=name).set(1.0 if up else 0.0)
+        except Exception as exc:
+            log.debug("MetricsExporter.set_dependency_up hata: %s", exc)
 
     # ── Durum sorgusu ─────────────────────────────────────────────────────────
 

@@ -8,6 +8,7 @@ Workflow: [`.github/workflows/ci.yml`](workflows/ci.yml)
 | `ci-quick` | ci-quick | **Hızlı gate:** ruff, release_gate, **fastrun**, testnet_ci |
 | `pytest-full` | pytest-full | **Tam pytest suite** (`tests/`, `-n auto`) |
 | `coverage` | coverage | Tam suite + `--cov-fail-under=90` (3.10 + 3.12) |
+| `dependency-security` | dependency-security | pip-audit + SBOM; **critical/high CVE = fail** (workflow: `security.yml`) |
 
 ## GitHub ayarı (bir kez)
 

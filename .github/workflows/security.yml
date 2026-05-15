@@ -1,0 +1,42 @@
+# Bagimlilik guvenligi: pip-audit + SBOM + CVE SLA (critical/high = fail)
+name: Security
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+  schedule:
+    - cron: "0 6 * * 1"
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install pip-audit
+        run: python -m pip install --upgrade pip pip-audit>=2.7.0
+
+      - name: pip-audit + SBOM + CVE SLA
+        run: python scripts/dependency_security.py --sbom --fail-on critical,high
+
+      - name: Upload SBOM and CVE report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-security
+          path: |
+            artifacts/sbom.cyclonedx.json
+            artifacts/cve-report.json
+          if-no-files-found: ignore

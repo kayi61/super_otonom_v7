@@ -56,6 +56,11 @@ jobs:
           BINANCE_TESTNET: "true"
         run: python -m pytest tests -m testnet_ci -q --tb=short
 
+      - name: Dependency security (pip-audit + SBOM)
+        run: |
+          python -m pip install --upgrade pip pip-audit>=2.7.0
+          python scripts/dependency_security.py --sbom --fail-on critical,high
+
   # PR zorunlu: tam test/ — branch protection'da bu job adini required yapin
   pytest-full:
     needs: [kanon-drift, ci-quick]

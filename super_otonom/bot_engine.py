@@ -15,17 +15,17 @@ import json
 import logging
 import os
 import random
-import shutil
-import tempfile
 import time
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
 from super_otonom.ai_layer import AILayer
 from super_otonom.capital_engine import CapitalEngine
+from super_otonom.order_engine import OrderEngine
 from super_otonom.config import METRICS, RISK
 from super_otonom.correlation_manager import CorrelationManager
 from super_otonom.decision_context import DecisionContext, DecisionStage
+from super_otonom.engine_managers import PositionManager, StateManager, TradeExecutor
 from super_otonom.kill_switch import HardLimitTracker, get_rate_limit_storm_tracker
 from super_otonom.metrics_exporter import MetricsExporter
 from super_otonom.omega_regime import compute_omega_regime  # noqa: F401 — test patch hedefi
@@ -83,30 +83,6 @@ _TRADE_LOG_FILE = "data/trades.log"
 
 VALID_BUY_SIGNALS = {"BUY"}
 VALID_SELL_SIGNALS = {"SELL", "CLOSE_ALL"}
-
-
-def _atomic_write_json(path: str, payload: Dict[str, Any]) -> None:
-    """JSON dosyasını atomik yazar (tmp + fsync + replace); çökme anında yarım dosya kalmaz."""
-    directory = os.path.dirname(path) or "."
-    os.makedirs(directory, exist_ok=True)
-    fd, tmp_path = tempfile.mkstemp(
-        prefix=".bot_state_",
-        suffix=".tmp",
-        dir=directory,
-    )
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2, ensure_ascii=False)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, path)
-    except Exception:
-        try:
-            if os.path.isfile(tmp_path):
-                os.unlink(tmp_path)
-        except OSError:
-            pass
-        raise
 
 
 def _compact_phase_chain_for_attribution(
@@ -402,10 +378,23 @@ class BotEngine:
         self.mode = "PAPER" if paper else "LIVE"
         self.initial_capital = float(capital)
         # v9 — CapitalEngine: kurumsal sermaye muhasebesi
+        journal_sink = None
+        if os.getenv("TIMESCALE_JOURNAL_MIRROR", "").lower() in ("1", "true", "yes"):
+            try:
+                from super_otonom.timescale_bridge import TimescaleBridge
+
+                _tsb = TimescaleBridge()
+                if _tsb.status().get("available"):
+                    journal_sink = _tsb.make_capital_journal_sink()
+                    log.info("CapitalEngine journal → TimescaleDB yansıtması aktif.")
+            except Exception as exc:
+                log.debug("Timescale journal mirror atlanıyor: %s", exc)
+
         self.capital = CapitalEngine(
             initial_capital=capital,
             max_position_pct=RISK.get("max_position_pct", 0.95),
             reserve_pct=RISK.get("capital_reserve_pct", 0.05),
+            journal_sink=journal_sink,
         )
         # v9 — RiskOntology: tek NAV kaynağı, tutarlı denominators
         self.onto = RiskOntology(initial_nav=capital)
@@ -430,6 +419,9 @@ class BotEngine:
         # FIX 4: ExecutionSimulator entegre edildi
         self.exec_sim = ExecutionSimulator()
 
+        # Gerçek emir yönetimi (LIVE mod için)
+        self.order_engine = OrderEngine()
+
         # FIX 5: TradeLogger entegre edildi
         self.trade_logger = TradeLogger()
 
@@ -437,11 +429,19 @@ class BotEngine:
             port=METRICS.get("prometheus_port", 8000),
             namespace=METRICS.get("namespace", "bot"),
         )
+        try:
+            from super_otonom.ops_metrics import bind_metrics, refresh_dependencies
+
+            bind_metrics(self.metrics)
+            refresh_dependencies()
+        except Exception:
+            pass
 
         self.correlation_mgr = CorrelationManager(threshold=corr_threshold)
         self.sentiment_layer = SentimentLayer(mock_score=sentiment_mock_score)
 
-        # FIX 2: OrderTracker BotEngine'e entegre edildi
+        # FIX 2: OrderTracker + LIVE emir yolu (TradeExecutor) aynı handler
+        self.exchange = exchange_handler
         self._order_tracker: Optional[OrderTracker] = None
         if exchange_handler is not None:
             self._order_tracker = OrderTracker(exchange_handler)
@@ -482,11 +482,15 @@ class BotEngine:
 
         # _load_state içi veya eski kod yolları için güvenli başlangıç (RiskManager._onto ile karıştırılmaz).
         self._onto = None
-        self._load_state()
+        self._state_mgr = StateManager(self)
+        self._trade_exec = TradeExecutor(self)
+        self._position_mgr = PositionManager(self)
+        self._state_mgr.load()
         self._onto = self.onto
 
     def set_exchange_handler(self, exchange_handler: Any) -> None:
         """Exchange handler sonradan da verilebilir (main_loop esnekliği için)."""
+        self.exchange = exchange_handler
         self._order_tracker = OrderTracker(exchange_handler)
         log.info("BotEngine: OrderTracker set_exchange_handler ile aktifleştirildi.")
 
@@ -561,135 +565,25 @@ class BotEngine:
     # ── Durum kaydetme / yükleme ─────────────────────────────────────────────
 
     def _save_state(self) -> None:
-        try:
-            state = {
-                "equity": self.equity,
-                "free_capital": self.free_capital,
-                "peak_equity": self._peak_equity,
-                "open_positions": self.open_positions,
-                "trade_log": self.trade_log[-200:],
-                "timestamp": time.time(),
-                "mode": self.mode,
-                "capital_engine": self.capital.to_dict(),
-                "risk_ontology": self.onto.to_dict(),
-                # Sprint 2 Madde 4: VaR geçmişi restart'ta korunur
-                "pnl_history": self.risk._pnl_history[-500:],
-                "vol_history": self.risk._vol_history[-200:],
-            }
-            _atomic_write_json(_STATE_FILE, state)
-        except Exception as e:
-            log.error("BotEngine._save_state hatasi: %s", e)
+        self._state_mgr.save()
 
     def _load_state(self) -> None:
-        if not os.path.exists(_STATE_FILE):
-            return
-        try:
-            with open(_STATE_FILE, "r", encoding="utf-8") as f:
-                raw = f.read()
-            try:
-                state = json.loads(raw)
-            except json.JSONDecodeError as je:
-                self._state_corrupt_fallback = True
-                try:
-                    bak = _STATE_FILE + ".bak"
-                    shutil.copy2(_STATE_FILE, bak)
-                    log.warning("BotEngine._load_state: bozuk dosya yedeklendi | %s", bak)
-                except OSError as copy_err:
-                    log.warning("BotEngine._load_state: .bak yazilamadi | %s", copy_err)
-                log.error(
-                    "BotEngine._load_state: JSON bozuk — bos state ile devam | %s | offset=%s",
-                    je,
-                    getattr(je, "pos", None),
-                )
-                return
-            if state.get("mode") != self.mode:
-                log.warning(
-                    "BotEngine._load_state: mod uyumsuzlugu (kayit=%s, aktif=%s), atlaniyor.",
-                    state.get("mode"),
-                    self.mode,
-                )
-                return
-            self.equity = float(state.get("equity", self.equity))
-            self.free_capital = float(state.get("free_capital", self.free_capital))
-            self._peak_equity = float(state.get("peak_equity", self._peak_equity))
-            self.open_positions = state.get("open_positions", {})
-            self.trade_log = state.get("trade_log", [])
-            # v9 — CapitalEngine state yükle
-            if "capital_engine" in state:
-                self.capital = CapitalEngine.from_dict(
-                    state["capital_engine"],
-                    max_position_pct=RISK.get("max_position_pct", 0.95),
-                    reserve_pct=RISK.get("capital_reserve_pct", 0.05),
-                )
-                self.equity = self.capital.nav
-                self.free_capital = self.capital.available_cash
-                self.initial_capital = float(self.capital.initial_capital)
-                self.risk.initial_capital = self.initial_capital
-            if "risk_ontology" in state:
-                self.onto = RiskOntology.from_dict(state["risk_ontology"])
-                self.risk.set_ontology(self.onto)
-                log.info("RiskOntology yuklendi | nav=%.2f", self.onto.nav)
-            # Sprint 2 Madde 4: VaR geçmişini geri yükle — sıfırdan başlamaz
-            if "pnl_history" in state:
-                self.risk._pnl_history = [float(x) for x in state["pnl_history"]]
-                onto = getattr(self, "onto", None)
-                if onto is not None:
-                    onto._pnl_history = list(self.risk._pnl_history)
-                    onto.var_1d = onto._calc_var()
-                log.info("VaR gecmisi yuklendi | %d kayit", len(self.risk._pnl_history))
-            if "vol_history" in state:
-                self.risk._vol_history = [float(x) for x in state["vol_history"]]
-            log.info(
-                "BotEngine: durum geri yuklendi | equity=%.2f | acik_poz=%d | islem=%d",
-                self.equity,
-                len(self.open_positions),
-                len(self.trade_log),
-            )
-        except Exception as e:
-            log.error("BotEngine._load_state hatasi: %s", e)
+        self._state_mgr.load()
 
     def set_safe_mode_block_new_entries(self, active: bool, reason: str = "") -> None:
         """Mutabakat uyumsuzluğunda yeni BUY açılmasını engeller; çıkış/trailing çalışır."""
-        self._safe_mode_block_new_entries = bool(active)
-        self._safe_mode_reason = reason or None
-        log.warning(
-            "SAFE_MODE | block_new_entries=%s | %s",
-            active,
-            reason or "—",
-        )
+        self._state_mgr.set_safe_mode_block_new_entries(active, reason)
 
     # ── Yardımcılar ──────────────────────────────────────────────────────────
 
     def _reset_daily_if_needed(self) -> None:
-        today = date.today()
-        if today != self._today:
-            # Sprint 1 — Gün sonu reconciliation
-            if self.reconciler is not None:
-                report = self.reconciler.run(
-                    capital_snapshot=self.capital.snapshot(),
-                    audit_summary=self.audit.today_summary() if self.audit else None,
-                )
-                if not report.passed:
-                    log.warning("RECONCILE | gün sonu FAILED | %s", report.warnings)
-                self.reconciler.reset_for_new_day(self.capital.nav)
-            if self.audit is not None:
-                self.audit.system_event("DAY_RESET", nav=self.capital.nav)
-            self._today = today
-            self._trades_today = 0
+        self._state_mgr.reset_daily_if_needed()
 
     def _open_exposure(self, prices: Dict[str, float]) -> float:
-        total = 0.0
-        for sym, pos in self.open_positions.items():
-            p = prices.get(sym, float(pos.get("entry", 0)))
-            total += float(pos.get("qty", 0)) * float(p)
-        return float(total)
+        return self._position_mgr.open_exposure(prices)
 
     def _avg_volume(self, candles: List[Dict[str, float]], n: int = 30) -> float:
-        if not candles:
-            return 1.0
-        tail = candles[-n:]
-        vols = [float(c.get("volume") or 0.0) for c in tail]
-        return max(1.0, sum(vols) / max(len(vols), 1))
+        return self._position_mgr.avg_volume(candles, n=n)
 
     # ── v8: faz bölünmüş tick (pipelines + durum makinesi) ───────────────────
 
@@ -771,43 +665,15 @@ class BotEngine:
 
     def _tick_update_unrealized(self, symbol: str, price: float) -> None:
         """Açık pozisyonların unrealized PnL'ini günceller."""
-        if not self.open_positions:
-            return
-        prices = {
-            sym: price if sym == symbol else float(self.open_positions[sym].get("entry", 0))
-            for sym in self.open_positions
-        }
-        self.capital.update_unrealized(prices)
-        self.equity = self.capital.nav
+        self._position_mgr.tick_update_unrealized(symbol, price)
 
     def _tick_apply_funding_rate(self, analysis: Dict[str, Any]) -> None:
         """Funding rate / swap maliyetini uygular."""
-        if not self.open_positions:
-            return
-        _swap_rate = float(analysis.get("funding_rate", RISK.get("swap_rate_daily", 0.0003)))
-        if _swap_rate <= 0:
-            return
-        for _sym, _pos in self.open_positions.items():
-            _notional = float(_pos.get("size", 0))
-            _swap_cost = _notional * _swap_rate
-            if _swap_cost > 0.001:
-                self.capital.record_fee(
-                    _sym,
-                    f"swap_{_sym}_{self._tick_counter}",
-                    _swap_cost,
-                    note=f"swap/funding rate | rate={_swap_rate:.6f}",
-                )
-                log.debug(
-                    "FUNDING | %s | notional=%.2f rate=%.6f cost=%.4f",
-                    _sym,
-                    _notional,
-                    _swap_rate,
-                    _swap_cost,
-                )
+        self._position_mgr.tick_apply_funding_rate(analysis)
 
     def _tick_check_trailing_stops(self, symbol: str):
         """Diğer açık pozisyonlar için trailing stop kontrolü."""
-        return [(_sym, _pos) for _sym, _pos in self.open_positions.items() if _sym != symbol]
+        return self._position_mgr.tick_check_trailing_stops(symbol)
 
     def _tick_handle_risk_block(self, symbol: str, out: Dict[str, Any]) -> None:
         """Risk bloğunda audit log ve emergency liquidation."""
@@ -1193,32 +1059,7 @@ class BotEngine:
         analysis: Dict,
     ) -> tuple:
         """Emir simülasyonu/gerçek dolum. (fill_price, qty) döner."""
-        avg_vol = max(float(analysis.get("avg_volume") or 1.0), 1.0)
-
-        if self.mode == "PAPER":
-            sim_result = await self.exec_sim.simulate_order(
-                side="buy", price=price, size=size, paper=True
-            )
-            fill_price = sim_result["executed_price"]
-            filled_size = sim_result["filled_size"]
-            qty = filled_size / float(fill_price or price)
-            log.debug(
-                "ExecutionSim BUY | fill_ratio=%.2f latency=%.0fms slip=%.5f%%",
-                sim_result["fill_ratio"],
-                sim_result["latency"] * 1000,
-                sim_result["slippage"] * 100,
-            )
-        else:
-            fill_price = self.slippage.adjusted_price(
-                "buy",
-                price,
-                order_size=float(size),
-                avg_volume=avg_vol,
-                volatility=float(analysis.get("volatility", 0.01)),
-            )
-            qty = size / float(fill_price or price)
-
-        return fill_price, qty
+        return await self._trade_exec.entry_execute_order(_symbol, price, size, analysis)
 
     def _entry_kill_switch_check(self, symbol: str, dctx: Optional[Any]) -> bool:
         """Hard limit kill switch kontrolü. True ise engellendi."""
@@ -1424,236 +1265,14 @@ class BotEngine:
         analysis: Dict,
         new_stage: int,
     ) -> None:
-        pos = self.open_positions.get(symbol)
-        if not pos:
-            return
-
-        entry = float(pos.get("entry", price))
-        qty = float(pos.get("qty", 0.0) or 0.0)
-        size = float(pos.get("size", 0.0) or 0.0)
-        initial_qty = float(pos.get("initial_qty", qty) or qty)
-        if qty <= 0 or size <= 0:
-            return
-
-        sell_qty = min(qty, max(0.0, initial_qty * float(ratio)))
-        if sell_qty <= 0:
-            return
-        sell_ratio = sell_qty / qty
-        sell_size = size * sell_ratio
-        avg_vol = float(analysis.get("avg_volume") or 1.0)
-
-        if self.mode == "PAPER":
-            sim_result = await self.exec_sim.simulate_order(
-                side="sell", price=price, size=sell_size, paper=True
-            )
-            exit_px = sim_result["executed_price"]
-            filled_qty = sell_qty * sim_result["fill_ratio"]
-        else:
-            exit_px = self.slippage.adjusted_price(
-                "sell",
-                float(price),
-                order_size=sell_size,
-                avg_volume=max(avg_vol, 1.0),
-                volatility=float(analysis.get("volatility", 0.01)),
-            )
-            filled_qty = sell_qty
-
-        _cap_pnl = self.capital.close_partial(
-            symbol=symbol,
-            order_id=pos.get("order_id", f"{symbol}_partial_{int(time.time() * 1000)}"),
-            exit_price=exit_px,
-            ratio=filled_qty / qty if qty > 0 else 1.0,
-            fee=float(analysis.get("fee", 0.0)),
+        await self._trade_exec.close_partial(
+            symbol, price, ratio, out, reason, analysis, new_stage
         )
-        pnl = _cap_pnl if _cap_pnl is not None else (exit_px - entry) * filled_qty
-
-        pos["qty"] = max(0.0, qty - filled_qty)
-        pos["size"] = max(0.0, size - sell_size)
-        pos["exit_stage"] = int(new_stage)
-        final_stage = int(new_stage)
-        if pos["qty"] <= 1e-10 or pos["size"] <= 1e-8:
-            self.open_positions.pop(symbol, None)
-            final_stage = 3
-
-        self.equity = self.capital.nav
-        self.free_capital = self.capital.available_cash
-        self.risk.record_pnl(pnl)
-        if hasattr(self.risk, "record_omega_trade_outcome"):
-            self.risk.record_omega_trade_outcome(pnl)
-        self.onto.update(
-            nav=self.capital.nav,
-            positions=self.open_positions,
-            realized_pnl_delta=pnl,
-        )
-
-        trade_record = {
-            "symbol": symbol,
-            "entry": entry,
-            "exit": exit_px,
-            "qty": filled_qty,
-            "pnl": round(pnl, 4),
-            "reason": reason,
-            "partial": True,
-            "exit_stage": final_stage,
-            "hold_bars": int(pos.get("hold_bars", 0)),
-            "regime": str(analysis.get("regime", "")),
-            "pnl_pct": round((exit_px - entry) / entry * 100, 4) if entry else 0.0,
-        }
-        self.trade_log.append(trade_record)
-        self.trade_logger.log_trade(trade_record)
-        out["actions"].append(
-            {
-                "type": "SELL_PARTIAL",
-                "symbol": symbol,
-                "price": exit_px,
-                "qty": filled_qty,
-                "pnl": round(pnl, 4),
-                "reason": reason,
-                "exit_stage": final_stage,
-            }
-        )
-        log.info(
-            "CIKIS | partial | symbol=%s | fiyat=%.6f | pnl=%.4f | reason=%s | stage=%s",
-            symbol,
-            exit_px,
-            pnl,
-            reason,
-            pos.get("exit_stage", new_stage),
-        )
-        self.metrics.record_slippage(symbol, price, exit_px)
-        self.metrics.record_trade(pnl=pnl, reason=reason)
-        self._save_state()
 
     async def _close(
         self, symbol: str, price: float, out: Dict, reason: str, analysis: Dict
     ) -> None:
-        pos = self.open_positions.pop(symbol, None)
-        if not pos:
-            return
-
-        # FIX 3: .get() ile KeyError koruması
-        size = float(pos.get("size") or 0.0)
-        entry = float(pos.get("entry") or price)
-        qty = float(pos.get("qty") or 0.0)
-        avg_vol = float(analysis.get("avg_volume") or 1.0)
-
-        # FIX 4: Paper modda ExecutionSimulator
-        if self.mode == "PAPER":
-            sim_result = await self.exec_sim.simulate_order(
-                side="sell", price=price, size=size, paper=True
-            )
-            exit_px = sim_result["executed_price"]
-            filled_qty = qty * sim_result["fill_ratio"]
-        else:
-            exit_px = self.slippage.adjusted_price(
-                "sell",
-                float(price),
-                order_size=size,
-                avg_volume=max(avg_vol, 1.0),
-                volatility=float(analysis.get("volatility", 0.01)),
-            )
-            filled_qty = qty
-
-        # v9 — CapitalEngine ledger kapanış
-        _cap_pnl = self.capital.close_position(
-            symbol=symbol,
-            order_id=pos.get("order_id", f"{symbol}_close_{int(time.time() * 1000)}"),
-            exit_price=exit_px,
-            filled_qty=filled_qty,
-            fee=float(analysis.get("fee", 0.0)),
-        )
-        pnl = _cap_pnl if _cap_pnl is not None else (exit_px - entry) * filled_qty
-        if _cap_pnl is None:
-            log.warning("CapitalEngine: pozisyon ledgerde yok, fallback pnl=%.4f", pnl)
-        # Geriye dönük uyumluluk
-        self.equity = self.capital.nav
-        self.free_capital = self.capital.available_cash
-        self._trades_today += 1
-        self.risk.record_pnl(pnl)
-        if hasattr(self.risk, "record_omega_trade_outcome"):
-            self.risk.record_omega_trade_outcome(pnl)
-        # v9 — RiskOntology'ye realized PnL delta ilet
-        self.onto.update(
-            nav=self.capital.nav,
-            positions=self.open_positions,
-            realized_pnl_delta=pnl,
-        )
-
-        trade_record = {
-            "symbol": symbol,
-            "entry": entry,
-            "exit": exit_px,
-            "qty": filled_qty,
-            "pnl": round(pnl, 4),
-            "reason": reason,
-            "strategist": str(analysis.get("strategist", "trend")),
-            # Sprint 3 M2 — PnL attribution
-            "signal_type": str(analysis.get("signal", "UNKNOWN")),
-            "signal_confidence": float(analysis.get("ai_confidence", 0.0)),
-            "sizing_source": str(analysis.get("sizing_source", "")),
-            "hold_bars": int(pos.get("hold_bars", 0)),
-            "volatility": float(analysis.get("volatility", 0.0)),
-            "regime": str(analysis.get("regime", "")),
-            "pnl_pct": round((exit_px - entry) / entry * 100, 4) if entry else 0.0,
-            "slippage_pct": round(
-                abs(exit_px - float(analysis.get("close", exit_px))) / max(exit_px, 1e-9) * 100, 4
-            ),
-            "entry_phase_chain": pos.get("entry_phase_chain"),
-            # PROMPT-A9 — meta_regime özeti (BUY anında snapshot)
-            "entry_meta_regime": pos.get("entry_meta_regime"),
-        }
-
-        self.trade_log.append(trade_record)
-
-        # FIX 5: TradeLogger — aynı anda dosyaya da yaz
-        self.trade_logger.log_trade(trade_record)
-
-        # Sprint 1 — AuditLog: TRADE_CLOSE + DailyReconciler
-        if self.audit is not None:
-            self.audit.trade_close(
-                symbol=symbol,
-                order_id=pos.get("order_id", ""),
-                price=exit_px,
-                qty=filled_qty,
-                pnl=pnl,
-                fee=float(analysis.get("fee", 0.0)),
-                reason=reason,
-                nav=self.capital.nav,
-                realized_pnl=self.capital._realized_pnl,
-                open_positions=len(self.open_positions),
-                meta={"entry": entry, "hold_bars": pos.get("hold_bars", 0)},
-            )
-        if self.reconciler is not None:
-            self.reconciler.record_trade(
-                symbol=symbol,
-                pnl=pnl,
-                fee=float(analysis.get("fee", 0.0)),
-                reason=reason,
-            )
-
-        out["actions"].append(
-            {
-                "type": "SELL",
-                "symbol": symbol,
-                "price": exit_px,
-                "qty": filled_qty,
-                "pnl": round(pnl, 4),
-                "reason": reason,
-                "ai_explain": out.get("ai_explain", ""),
-            }
-        )
-        log.info(
-            "CIKIS | sell | symbol=%s | fiyat=%.6f | pnl=%.4f | reason=%s | slip=%.5f%%",
-            symbol,
-            exit_px,
-            pnl,
-            reason,
-            abs(exit_px - price) / (price + 1e-9) * 100,
-        )
-        log.info("TRADE_WHY | SELL | %s | %s", symbol, out.get("ai_explain", ""))
-        self.metrics.record_slippage(symbol, price, exit_px)
-        self.metrics.record_trade(pnl=pnl, reason=reason)
-        self._save_state()
+        await self._trade_exec.close(symbol, price, out, reason, analysis)
 
     async def close_on_strategy_change(
         self,

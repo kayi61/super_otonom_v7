@@ -1,0 +1,29 @@
+# Yerel gelistirme: hassas portlar yalnizca 127.0.0.1 (LAN/dis aga acik degil)
+# Kullanim: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+services:
+  bot:
+    ports:
+      - "127.0.0.1:8000:8000"
+  prometheus:
+    ports:
+      - "127.0.0.1:9090:9090"
+  alertmanager:
+    ports:
+      - "127.0.0.1:9093:9093"
+  alert_telegram:
+    ports:
+      - "127.0.0.1:8081:8081"
+  grafana:
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - GF_SERVER_ROOT_URL=http://127.0.0.1:3000
+  timescaledb:
+    ports:
+      - "127.0.0.1:5432:5432"
+  vault:
+    ports:
+      - "127.0.0.1:8200:8200"
+  go_bridge:
+    ports:
+      - "127.0.0.1:8080:8080"

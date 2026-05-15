@@ -19,5 +19,11 @@ htmlcov/
 
 # Yerel çalıştırma / derleme
 *.egg-info/
+build/pytest-temproot/
+artifacts/
 logs/
 data/bot_state.json
+data/local/vault_init.json
+data/local/vault_admin_token.json
+data/local/telegram.env
+docker/tls/*.pem
