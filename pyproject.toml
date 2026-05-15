@@ -1,7 +1,7 @@
 [build-system]
 # PYSEC-2025-49: ≥78.1.1. Üst sınır: CI ve varsayılan kurulum `.[dev]` torch içermez; fakat `Dockerfile`,
 # `requirements.txt` (torch) ve `pip install -e ".[lstm]"` yolunda PyTorch tekerlekleri sıkça setuptools<82 ister — <82 kaldırılırsa o ortamlarda çakışma döner.
-requires = ["setuptools>=78.1.1,<82", "wheel"]
+requires = ["setuptools>=78.1.1,<83", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
