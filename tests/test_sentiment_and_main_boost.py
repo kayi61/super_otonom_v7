@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from super_otonom.sentiment_layer import SentimentLayer, _dynamic_fallback_score
 
-from tests.test_main_loop_96 import _MAIN_LOOP_MOCK_USDT, _patch_main_loop_recon_paths
+from tests.test_main_loop_96 import _MAIN_LOOP_MOCK_USDT, apply_main_loop_mock_contract
 
 
 def test_sentiment_mock_and_validate_branches() -> None:
@@ -32,19 +32,15 @@ def test_dynamic_fallback_score() -> None:
     assert 0.4 <= _dynamic_fallback_score() <= 0.6
 
 
-def test_main_loop_runs_until_shutdown(tmp_path: object, monkeypatch: pytest.MonkeyPatch) -> None:
-    import super_otonom.bot_engine as be
+def test_main_loop_runs_until_shutdown(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import super_otonom.main_loop as ml
 
-    root = tmp_path
-    monkeypatch.setattr(be, "_STATE_FILE", str(root / "st.json"))
-    monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(root / "tr.log"))
-    monkeypatch.setattr(ml, "_POLL_INTERVAL", 0.05)
-    monkeypatch.setattr(ml, "PAIRS", ["BTC/USDT"])
+    apply_main_loop_mock_contract(
+        Path(tmp_path), monkeypatch, ml, pairs=["BTC/USDT"], poll_interval=0.05
+    )
     mtf = dict(ml.MTF)
     mtf["enabled"] = False
     monkeypatch.setattr(ml, "MTF", mtf)
-    _patch_main_loop_recon_paths(Path(tmp_path), monkeypatch, ml)
 
     ts0 = int(time.time() * 1000)
 
@@ -107,22 +103,18 @@ def test_main_loop_runs_until_shutdown(tmp_path: object, monkeypatch: pytest.Mon
 
 
 def test_main_loop_mtf_storm_and_analyzer_error(
-    tmp_path: object, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import super_otonom.bot_engine as be
     import super_otonom.main_loop as ml
 
-    root = tmp_path
-    monkeypatch.setattr(be, "_STATE_FILE", str(root / "st2.json"))
-    monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(root / "tr2.log"))
-    monkeypatch.setattr(ml, "_POLL_INTERVAL", 0.04)
-    monkeypatch.setattr(ml, "PAIRS", ["X/USDT"])
+    apply_main_loop_mock_contract(
+        Path(tmp_path), monkeypatch, ml, pairs=["X/USDT"], poll_interval=0.04
+    )
     mtf = dict(ml.MTF)
     mtf["enabled"] = True
     mtf["timeframe"] = "1h"
     mtf["candle_limit"] = 5
     monkeypatch.setattr(ml, "MTF", mtf)
-    _patch_main_loop_recon_paths(Path(tmp_path), monkeypatch, ml)
     ts0 = int(time.time() * 1000)
     row = [float(ts0), 1.0, 1.0, 1.0, 1.0, 1.0]
 

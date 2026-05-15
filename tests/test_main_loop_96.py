@@ -50,6 +50,7 @@ _MAIN_LOOP_MOCK_USDT = 1000.0  # main() INITIAL_CAPITAL varsayilanı ile uyumlu
 
 def _patch_main_loop_recon_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ml: Any) -> None:
     """Startup handshake OrderEngine / recon çıktılarını tmp_path altına yönlendirir."""
+    import super_otonom.bot_engine as be_mod
     from super_otonom.order_engine import OrderEngine as _OE
     from super_otonom.reconciliation_engine import ReconciliationEngine as _RE
 
@@ -69,21 +70,48 @@ def _patch_main_loop_recon_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
             k.setdefault("recon_dir", str(tmp_path / "recon"))
             super().__init__(*a, **k)
 
-    monkeypatch.setattr(ml, "OrderEngine", _OrderEngineTmp)
+    # OrderEngine BotEngine içinde import edilir; main_loop modülünde yok.
+    monkeypatch.setattr(be_mod, "OrderEngine", _OrderEngineTmp)
     monkeypatch.setattr(ml, "ReconciliationEngine", _ReconTmp)
 
 
-def _ml_common_engines(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pairs: list[str]) -> Any:
-    import super_otonom.bot_engine as be
-    import super_otonom.main_loop as ml
+def apply_main_loop_mock_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    ml: Any,
+    *,
+    pairs: list[str],
+    poll_interval: float = 0.02,
+) -> None:
+    """
+    main() integration / chaos / sentiment için ortak davranış sözleşmesi:
 
+    - ``AsyncExchangeHandler`` mock: gerçek WS (aiohttp) açılmaz → ``_WS_ENABLED`` /
+      ``_WS_AVAILABLE`` kapatılır; akış REST ``_run_loop_iteration`` üzerinden gider.
+    - Üretim ``main_loop``: WS seed sırasında ``Exception`` → log + REST (KeyboardInterrupt
+      BaseException; REST içindeki ``except KeyboardInterrupt`` ile işlenir — seed'de değil).
+    - ``fetch_all_ohlcv`` hataları: iç döngü ``except Exception`` → backoff + devam;
+      ``KeyboardInterrupt`` → ``_shutdown`` + kırılma.
+    - OrderEngine / recon dosyaları ``tmp_path`` altında (startup_handshake izole).
+    """
+    import super_otonom.bot_engine as be
+
+    (tmp_path / "tr").mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "st.json"))
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "tr" / "log.log"))
     monkeypatch.setattr(ml, "PAIRS", pairs)
-    monkeypatch.setattr(ml, "_POLL_INTERVAL", 0.02)
+    monkeypatch.setattr(ml, "_POLL_INTERVAL", poll_interval)
+    monkeypatch.setattr(ml, "_WS_ENABLED", False)
+    monkeypatch.setattr(ml, "_WS_AVAILABLE", False)
     ml._shutdown = asyncio.Event()
     ml._loop_counter = 0
     _patch_main_loop_recon_paths(tmp_path, monkeypatch, ml)
+
+
+def _ml_common_engines(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pairs: list[str]) -> Any:
+    import super_otonom.main_loop as ml
+
+    apply_main_loop_mock_contract(tmp_path, monkeypatch, ml, pairs=pairs, poll_interval=0.02)
     return ml
 
 

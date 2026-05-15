@@ -275,6 +275,7 @@ def test_async_exchange_handler_unknown_exchange() -> None:
         AsyncExchangeHandler(exchange_id="absolutely_not_exists_xyz")
 
 
+@pytest.mark.testnet_ci
 def test_binance_testnet_env_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
     from super_otonom.exchange_async import (
         _binance_testnet_env_enabled,

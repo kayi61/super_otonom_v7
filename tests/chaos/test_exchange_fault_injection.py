@@ -13,20 +13,13 @@ from typing import Any
 
 import pytest
 
-from tests.test_main_loop_96 import _MAIN_LOOP_MOCK_USDT, _patch_main_loop_recon_paths
+from tests.test_main_loop_96 import _MAIN_LOOP_MOCK_USDT, apply_main_loop_mock_contract
 
 
 def _ml_common(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pairs: list[str]) -> Any:
-    import super_otonom.bot_engine as be
     import super_otonom.main_loop as ml
 
-    monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "st.json"))
-    monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "tr" / "log.log"))
-    monkeypatch.setattr(ml, "PAIRS", pairs)
-    monkeypatch.setattr(ml, "_POLL_INTERVAL", 0.02)
-    ml._shutdown = asyncio.Event()
-    ml._loop_counter = 0
-    _patch_main_loop_recon_paths(tmp_path, monkeypatch, ml)
+    apply_main_loop_mock_contract(tmp_path, monkeypatch, ml, pairs=pairs, poll_interval=0.02)
     return ml
 
 

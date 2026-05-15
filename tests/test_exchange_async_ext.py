@@ -282,6 +282,7 @@ def test_circuit_breaker_success_logs_when_was_open(caplog: pytest.LogCaptureFix
     assert any("KAPATILDI" in r.message for r in caplog.records)
 
 
+@pytest.mark.testnet_ci
 def test_handler_extra_config_and_sandbox_mode() -> None:
     """Binance testnet: set_sandbox yerine enable_demo_trading (demo-api host)."""
 
