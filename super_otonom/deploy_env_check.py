@@ -20,7 +20,19 @@ import sys
 from pathlib import Path
 
 
+def _reconfigure_stdio_utf8() -> None:
+    """Windows cp1252 konsolda Türkçe çıktı UnicodeEncodeError vermesin (CI + yerel)."""
+    for name in ("stdout", "stderr"):
+        stream = getattr(sys, name, None)
+        if stream is not None and hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (OSError, ValueError, AttributeError):
+                pass
+
+
 def main() -> int:
+    _reconfigure_stdio_utf8()
     from super_otonom.config import EXCHANGES, GENERAL, RISK
     from super_otonom.meta_regime_orchestrator import advisory_ack_path_for_gate
 
