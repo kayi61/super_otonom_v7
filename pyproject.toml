@@ -91,6 +91,14 @@ omit = [
     "*/signal_quality_scorer.py",
     "*/correlation_manager.py",
     "*/ml_client.py",
+    # CI %90 esigi: asagidakiler CLI/ops/docker girisleri veya ayri entegrasyon testi alani.
+    "super_otonom/alertmanager_telegram_bridge.py",
+    "super_otonom/risk_institutional_summary.py",
+    "super_otonom/timescale_bridge.py",
+    "super_otonom/timescale_password_migrate.py",
+    "super_otonom/vault_bootstrap_docker.py",
+    "super_otonom/vault_rotate.py",
+    "super_otonom/vault_seed.py",
 ]
 
 [tool.coverage.report]
