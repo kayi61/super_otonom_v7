@@ -1,0 +1,37 @@
+# Faz 2 — Windows + Python sapmasi: Linux yeşil / Windows kırmızı sürprizini erken yakala.
+# Zorunlu branch check listesinde yok; bilgilendirici ikinci workflow.
+name: CI Windows smoke
+
+on:
+  pull_request:
+    branches: [main, master, develop]
+  push:
+    branches: [main, master, develop]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+concurrency:
+  group: ci-windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-gate-windows:
+    name: release-gate (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package (dev)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Pytest release_gate (PROMPT-A12)
+        run: python -m pytest -m release_gate -q --tb=short
