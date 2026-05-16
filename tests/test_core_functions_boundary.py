@@ -9,7 +9,6 @@ from __future__ import annotations
 import math
 
 import pytest
-
 from super_otonom.analyzer import _ema, _rsi, detect_market_regime
 
 # ─── detect_market_regime ────────────────────────────────────────────────────

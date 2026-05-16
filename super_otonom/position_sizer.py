@@ -12,7 +12,6 @@ v5.1 → 3 Katmanlı Güvenlik Filtresi (validate_and_calculate):
 
 import logging
 import math
-import os
 import time
 from typing import Dict, List, Optional
 
