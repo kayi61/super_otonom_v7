@@ -33,3 +33,27 @@ def test_edge_evidence_synthetic_json_exit_zero():
     assert payload["timeframe"] == "5m"
     assert payload["periods_per_year"] > 100_000
     assert payload["survivorship_disclosure"]["institutional_universe_claim_allowed"] is False
+
+
+def test_edge_evidence_multi_symbol_no_false_hold_low_message():
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        code = main(
+            [
+                "--source",
+                "synthetic",
+                "--symbols",
+                "BTC/USDT,ETH/USDT",
+                "--timeframe",
+                "5m",
+                "--limit",
+                "120",
+                "--no-wfa",
+                "--json",
+            ]
+        )
+    assert code == 0
+    payload = json.loads(buf.getvalue())
+    interp = payload["full_sample"]["interpretation"]
+    assert "HOLD oranı düşük" not in interp
+    assert "Yeterli tick üretilmedi" not in interp

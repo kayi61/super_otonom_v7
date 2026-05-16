@@ -102,7 +102,7 @@ def _fold_test_candles(test_df: pd.DataFrame) -> List[Dict[str, Any]]:
 
 
 def interpret(
-    hold_frac: float,
+    hold_frac: Optional[float],
     action_count: int,
     n_trades: int,
     total_return_pct: float,
@@ -115,15 +115,17 @@ def interpret(
     if action_count <= 0:
         parts.append("Yeterli tick üretilmedi.")
         return " ".join(parts)
-    if hold_frac >= 0.9:
-        parts.append(
-            "Sinyallerin çoğu HOLD — bu ya düşük frekanslı strateji ya da sıkı ön "
-            "filtreler nedeniyle beklenen davranış olabilir; tek başına kârlılık kanıtı değildir."
-        )
-    elif hold_frac <= 0.5:
-        parts.append(
-            "HOLD oranı düşük — yüksek işlem frekansı; komisyon ve slip ile edge eriyebilir."
-        )
+    # Çok sembol: hold_frac bilinmiyor (None) — 0.0 geçmek yanlış "HOLD oranı düşük" üretirdi.
+    if hold_frac is not None:
+        if hold_frac >= 0.9:
+            parts.append(
+                "Sinyallerin çoğu HOLD — bu ya düşük frekanslı strateji ya da sıkı ön "
+                "filtreler nedeniyle beklenen davranış olabilir; tek başına kârlılık kanıtı değildir."
+            )
+        elif hold_frac <= 0.5:
+            parts.append(
+                "HOLD oranı düşük — yüksek işlem frekansı; komisyon ve slip ile edge eriyebilir."
+            )
     if n_trades < 3:
         parts.append(
             "Kapalı işlem sayısı çok az — istatistiksel edge iddiası için veri yetersiz olabilir."
@@ -261,7 +263,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             "total_bars_simulated": total_bars,
             "per_symbol_bars": {r.symbol: r.bars_used for r in uni.per_symbol},
             "interpretation": interpret(
-                0.0,
+                None,
                 total_bars,
                 sum(r.report.n_trades for r in uni.per_symbol),
                 uni.mean_return_pct,
