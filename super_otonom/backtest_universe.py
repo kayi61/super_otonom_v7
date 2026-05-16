@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import statistics
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence
@@ -170,7 +171,6 @@ async def run_universe_backtest_async(
 
     rets = [r.report.total_return_pct for r in rows]
     sharpes = [r.report.sharpe_ratio for r in rows]
-    import statistics
 
     mean_ret = float(statistics.mean(rets)) if rets else 0.0
     med_ret = float(statistics.median(rets)) if rets else 0.0
@@ -178,7 +178,7 @@ async def run_universe_backtest_async(
 
     disc = survivorship_disclosure(
         symbols=[r.symbol for r in rows],
-        has_point_in_time_schedule=schedule is not None and len(schedule) > 0,
+        has_point_in_time_schedule=bool(schedule),
         data_source=data_source,
     )
     return UniverseBacktestResult(

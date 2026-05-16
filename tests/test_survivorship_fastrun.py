@@ -114,6 +114,51 @@ def test_synthetic_aligns_to_delist_schedule_window() -> None:
     assert float(candles[-1]["timestamp"]) <= 1_700_000_000_000.0
 
 
+def test_edge_evidence_schedule_filters_before_min_bar_check(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ccxt yolunda takvim filtresi 80 mum kontrolünden önce uygulanmalı."""
+    sched_path = tmp_path / "sched.json"
+    ts0 = 1_700_000_000_000.0
+    sched_path.write_text(
+        json.dumps(
+            [
+                {
+                    "symbol": "OCEAN/USDT",
+                    "active_from_ms": ts0,
+                    "active_until_ms": ts0 + 50 * 300_000.0,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    # Takvim dışı uzun seri — filtre sonrası < 80 mum → exit 1
+    outside = _candles(120, ts0=ts0 + 200 * 300_000.0, step_ms=300_000.0)
+
+    def _fake_fetch(_sym: str, _tf: str, _limit: int) -> list[dict]:
+        return outside
+
+    monkeypatch.setattr(
+        "super_otonom.edge_evidence.fetch_ccxt_candles", _fake_fetch
+    )
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        code = edge_main(
+            [
+                "--source",
+                "ccxt",
+                "--symbol",
+                "OCEAN/USDT",
+                "--universe-schedule",
+                str(sched_path),
+                "--limit",
+                "120",
+                "--no-wfa",
+            ]
+        )
+    assert code == 1
+
+
 def test_edge_evidence_multi_symbol_json(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     import super_otonom.bot_engine as bemod
 

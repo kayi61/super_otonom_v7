@@ -20,6 +20,7 @@ import pandas as pd
 
 from super_otonom.backtest_universe import (
     SymbolScheduleEntry,
+    filter_candles_by_schedule,
     load_schedule_file,
     parse_symbol_list,
     run_universe_backtest,
@@ -39,6 +40,9 @@ from super_otonom.wfa_manager import WFAManager
 
 log = logging.getLogger("super_otonom.edge_evidence")
 
+# edge_evidence / sentetik pencere: backtester min_bars=35'ten yüksek; yetersiz seri erken çıkış
+MIN_EDGE_CANDLES = 80
+
 
 def _synthetic_ts_window(
     limit: int,
@@ -46,7 +50,7 @@ def _synthetic_ts_window(
     entry: Optional[SymbolScheduleEntry],
 ) -> tuple[int, int]:
     """Takvim penceresine hizalı sentetik mum aralığı (delist: geçmişte biter)."""
-    min_bars = min(80, max(limit, 2))
+    min_bars = min(MIN_EDGE_CANDLES, max(limit, 2))
     span = max(limit, min_bars) * bar_ms
     if entry is not None and entry.active_until_ms is not None:
         ts_end = int(entry.active_until_ms)
@@ -199,11 +203,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             raw = _synthetic_ohlcv_rows(
                 sym, args.limit, seed, bar_ms=bar_ms, schedule_entry=entry
             )
-            candle_map[sym] = ohlcv_to_candles(raw)
+            rows = ohlcv_to_candles(raw)
         else:
-            candle_map[sym] = fetch_ccxt_candles(sym, args.timeframe, args.limit)
+            rows = fetch_ccxt_candles(sym, args.timeframe, args.limit)
+        if entry is not None:
+            rows = filter_candles_by_schedule(rows, entry)
+        candle_map[sym] = rows
 
-    if any(len(c) < 80 for c in candle_map.values()):
+    if any(len(c) < MIN_EDGE_CANDLES for c in candle_map.values()):
         short = {s: len(c) for s, c in candle_map.items() if len(c) < 80}
         print(f"Yetersiz mum: {short}", file=sys.stderr)
         return 1
@@ -221,7 +228,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     surv = survivorship_disclosure(
         symbols=symbols,
-        has_point_in_time_schedule=schedule is not None,
+        has_point_in_time_schedule=bool(schedule),
         data_source=args.source,
     )
     surv_note = surv["disclaimer_tr"]
