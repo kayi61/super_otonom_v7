@@ -54,6 +54,9 @@ jobs:
       - name: PROMPT-2 Hard safety contract audit
         run: python -m super_otonom.hard_safety_contract
 
+      - name: PROMPT-4 Survivorship disclosure audit
+        run: python -m super_otonom.survivorship_audit
+
       - name: Pytest fastrun (5000 gate)
         run: python -m pytest tests -m fastrun -q --tb=short
 

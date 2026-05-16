@@ -32,3 +32,4 @@ def test_edge_evidence_synthetic_json_exit_zero():
     payload = json.loads(buf.getvalue())
     assert payload["timeframe"] == "5m"
     assert payload["periods_per_year"] > 100_000
+    assert payload["survivorship_disclosure"]["institutional_universe_claim_allowed"] is False

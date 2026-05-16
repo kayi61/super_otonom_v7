@@ -51,6 +51,13 @@ def _redis_kline_timeframe() -> str:
 LEGACY_PERIODS_PER_YEAR_STOCK_5M: float = 252.0 * 24.0 * 12.0
 
 
+def bar_ms_from_timeframe(tf: str | None = None) -> int:
+    """Bir mum süresi (ms) — sentetik veri penceresi hizalama için."""
+    key = (tf or _primary_timeframe()).strip().lower()
+    sec = int(_TIMEFRAME_SEC.get(key, 3600))
+    return sec * 1000
+
+
 def periods_per_year_from_timeframe(tf: str | None = None) -> float:
     """Kripto 7/24: yıllık bar sayısı = 365.25 gün × 24 saat / bar süresi (Sharpe annualize)."""
     key = (tf or _primary_timeframe()).strip().lower()

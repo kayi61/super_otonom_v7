@@ -2,6 +2,10 @@
 Geçmiş OHLCV ile strateji geri testi (paper BotEngine + MarketAnalyzer).
 
 Çıktı: Sharpe oranı, maksimum drawdown %, kazanma oranı, toplam getiri.
+
+Sınırlama (audit / survivorship): varsayılan tek sembol mum zinciri; delist edilen
+varlıklar ve point-in-time evren seçimi yoktur. Çok sembol veya takvim için
+``super_otonom.backtest_universe``.
 """
 
 from __future__ import annotations
