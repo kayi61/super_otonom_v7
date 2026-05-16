@@ -13,12 +13,9 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
-
-from super_otonom.backtest_universe import SymbolScheduleEntry
 
 log = logging.getLogger("super_otonom.universe_schedule_fetch")
 

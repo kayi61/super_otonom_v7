@@ -190,7 +190,10 @@ class VaultBridge:
             log.info("Vault AppRole login başarılı (lease ~%ds)", lease)
             return True
         except Exception as exc:
-            log.warning("Vault AppRole login başarısız: %s", exc)
+            if self._vault_only:
+                log.warning("Vault AppRole login başarısız: %s", exc)
+            else:
+                log.debug("Vault AppRole login başarısız (env fallback): %s", exc)
             return False
 
     def _renew_token_if_needed(self) -> None:
