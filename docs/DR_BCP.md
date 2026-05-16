@@ -1,4 +1,4 @@
-# super_otonom DR/BCP v1.0
+# super_otonom DR/BCP v1.1
 ## Felaket Kurtarma ve İş Sürekliliği Planı
 
 ---
@@ -14,6 +14,24 @@
 
 ---
 
+## Docker Compose: hangi veri nerede? (PROMPT 7.2 — volume riski)
+
+| Kaynak | Tip | Konum | `docker compose down` | `docker compose down -v` |
+|--------|-----|--------|----------------------|---------------------------|
+| Bot durum, audit, recon vb. | **Bind mount** | Repo içi `./data` → konteyner `/app/data` | **Kalır** (host dosyaları) | **Kalır** |
+| Bot logları | Bind mount | `./logs` | Kalır | Kalır |
+| Vault çalışma verisi | **Named volume** `vault_data` | Docker volume (ör. `super_otonom_v7_vault_data`) | Volume **kalır** | Volume **silinir** — KV ve mühür durumu gider |
+| TimescaleDB | Named volume `timescale_data` | Docker volume | Kalır | **Silinir** — tüm DB gider |
+| Redis AOF | Named volume `redis_data` | Docker volume | Kalır | **Silinir** |
+| Prometheus TSDB | Named volume `prometheus_data` | Docker volume | Kalır | **Silinir** |
+| Grafana | Named volume `grafana_data` | Docker volume | Kalır | **Silinir** |
+
+**Özet:** `./data` ve `./logs` klasörlerini silmedikçe çoğu operasyonel dosya host’ta kalır. **`docker compose down -v`** ve **`docker volume prune`** yalnızca named volume’ları etkiler; **Vault / Timescale / Redis** sıfırlanır — üretimde komutu çalıştırmadan önce **yedek + DR özeti** doğrulanmalıdır.
+
+**Vault mühürlü / 503:** Yerelde `data/local/vault_init.json` (unseal anahtarları + root token) yoksa veya kayıpsa Vault verisi geri gelse bile açılamayabilir — günlük yedeğe dahildir (`secrets/` altı, bakınız aşağı).
+
+---
+
 ## Kritik Veri Yedekleme
 
 ### Otomatik (bot tarafından)
@@ -21,26 +39,65 @@
 data/bot_state.json        → her trade sonrası güncellenir
 data/capital_journal.jsonl → her ledger değişiminde append
 data/pending_orders.json   → atomic write (tmp → rename)
-data/orders.jsonl          → append-only, kayıp yok
+data/orders.jsonl          → append-only
 data/audit/                → günlük JSONL, append-only
+data/reconcile/            → mutabakat çıktıları
 ```
 
-### Manuel Yedek (günlük)
-```bash
-# Günlük yedek scripti — cron'a ekle
-#!/bin/bash
-DATE=$(date +%Y%m%d)
-BACKUP_DIR="/backup/super_otonom/$DATE"
-mkdir -p $BACKUP_DIR
+### Günlük yedek (Windows — PROMPT 7.1)
 
-cp data/bot_state.json        $BACKUP_DIR/
-cp data/capital_journal.jsonl $BACKUP_DIR/
-cp data/pending_orders.json   $BACKUP_DIR/
-cp -r data/audit/             $BACKUP_DIR/audit/
-cp -r data/recon/             $BACKUP_DIR/recon/
+Repo kökünden veya `scripts` klasöründen:
 
-echo "Yedek tamamlandı: $BACKUP_DIR"
+```bat
+scripts\backup_daily.cmd
 ```
+
+Önizleme (dosya yazmaz):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\backup_daily.ps1 -DryRun
+```
+
+Harici disk örneği (`D:\Backups\super_otonom` önce oluşturun):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\backup_daily.ps1 -BackupRoot "D:\Backups\super_otonom"
+```
+
+**Varsayılan hedef:** `data/backup/<yyyyMMdd-HHmmss>/` (repo içi; `.gitignore` ile commit dışı).
+
+**İçerik:** Yukarıdaki kritik dosya/dizinler + `BACKUP_MANIFEST.txt` (UTC zaman, `git` HEAD, makine adı). Varsayılan olarak **`secrets/`** altında `vault_init.json`, `vault_admin_token.json`, `telegram.env` (varsa) — **şifre/token içerir**; yedeği şifreli ortamda saklayın. Sırları yedeklememek için:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\backup_daily.ps1 -ExcludeSecrets
+```
+
+**Retention:** Varsayılan son **14** günden eski yedek klasörleri silinir (`-RetentionDays N` ile değişir).
+
+### Windows Görev Zamanlayıcısı
+
+Yönetici PowerShell:
+
+```powershell
+cd C:\tam\yol\super_otonom_v7
+powershell -ExecutionPolicy Bypass -File .\scripts\register_backup_task.ps1
+```
+
+İsteğe bağlı harici kök:
+
+```powershell
+.\scripts\register_backup_task.ps1 -BackupRoot "D:\Backups\super_otonom" -StartTime "03:15"
+```
+
+Manuel kayıt (tek satır örnek):
+
+```bat
+schtasks /Create /TN "SuperOtonom_BackupDaily" /SC DAILY /ST 02:05 /RL LIMITED /F /TR "\"C:\tam\yol\super_otonom_v7\scripts\backup_daily.cmd\""
+```
+
+### Linux / cron (referans)
+
+Windows dışı ortamda aynı dosya listesiyle `cp`/`rsync` yapın; `scripts/backup_daily.ps1` yerine eşdeğer kabuk betiği kullanın.
 
 ---
 
@@ -51,14 +108,15 @@ echo "Yedek tamamlandı: $BACKUP_DIR"
 **Adımlar:**
 1. Yeni sunucuya Python ortamını kur
 2. Repo'yu clone et
-3. `.env` dosyasını geri yükle (API keys)
-4. Son yedeği geri yükle:
-```bash
-cp /backup/super_otonom/YYYYMMDD/bot_state.json data/
-cp /backup/super_otonom/YYYYMMDD/capital_journal.jsonl data/
-cp /backup/super_otonom/YYYYMMDD/pending_orders.json data/
+3. `.env` dosyasını geri yükle (commitlenmez; yedek veya güvenli kasadan)
+4. Son yedeği geri yükle (`YYYYMMDD-HHMMSS` klasöründen):
+```powershell
+Copy-Item .\backup\...\bot_state.json .\data\
+Copy-Item .\backup\...\capital_journal.jsonl .\data\
+Copy-Item .\backup\...\pending_orders.json .\data\
+Copy-Item .\backup\...\secrets\vault_init.json .\data\local\   # varsa
 ```
-5. Botu başlat — startup_handshake otomatik çalışır
+5. Botu başlat — startup handshake otomatik çalışır
 6. Reconciliation raporunu kontrol et
 
 ### Senaryo B — Borsa API değişti / key geçersiz
@@ -66,7 +124,7 @@ cp /backup/super_otonom/YYYYMMDD/pending_orders.json data/
 **Adımlar:**
 1. Botu durdur (SIGINT)
 2. Yeni API key al
-3. `.env` dosyasını güncelle
+3. `.env` veya Vault KV'yi güncelle
 4. Exchange web arayüzünden açık pozisyonları kontrol et
 5. `data/pending_orders.json`'u temizle (stale emirler)
 6. Botu başlat
@@ -111,23 +169,26 @@ print(f'Son event: {last[\"event\"]} | {last[\"ts\"]}')
 3. `data/pending_orders.json`'u temizle
 4. Botu başlat — fresh state ile, reconciliation farkı normal
 
+### Senaryo E — Yanlışlıkla `docker compose down -v`
+
+**Etki:** Vault, Timescale, Redis, Prometheus, Grafana named volume’ları silinir. `./data` bind mount **korunur** ama DB ve KV içi veri gider.
+
+**Adımlar:**
+1. Panik yok — host `./data` + günlük yedekler duruyorsa operasyonel geri dönüş mümkün
+2. `vault_init.json` yedeğinden Vault yeniden kurulum / unseal akışı (`scripts/vault_unseal.ps1`, `vault_seed`)
+3. Timescale: şema migration / seed scriptleri ile yeniden oluşturma; kritik tablolar için ayrı DB dump (ileri seviye) önerilir
+
 ---
 
 ## İzleme ve Uyarı Sistemi
 
 ```
-AlertManager → WEBHOOK_URL (Slack/Discord)
-    EMERGENCY       → anında, her tetiklemede
-    NAV_DIFF        → %2+ fark, 5 dk cooldown
-    CIRCUIT_BREAKER → açılışta, 5 dk cooldown
-    HEARTBEAT       → 2 dk veri yoksa
-    TCA_ANOMALY     → slippage 3x beklenenin üstünde
-
-Prometheus → port 8000 (MetricsExporter)
-    equity, free_capital, open_positions
-    daily_loss_pct, drawdown_pct
-    circuit_breaker durumu
+Alertmanager → WEBHOOK_URL / köprü → Telegram
+Prometheus → bot:8000 (MetricsExporter)
+Grafana → dashboard uid super-otonom-ops
 ```
+
+Ayrıntı: `docs/RUNBOOK.md` Faz 6.
 
 ---
 
@@ -139,19 +200,20 @@ Prometheus → port 8000 (MetricsExporter)
 | NAV farkı >%10 | Hard block → manuel müdahale zorunlu |
 | Heartbeat timeout | Bot yeniden başlat |
 | Flash crash | Bekle, piyasa sakinleşince reset |
-| API key geçersiz | Yeni key → env güncelle → restart |
+| API key geçersiz | Yeni key → env/Vault güncelle → restart |
 
 ---
 
 ## Test Planı (Aylık)
 
-```bash
-# DR testini çalıştır
-# 1. Bot'u durdur
-# 2. bot_state.json'u yedekle, sil
-# 3. Bot'u başlat — fresh recovery test et
-# 4. Reconciliation raporunu kontrol et
-# 5. bot_state.json'u geri yükle
+```text
+1. Bot'u durdur
+2. bot_state.json'u yedekle, sil
+3. Bot'u başlat — fresh recovery test et
+4. Reconciliation raporunu kontrol et
+5. bot_state.json'u geri yükle
 
-# Sonuç: RTO < 2 dakika hedefine ulaşıldı mı?
+Sonuç: RTO < 2 dakika hedefine ulaşıldı mı?
 ```
+
+Ek: `backup_daily.ps1 -DryRun` ile yedek kapsamını doğrula.

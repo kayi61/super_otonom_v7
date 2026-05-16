@@ -9,7 +9,7 @@ Emergency stop, büyük NAV farkı, circuit breaker açılması gibi kritik olay
 webhook (Slack/Discord/Telegram/email) üzerinden bildirir.
 
 Desteklenen kanallar:
-    WEBHOOK_URL env → Slack/Discord/genel HTTP POST
+    ALERT_WEBHOOK_URL (veya uygun WEBHOOK_URL) → Slack/Discord/genel HTTP POST
     ALERT_EMAIL env → Email (SMTP, opsiyonel)
     TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID → Telegram Bot API (HTTPS ``sendMessage``)
 
@@ -24,14 +24,38 @@ import json
 import logging
 import os
 import time
-import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Any, Dict, List
+from urllib.parse import urlparse
 
 log = logging.getLogger("super_otonom.alerts")
 
-_WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+
+def _effective_bot_webhook_url() -> str:
+    """
+    Bot içi AlertManager HTTP webhook.
+
+    - ALERT_WEBHOOK_URL: doğrudan Slack/Discord vb. (önerilen ayrım).
+    - WEBHOOK_URL: geriye dönük; değer yalnızca Alertmanager→Telegram köprüsü için ise
+      (docker servis adı alert_telegram) host/DNS hatası üretmemek için bot tarafında yok sayılır.
+    """
+    explicit = os.getenv("ALERT_WEBHOOK_URL", "").strip()
+    if explicit:
+        return explicit
+    legacy = os.getenv("WEBHOOK_URL", "").strip()
+    if not legacy:
+        return ""
+    try:
+        host = (urlparse(legacy).hostname or "").lower()
+    except ValueError:
+        return legacy
+    if host == "alert_telegram":
+        return ""
+    return legacy
+
+
+_WEBHOOK_URL = _effective_bot_webhook_url()
 _ALERT_LEVEL = os.getenv("ALERT_LEVEL", "WARNING")  # DEBUG/INFO/WARNING/CRITICAL
 _COOLDOWN_SEC = int(os.getenv("ALERT_COOLDOWN_SEC", "300"))  # aynı alarm 5 dk'da bir
 _MAX_HISTORY = 200
@@ -257,7 +281,12 @@ class AlertManager:
                 log.debug("AlertManager | webhook OK | status=%d", resp.status)
         except Exception as exc:
             event.error = str(exc)
-            log.error("AlertManager | webhook HATA | %s | %s", event.category, exc)
+            msg = str(exc).lower()
+            # Yanlış / çözülemeyen webhook DNS gürültüsünü ERROR yerine düşük seviyede tut.
+            if "getaddrinfo" in msg or "name or service not known" in msg or "temporary failure" in msg:
+                log.warning("AlertManager | webhook DNS/host cozulemedi | %s | %s", event.category, exc)
+            else:
+                log.warning("AlertManager | webhook basarisiz | %s | %s", event.category, exc)
 
     # ── Status ────────────────────────────────────────────────────────────────
 

@@ -2,6 +2,15 @@ groups:
   - name: super_otonom_bot
     interval: 30s
     rules:
+      - alert: BotCircuitBreakerOpen
+        expr: max(bot_circuit_breaker_open) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker acik (en az bir sembol)"
+          description: "max(bot_circuit_breaker_open)={{ $value | printf \"%.0f\" }}"
+
       - alert: BotDrawdownHigh
         expr: bot_peak_drawdown_pct > 15
         for: 5m

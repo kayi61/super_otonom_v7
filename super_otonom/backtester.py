@@ -9,12 +9,13 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from super_otonom.analyzer import MarketAnalyzer
 from super_otonom.bot_engine import BotEngine
+from super_otonom.data_freshness import resolve_periods_per_year
 
 log = logging.getLogger("super_otonom.backtester")
 
@@ -53,9 +54,13 @@ def build_backtest_report(
     initial_capital: float,
     *,
     bars_simulated: int,
-    periods_per_year: float = 252.0 * 24.0 * 12.0,
+    periods_per_year: Optional[float] = None,
+    timeframe: Optional[str] = None,
 ) -> BacktestReport:
     """Equity serisinden ve engine.trade_log üzerinden rapor üret."""
+    _ppy = resolve_periods_per_year(
+        periods_per_year=periods_per_year, timeframe=timeframe
+    )
     if len(equity_curve) < 2:
         fe = float(engine.equity)
         tr = (fe - initial_capital) / (initial_capital + 1e-9) * 100.0
@@ -71,7 +76,7 @@ def build_backtest_report(
 
     eq = np.asarray(equity_curve, dtype=float)
     ret = np.diff(eq) / (eq[:-1] + 1e-9)
-    sharpe = _compute_sharpe(ret, periods_per_year)
+    sharpe = _compute_sharpe(ret, _ppy)
     max_dd = _compute_max_drawdown_pct(eq)
 
     trades = getattr(engine, "trade_log", []) or []
@@ -97,8 +102,13 @@ async def run_backtest_async(
     initial_capital: float = 10_000.0,
     min_bars: int = 35,
     max_window: int = 150,
-    periods_per_year: float = 252.0 * 24.0 * 12.0,
+    periods_per_year: Optional[float] = None,
+    timeframe: Optional[str] = None,
     final_signal_histo: Optional[Dict[str, int]] = None,
+    paper_fee_bps_per_side: float = 0.0,
+    exec_slippage_range: Optional[Tuple[float, float]] = None,
+    exec_latency_range: Optional[Tuple[float, float]] = None,
+    exec_seed: Optional[int] = None,
 ) -> BacktestReport:
     """
     Mum listesi üzerinde sırayla analyze + engine.tick çalıştırır (paper).
@@ -107,15 +117,42 @@ async def run_backtest_async(
 
     ``final_signal_histo``: verilirse her adımda ``out["final_signal"]`` sayımı bu dict’e eklenir
     (gözlem; davranışı değiştirmez). Varsayılan ``None``.
+
+    ``paper_fee_bps_per_side``: paper yürütmede taraf başına komisyon (ör. 10 → %0.10).
+
+    ``exec_slippage_range`` / ``exec_latency_range`` / ``exec_seed``:
+    ``ExecutionSimulator`` için. ``exec_latency_range`` verilmezse gecikme sıfırlanır (hızlı geri test).
+    Paper bot gecikmesini taklit etmek için örn. ``(0.05, 0.3)`` geçilebilir.
     """
+    _lat_rng = exec_latency_range if exec_latency_range is not None else (0.0, 0.0)
+    _ppy = resolve_periods_per_year(
+        periods_per_year=periods_per_year,
+        timeframe=timeframe,
+        candles=candles,
+    )
+
     if len(candles) <= min_bars:
         log.warning("backtest: yetersiz mum (need > min_bars=%s)", min_bars)
-        eng = BotEngine(initial_capital, paper=True)
+        eng = BotEngine(
+            initial_capital,
+            paper=True,
+            paper_fee_bps_per_side=paper_fee_bps_per_side,
+            exec_slippage_range=exec_slippage_range,
+            exec_latency_range=_lat_rng,
+            exec_seed=exec_seed,
+        )
         return build_backtest_report(
-            eng, [], initial_capital, bars_simulated=0, periods_per_year=periods_per_year
+            eng, [], initial_capital, bars_simulated=0, periods_per_year=_ppy
         )
 
-    engine = BotEngine(initial_capital, paper=True)
+    engine = BotEngine(
+        initial_capital,
+        paper=True,
+        paper_fee_bps_per_side=paper_fee_bps_per_side,
+        exec_slippage_range=exec_slippage_range,
+        exec_latency_range=_lat_rng,
+        exec_seed=exec_seed,
+    )
     analyzer = MarketAnalyzer()
     equity_curve: List[float] = []
     n_steps = 0
@@ -137,7 +174,7 @@ async def run_backtest_async(
         equity_curve,
         initial_capital,
         bars_simulated=n_steps,
-        periods_per_year=periods_per_year,
+        periods_per_year=_ppy,
     )
 
 

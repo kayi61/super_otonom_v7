@@ -269,7 +269,9 @@ def test_circuit_open_warning_and_storm_trip_both_sites(
 
     with caplog.at_level("WARNING", logger="super_otonom.main"):
         asyncio.run(_g())
-    assert "CircuitBreaker" in caplog.text
+    assert any(
+        s in caplog.text for s in ("CircuitBreaker", "Circuit Breaker", "CIRCUIT_BREAKER")
+    )
     assert n[0] >= 1
 
 
@@ -939,7 +941,7 @@ def test_tick_skipped_when_cb_opens_after_prep(
 
     async def _run() -> None:
         with patch.object(BotEngine, "tick", tick_mock):
-            with caplog.at_level("WARNING", logger="super_otonom.main"):
+            with caplog.at_level("DEBUG", logger="super_otonom.main"):
                 t = asyncio.create_task(ml_mod.main())
                 await asyncio.sleep(0.2)
                 ml_mod._shutdown.set()

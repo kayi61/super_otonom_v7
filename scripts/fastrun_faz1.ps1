@@ -70,12 +70,35 @@ if (-not $SkipBranchProtection) {
         Write-Host "Branch protection basarisiz (exit $bpExit). Manuel: .github/REQUIRED_CHECKS.md"
         exit $bpExit
     }
+    $reportPs = Join-Path $root "scripts\report_branch_protection_status.ps1"
+    if (Test-Path -LiteralPath $reportPs) {
+        Write-Host ""
+        Write-Host "=== Branch protection durum raporu ==="
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $reportPs -Branch $Branch -Repo $Repo -WriteDoc
+        if ($LASTEXITCODE -gt 1) {
+            Write-Host "UYARI: rapor eksik check uyarisi (exit $LASTEXITCODE)"
+        }
+    }
 }
 
 if (-not $SkipDependabotList) {
     Write-Host ""
     Write-Host "=== Acik Dependabot PR (ilk 15) ==="
-    gh pr list --repo $Repo --author app/dependabot --limit 15 2>&1
+    $prevEa = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $prOut = gh pr list --repo $Repo --author app/dependabot --limit 15 2>&1
+    $prCode = $LASTEXITCODE
+    $ErrorActionPreference = $prevEa
+    $prText = ($prOut | ForEach-Object { $_.ToString() }) -join "`n"
+    if ($prCode -eq 0 -and $prText.Trim()) {
+        Write-Host $prText
+    } elseif ($prText -match "no pull requests match") {
+        Write-Host "[OK] Acik Dependabot PR yok."
+    } elseif ($prText.Trim()) {
+        Write-Host $prText
+    } else {
+        Write-Host "[OK] Acik Dependabot PR yok."
+    }
 }
 
 Write-Host ""

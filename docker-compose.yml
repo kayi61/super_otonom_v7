@@ -142,7 +142,8 @@ services:
     container_name: super_otonom_alertmanager
     restart: unless-stopped
     environment:
-      - WEBHOOK_URL=${WEBHOOK_URL:-}
+      # Köprü adresi (bot WEBHOOK_URL / ALERT_WEBHOOK_URL ile karıştırılmaz — alert_manager.py)
+      WEBHOOK_URL: ${ALERTMANAGER_WEBHOOK_URL:-${WEBHOOK_URL:-http://alert_telegram:8081/alert}}
     volumes:
       - ./docker/alertmanager.yml:/etc/alertmanager/alertmanager.base.yml:ro
       - ./docker/alertmanager-entrypoint.sh:/entrypoint.sh:ro

@@ -260,6 +260,17 @@ class VaultBridge:
             "fallback": not self._vault_only and not self._available,
         }
 
+    def probe_kv_fields(self, exchange: str, fields: tuple[str, ...] = ("api_key", "api_secret")) -> Dict[str, bool]:
+        """KV'de alan dolu mu (deger dondurmez — denetim icin)."""
+        if not self._available:
+            return {f: False for f in fields}
+        data = self._vault_read(exchange) or {}
+        return {f: bool(str(data.get(f) or "").strip()) for f in fields}
+
+    def kv_path_display(self, exchange: str) -> str:
+        """Denetim raporu icin tam KV yolu (sır yok)."""
+        return f"{self._mount}/data/{_VAULT_BASE_PATH}/{exchange}"
+
     # ── Read ────────────────────────────────────────────────────────────
 
     def _vault_read(self, path: str) -> Optional[Dict[str, str]]:
