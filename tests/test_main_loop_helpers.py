@@ -83,7 +83,7 @@ def test_prep_symbol_cb_open_empty_raw_logs(caplog: pytest.LogCaptureFixture) ->
     engine.risk = MagicMock()
 
     async def _run() -> None:
-        with caplog.at_level("WARNING", logger="super_otonom.main"):
+        with caplog.at_level("DEBUG", logger="super_otonom.main"):
             out = await ml.prep_symbol_for_tick("Z/USDT", handler, A(), engine, {}, {})
         assert out is None
 

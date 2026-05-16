@@ -254,7 +254,9 @@ def _handle_entry_dctx_base(tmp_path, monkeypatch: pytest.MonkeyPatch):
 def test_handle_entry_dctx_none_gate_no_slots(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be, e, a = _handle_entry_dctx_base(tmp_path, monkeypatch)
     out: dict = {"actions": []}
-    with patch.object(be, "gate_buy_signal_and_slots", return_value=(False, "max_open_positions")):
+    with patch.object(
+        be, "enforce_entry_prechecks", return_value=(False, 0.0, "max_open_positions")
+    ):
         asyncio.run(e._handle_entry("D0", 1.0, a, "BUY", 0.9, out, corr_multiplier=1.0, dctx=None))
 
 
@@ -264,7 +266,7 @@ def test_handle_entry_dctx_none_ob_block(
     be, e, a = _handle_entry_dctx_base(tmp_path, monkeypatch)
     out: dict = {"actions": []}
     with (
-        patch.object(be, "gate_buy_signal_and_slots", return_value=(True, "")),
+        patch.object(be, "enforce_entry_prechecks", return_value=(True, 0.0, "")),
         patch.object(be, "merge_entry_notional", return_value=(0.0, "ob", "ob_safe_size_zero")),
     ):
         with caplog.at_level("INFO", logger="super_otonom.engine"):
@@ -278,10 +280,10 @@ def test_handle_entry_dctx_none_size_gate(tmp_path, monkeypatch: pytest.MonkeyPa
     be, e, a = _handle_entry_dctx_base(tmp_path, monkeypatch)
     out: dict = {"actions": []}
     with (
-        patch.object(be, "gate_buy_signal_and_slots", return_value=(True, "")),
+        patch.object(be, "enforce_entry_prechecks", return_value=(True, 0.0, "")),
         patch.object(be, "merge_entry_notional", return_value=(8_000.0, "m", "")),
         patch.object(
-            be, "gate_buy_size_and_exposure", return_value=(False, "insufficient_free_capital")
+            be, "enforce_entry_size_safety", return_value=(False, "insufficient_free_capital")
         ),
     ):
         asyncio.run(e._handle_entry("D2", 1.0, a, "BUY", 0.9, out, corr_multiplier=1.0, dctx=None))
@@ -295,9 +297,9 @@ def test_handle_entry_dctx_none_hard_limit(
     # Notional, ``gate_leverage_notional`` tavanının altında olmalı (10k * 0.05 * 1.0 ≈ 500);
     # aksi halde kill switch öncesi leverage kapısında kesilir ve CRITICAL hiç üretilmez.
     with (
-        patch.object(be, "gate_buy_signal_and_slots", return_value=(True, "")),
+        patch.object(be, "enforce_entry_prechecks", return_value=(True, 0.0, "")),
         patch.object(be, "merge_entry_notional", return_value=(400.0, "m", "")),
-        patch.object(be, "gate_buy_size_and_exposure", return_value=(True, "")),
+        patch.object(be, "enforce_entry_size_safety", return_value=(True, "")),
         patch.object(e._hard_limits, "can_submit_order", return_value="order_rate_exceeded"),
     ):
         with caplog.at_level("CRITICAL", logger="super_otonom.engine"):
