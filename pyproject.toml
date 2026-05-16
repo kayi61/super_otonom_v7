@@ -81,6 +81,8 @@ select = ["E", "F", "I", "W"]
 
 [tool.coverage.run]
 source = ["super_otonom"]
+# pytest-xdist (-n auto) ile worker basina .coverage.*; birlestirme icin parallel gerekli.
+parallel = true
 # Dal + tüm paket — sahte %100 yok; yalnızca test/stres ve ağır skorlama modülleri omit.
 branch = true
 omit = [
