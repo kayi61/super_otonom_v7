@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock, patch
 
 import pytest
-
 from super_otonom.observability_drill import run_drill
 
 pytestmark = pytest.mark.fastrun

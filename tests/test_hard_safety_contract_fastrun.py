@@ -6,13 +6,12 @@ import json
 from io import StringIO
 
 import pytest
-
 from super_otonom import hard_safety_contract as hsc
 from super_otonom.hard_safety_contract import (
     HARD_SAFETY_ENFORCEMENT,
+    assert_hard_safety_wired,
     audit_bot_engine_uses_contract,
     audit_hard_safety_wiring,
-    assert_hard_safety_wired,
     enforce_entry_leverage_cap,
     enforce_global_trade_allowed,
     main,

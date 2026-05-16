@@ -25,12 +25,6 @@ from super_otonom.config import METRICS, RISK
 from super_otonom.correlation_manager import CorrelationManager
 from super_otonom.decision_context import DecisionContext, DecisionStage
 from super_otonom.engine_managers import PositionManager, StateManager, TradeExecutor
-from super_otonom.kill_switch import HardLimitTracker, get_rate_limit_storm_tracker
-from super_otonom.metrics_exporter import MetricsExporter
-from super_otonom.omega_regime import compute_omega_regime  # noqa: F401 — test patch hedefi
-from super_otonom.order_engine import OrderEngine
-from super_otonom.pipelines import execution_pipeline, signal_pipeline
-from super_otonom.pipelines.override_phase_bridge import attach_override_phases_to_analysis
 from super_otonom.hard_safety_contract import (
     enforce_entry_leverage_cap,
     enforce_entry_prechecks,
@@ -38,6 +32,12 @@ from super_otonom.hard_safety_contract import (
     gate_global_trade_disable,  # noqa: F401 — test patch
     merge_entry_notional,
 )
+from super_otonom.kill_switch import HardLimitTracker, get_rate_limit_storm_tracker
+from super_otonom.metrics_exporter import MetricsExporter
+from super_otonom.omega_regime import compute_omega_regime  # noqa: F401 — test patch hedefi
+from super_otonom.order_engine import OrderEngine
+from super_otonom.pipelines import execution_pipeline, signal_pipeline
+from super_otonom.pipelines.override_phase_bridge import attach_override_phases_to_analysis
 from super_otonom.risk_ontology import RiskOntology
 from super_otonom.self_feedback_guard import (
     attach_tick_frozen_mark,

@@ -6,7 +6,6 @@ import re
 from pathlib import Path
 
 import pytest
-
 from super_otonom.secrets_audit import _scan_dotenv_key_names, run_audit
 
 pytestmark = pytest.mark.fastrun
@@ -19,7 +18,6 @@ def test_scan_dotenv_key_names_detects_names_only(tmp_path: Path) -> None:
     env.write_text("BINANCE_API_KEY=secret-value\nDRY_RUN=true\n", encoding="utf-8")
     found = _scan_dotenv_key_names(env, ["BINANCE_API_KEY", "BINANCE_API_SECRET"])
     assert found == ["BINANCE_API_KEY"]
-    text = env.read_text(encoding="utf-8")
     assert "secret-value" not in str(found)
 
 

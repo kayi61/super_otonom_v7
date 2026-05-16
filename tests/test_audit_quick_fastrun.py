@@ -6,7 +6,6 @@ import ast
 from pathlib import Path
 
 import pytest
-
 from super_otonom.data_freshness import periods_per_year_from_timeframe
 
 pytestmark = pytest.mark.fastrun

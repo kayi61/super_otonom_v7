@@ -9,7 +9,6 @@ from contextlib import redirect_stdout
 
 import numpy as np
 import pytest
-
 from super_otonom.backtester import _compute_sharpe, build_backtest_report, run_backtest
 from super_otonom.bot_engine import BotEngine
 from super_otonom.data_freshness import (

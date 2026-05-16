@@ -15,7 +15,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_DOC = _REPO_ROOT / "docs" / "SECRETS_AUDIT_LAST.md"
@@ -102,8 +102,8 @@ def _run_deploy_env_check(extra_env: Optional[Dict[str, str]] = None) -> Tuple[i
 
 
 def run_audit(*, write_doc: bool = True, doc_path: Optional[Path] = None) -> int:
-    from super_otonom.config import EXCHANGES, GENERAL
-    from super_otonom.vault_bridge import VaultBridge, env_api_key_names, secrets_vault_only_mode
+    from super_otonom.config import GENERAL
+    from super_otonom.vault_bridge import VaultBridge, secrets_vault_only_mode
 
     doc_path = doc_path or _DEFAULT_DOC
     verified_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -118,7 +118,6 @@ def run_audit(*, write_doc: bool = True, doc_path: Optional[Path] = None) -> int
     dry = bool(GENERAL.get("dry_run"))
     paper = bool(GENERAL.get("paper_mode"))
     live_confirm = str(GENERAL.get("live_confirm") or "")
-    live_like_now = not paper
 
     rows.append(
         CheckRow(
@@ -242,8 +241,8 @@ def run_audit(*, write_doc: bool = True, doc_path: Optional[Path] = None) -> int
     lines = [
         f"# Sir denetimi (PROMPT 2) — {verified_at}",
         "",
-        f"| Alan | Deger |",
-        f"|------|--------|",
+        "| Alan | Deger |",
+        "|------|--------|",
         f"| Makine | `{machine}` |",
         f"| Repo | `{_repo_root()}` |",
         f"| Genel sonuc | **{overall}** |",

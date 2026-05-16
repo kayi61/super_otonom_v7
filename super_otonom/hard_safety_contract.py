@@ -26,7 +26,7 @@ import importlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from super_otonom import pre_trade_gate as _ptg
 from super_otonom.config import RISK
