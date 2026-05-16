@@ -132,7 +132,7 @@ function Invoke-PutProtection {
     )
     $payload = @{
         required_status_checks        = @{ strict = $true; contexts = @($Contexts) }
-        enforce_admins                = $false
+        enforce_admins                = $true
         required_pull_request_reviews = @{
             dismiss_stale_reviews           = $false
             require_code_owner_reviews       = $false
