@@ -21,7 +21,8 @@ scripts\fastrun_faz1.cmd
 | `coverage (3.12)` | CI matrix |
 | `dependency-security` | Security workflow |
 
-**Uyumluluk:** GitHub arayüzündeki tam ad farklıysa (ör. `coverage (Python 3.10)`), bir kez Actions → başarılı koşuda check adını kopyala ve `scripts/setup_branch_protection.ps1` içindeki `$checks` dizisini güncelle.
+**Uyumluluk:** GitHub arayüzündeki tam ad farklıysa (ör. `coverage (Python 3.10)`), bir kez Actions → başarılı koşuda check adını kopyala ve `scripts/setup_branch_protection.ps1` içindeki `$checks` dizisini güncelle.  
+`setup_branch_protection.ps1` **`enforce_admins: true`** gönderir — yöneticiler de aynı check’lere tabi (doğrudan push atlaması kapanır); acil durumda geçici olarak kuralı gevşetin.
 
 **Dependabot:** `.github/dependabot.yml` zaten tanımlı (pip + github-actions + docker); merge için `gh pr list --author app/dependabot` veya `fastrun_faz1.cmd`.
 

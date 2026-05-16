@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from io import BytesIO
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from super_otonom.vault_bridge import VaultBridge, env_api_key_names, secrets_vault_only_mode
 

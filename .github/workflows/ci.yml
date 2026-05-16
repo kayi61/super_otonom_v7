@@ -123,9 +123,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      # Coverage: xdist (-n auto) ile pytest-cov birlesimi CI'da toplam %90 esigini dusurebiliyor;
+      # tam suite tek surecte olculur (pytest-full job hizli kalir).
       - name: Pytest full suite + coverage
         run: >
-          python -m pytest tests/ -q -n auto --tb=short
+          python -m pytest tests/ -q --tb=short
           --cov=super_otonom
           --cov-report=term-missing
           --cov-fail-under=90

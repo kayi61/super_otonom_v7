@@ -702,9 +702,11 @@ def test_main_loop_helpers_extra(monkeypatch: pytest.MonkeyPatch) -> None:
     now_ms = int(time.time() * 1000)
     fresh = [{"timestamp": now_ms}]
     assert ml._is_stale_data(fresh, "X") is False
-    # stale
-    stale = [{"timestamp": (time.time() - 1000) * 1000}]
+    # stale (TF+buffer ile uyum; CI'da EXCHANGE_TIMEFRAME TIMEFRAME'i ezer)
+    monkeypatch.delenv("EXCHANGE_TIMEFRAME", raising=False)
+    monkeypatch.setenv("TIMEFRAME", "1m")
     monkeypatch.setenv("STALE_DATA_THRESHOLD_SEC", "10")
+    stale = [{"timestamp": (time.time() - 1000) * 1000}]
     assert ml._is_stale_data(stale, "X") is True
 
     # _check_heartbeat - no fetch yet
