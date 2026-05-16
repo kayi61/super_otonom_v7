@@ -12,6 +12,11 @@ Aşamalar:
   Aşama 8 (3501-4000): Serileştirme ve persistence
   Aşama 9 (4001-4500): Güvenlik ve guard kontrolleri
   Aşama 10 (4501-5000): Hypothesis-benzeri property testleri
+
+Pytest ayrımı (repo ``tests/``): 1–2 ``test_5000_phase1_phase2.py``; 3–5 ``test_5000_phase3_phase5.py``;
+6–10 ``test_5000_phase6_phase10.py``; 11–21 ``test_5000_phase11_phase21.py``; 22–30 ``test_5000_phase22_phase30.py``;
+32–38 ``test_5000_phase32_phase38.py``; 31 (C++) ``test_5000_phase31_cpp_optional.py``.
+Hızlı regresyon (Python): ``python -m pytest -m fastrun``. Aşama 31 (C++): ``pytest -m cpp_optional tests/test_5000_phase31_cpp_optional.py``.
 """
 
 import ast

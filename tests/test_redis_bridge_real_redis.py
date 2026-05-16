@@ -13,6 +13,7 @@ import time
 from typing import Any
 
 import pytest
+from super_otonom.data_freshness import redis_kline_max_age_ms
 from super_otonom.redis_bridge import SYMBOLS, RedisBridge
 
 
@@ -38,9 +39,14 @@ def live_redis_url() -> str:
         client.close()
 
 
+def _kline_key(sym: str) -> str:
+    from super_otonom.redis_bridge import _KLINE_KEY_SUFFIX
+
+    return f"market:{sym.upper()}:{_KLINE_KEY_SUFFIX}"
+
+
 def _set_kline(client: Any, symbol: str, payload: dict[str, Any]) -> None:
-    key = f"market:{symbol.upper()}:kline_5m"
-    client.set(key, json.dumps(payload))
+    client.set(_kline_key(symbol), json.dumps(payload))
 
 
 def test_redis_bridge_real_connection_and_get_kline(live_redis_url: str) -> None:
@@ -56,7 +62,7 @@ def test_redis_bridge_real_connection_and_get_kline(live_redis_url: str) -> None
         assert data["close"] == 42_000.5
         assert b.get_latest_price("BTCUSDT") == 42_000.5
     finally:
-        raw_client.delete("market:BTCUSDT:kline_5m")
+        raw_client.delete(_kline_key("BTCUSDT"))
         raw_client.close()
         b.close()
 
@@ -76,12 +82,12 @@ def test_redis_bridge_real_stale_kline_returns_none(live_redis_url: str) -> None
     if not b.is_connected:
         pytest.skip(f"RedisBridge baglanamadi: {b.degraded_reason}")
     raw_client = pytest.importorskip("redis").from_url(live_redis_url, decode_responses=True)
-    old_ms = time.time() * 1000 - 120_000
+    old_ms = time.time() * 1000 - (redis_kline_max_age_ms() + 60_000)
     _set_kline(raw_client, "ETHUSDT", {"updated_at": old_ms, "close": 1.0})
     try:
         assert b.get_kline("ETHUSDT") is None
     finally:
-        raw_client.delete("market:ETHUSDT:kline_5m")
+        raw_client.delete(_kline_key("ETHUSDT"))
         raw_client.close()
         b.close()
 
@@ -106,7 +112,7 @@ def test_redis_bridge_real_get_all_klines_and_status(live_redis_url: str) -> Non
             assert st["symbols"][sym]["price"] == 1.0
     finally:
         for sym in SYMBOLS:
-            raw_client.delete(f"market:{sym}:kline_5m")
+            raw_client.delete(_kline_key(sym))
         raw_client.close()
         b.close()
 

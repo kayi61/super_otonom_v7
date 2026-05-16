@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -32,7 +33,37 @@ def _env_truthy(name: str, default: str = "false") -> bool:
     return _env_trim(os.getenv(name, default)).lower() in ("1", "true", "yes", "on")
 
 
-# DRY_RUN=true simülasyon: gerçek emir gönderilmez; paper zorunlu (runbook: ilk aşama)
+_VAULT_BRIDGE: Any = None
+
+
+def _vault_bridge() -> Any:
+    """Tek VaultBridge örneği — EXCHANGES yüklenirken tekrarlı health check olmasın."""
+    global _VAULT_BRIDGE
+    if _VAULT_BRIDGE is None:
+        from super_otonom.vault_bridge import VaultBridge
+
+        _VAULT_BRIDGE = VaultBridge()
+    return _VAULT_BRIDGE
+
+
+def _exchange_cfg(exchange_id: str, **non_api: Any) -> dict[str, Any]:
+    """
+    api_* alanları Vault + .env birleşiminden (Vault doluysa üstün);
+    testnet vb. non_api yalnızca ortamdan.
+    """
+    merged = _vault_bridge().get_all_secrets(exchange_id)
+    out: dict[str, Any] = dict(non_api)
+    for k, v in merged.items():
+        if not k.startswith("api_"):
+            continue
+        t = _env_trim(str(v)) if v is not None else ""
+        if t:
+            out[k] = t
+    return out
+
+
+# DRY_RUN=true → simülasyon: gerçek emir gönderilmez; paper zorlanır (runbook ilk aşama).
+# Canlı spot limit emirleri için: DRY_RUN=false, PAPER_MODE=false, LIVE_CONFIRM=YES, geçerli API anahtarları.
 _dry = os.getenv("DRY_RUN", "").strip().lower() in ("1", "true", "yes", "on")
 _paper = os.getenv("PAPER_MODE", "true").lower() == "true"
 _effective_paper = True if _dry else _paper
@@ -61,42 +92,18 @@ GENERAL = {
 }
 
 EXCHANGES = {
-    "binance": {
-        # Ana test / referans borsa (repo varsayılanı DEFAULT_EXCHANGE=binance).
-        # BINANCE_SECRET_KEY / BINANCE_KEY: PowerShell veya dokümantasyon uyumsuzluğu için yedek isimler.
-        "api_key": _env_pick("BINANCE_API_KEY", "BINANCE_KEY"),
-        "api_secret": _env_pick(
-            "BINANCE_API_SECRET",
-            "BINANCE_SECRET_KEY",
-            "BINANCE_SECRET",
-        ),
-        # exchange_async._binance_testnet_env_enabled ile aynı anlam (1 / yes / on).
-        "testnet": _env_truthy("BINANCE_TESTNET", "false"),
-    },
-    "bybit": {
-        # UYARI: Tam akış testnet ile doğrulanmadan production kullanmayın (API farkları).
-        "api_key": os.getenv("BYBIT_API_KEY", ""),
-        "api_secret": os.getenv("BYBIT_API_SECRET", ""),
-        "testnet": os.getenv("BYBIT_TESTNET", "true").lower() == "true",
-    },
-    "kucoin": {
-        "api_key": os.getenv("KUCOIN_API_KEY", ""),
-        "api_secret": os.getenv("KUCOIN_API_SECRET", ""),
-        "api_passphrase": os.getenv("KUCOIN_API_PASSPHRASE", ""),
-    },
-    "okx": {
-        "api_key": os.getenv("OKX_API_KEY", ""),
-        "api_secret": os.getenv("OKX_API_SECRET", ""),
-        "api_password": os.getenv("OKX_API_PASSWORD", ""),
-    },
-    "coinbase": {
-        "api_key": os.getenv("COINBASE_API_KEY", ""),
-        "api_secret": os.getenv("COINBASE_API_SECRET", ""),
-    },
-    "gateio": {
-        "api_key": os.getenv("GATEIO_API_KEY", ""),
-        "api_secret": os.getenv("GATEIO_API_SECRET", ""),
-    },
+    "binance": _exchange_cfg(
+        "binance",
+        testnet=_env_truthy("BINANCE_TESTNET", "false"),
+    ),
+    "bybit": _exchange_cfg(
+        "bybit",
+        testnet=os.getenv("BYBIT_TESTNET", "true").lower() == "true",
+    ),
+    "kucoin": _exchange_cfg("kucoin"),
+    "okx": _exchange_cfg("okx"),
+    "coinbase": _exchange_cfg("coinbase"),
+    "gateio": _exchange_cfg("gateio"),
 }
 
 PAIRS = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT"]

@@ -348,8 +348,12 @@ class WebSocketManager:
         url = self._build_ws_url()
         log.info("WebSocket bağlanıyor: %s", url[:80])
 
-        self._session = aiohttp.ClientSession()
+        loop = asyncio.get_running_loop()
+        self._session = None
         try:
+            from super_otonom.aiohttp_compat import make_client_session
+
+            self._session = make_client_session(loop)
             self._ws = await self._session.ws_connect(
                 url, heartbeat=30, timeout=aiohttp.ClientTimeout(total=None)
             )

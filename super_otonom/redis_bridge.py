@@ -4,6 +4,10 @@ redis_bridge.py — Go WebSocket → Redis → Python köprüsü
 Go servisi Binance'den aldığı kline verisini Redis'e yazar.
 Bu modül Python botunun o veriyi okumasını sağlar.
 
+Ortam (özet): ``REDIS_URL``, ``REDIS_KLINE_TIMEFRAME``, ``REDIS_KLINE_MAX_AGE_MS``,
+``REDIS_KLINE_TIMEFRAME_BUFFER_SEC``, ``REDIS_KLINE_KEY_SUFFIX``, ``REDIS_KLINE_FUTURE_SKEW_MS``.
+Yaş eşikleri: ``super_otonom.data_freshness``.
+
 Kullanım:
     bridge = RedisBridge()
 
@@ -38,7 +42,9 @@ except ImportError:
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"]
-_STALE_MS = 15_000  # 15 saniyeden eski veri → stale
+# kline_5m anahtarı Go köprüsü ile uyumlu; başka sonek: REDIS_KLINE_KEY_SUFFIX
+_KLINE_KEY_SUFFIX = os.getenv("REDIS_KLINE_KEY_SUFFIX", "kline_5m")
+_REDIS_UPDATED_AT_FUTURE_SKEW_MS = int(os.getenv("REDIS_KLINE_FUTURE_SKEW_MS", "120000"))
 
 
 class RedisBridge:
@@ -98,19 +104,36 @@ class RedisBridge:
         if not self._connected:
             return None
 
-        key = f"market:{symbol.upper()}:kline_5m"
+        key = f"market:{symbol.upper()}:{_KLINE_KEY_SUFFIX}"
         try:
+            from super_otonom.data_freshness import redis_kline_max_age_ms
+
             raw = self._client.get(key)
             if raw is None:
                 return None
 
             data = json.loads(raw)
 
-            # Stale kontrol
-            updated_at = data.get("updated_at", 0)
-            age_ms = time.time() * 1000 - updated_at
-            if age_ms > _STALE_MS:
-                log.debug("RedisBridge: stale veri | %s | age=%.0fms", symbol, age_ms)
+            # Stale / bozuk updated_at — eşik: data_freshness.redis_kline_max_age_ms (TF ile uyumlu)
+            now_ms = time.time() * 1000
+            updated_at = float(data.get("updated_at", 0) or 0)
+            max_age = float(redis_kline_max_age_ms())
+            if updated_at > now_ms + _REDIS_UPDATED_AT_FUTURE_SKEW_MS:
+                log.debug(
+                    "RedisBridge: updated_at gelecekte | %s | upd=%.0f now=%.0f",
+                    symbol,
+                    updated_at,
+                    now_ms,
+                )
+                return None
+            age_ms = now_ms - updated_at
+            if age_ms > max_age:
+                log.debug(
+                    "RedisBridge: stale veri | %s | age=%.0fms limit=%.0fms",
+                    symbol,
+                    age_ms,
+                    max_age,
+                )
                 return None
 
             return data
@@ -122,6 +145,44 @@ class RedisBridge:
     def get_all_klines(self) -> Dict[str, Optional[Dict[str, Any]]]:
         """Tüm sembollerin son kline verisini döndürür."""
         return {sym: self.get_kline(sym) for sym in SYMBOLS}
+
+    def clear_stale_kline_keys(self, max_age_ms: Optional[float] = None) -> int:
+        """Ops: ``updated_at`` çok eski, sıfır veya saat kaymalı (gelecek) kline anahtarlarını siler.
+
+        TTL yerine tek seferlik temizlik; cron veya deploy öncesi çalıştırılabilir.
+        Dönüş: silinen anahtar sayısı.
+        """
+        if not self._connected:
+            return 0
+        from super_otonom.data_freshness import redis_kline_max_age_ms
+
+        limit = float(max_age_ms if max_age_ms is not None else redis_kline_max_age_ms())
+        now_ms = time.time() * 1000
+        deleted = 0
+        for sym in SYMBOLS:
+            key = f"market:{sym.upper()}:{_KLINE_KEY_SUFFIX}"
+            try:
+                raw = self._client.get(key)
+                if raw is None:
+                    continue
+                data = json.loads(raw)
+                updated_at = float(data.get("updated_at", 0) or 0)
+                if updated_at <= 0:
+                    self._client.delete(key)
+                    deleted += 1
+                    continue
+                if updated_at > now_ms + _REDIS_UPDATED_AT_FUTURE_SKEW_MS:
+                    self._client.delete(key)
+                    deleted += 1
+                    continue
+                if now_ms - updated_at > limit:
+                    self._client.delete(key)
+                    deleted += 1
+            except Exception as exc:
+                log.warning("RedisBridge.clear_stale_kline_keys | %s: %s", key, exc)
+        if deleted:
+            log.info("RedisBridge: clear_stale_kline_keys silinen=%d", deleted)
+        return deleted
 
     def get_latest_price(self, symbol: str) -> Optional[float]:
         """Sembolün son kapanış fiyatını döndürür."""

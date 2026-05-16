@@ -4,6 +4,50 @@
 
 Tek komut (kapılar + ortam özeti): `scripts/fastrun_go_live.ps1` veya `scripts/fastrun_go_live.cmd`.
 
+### Golden path (Faz 1 — her oturumda)
+
+1. **Repo kökü:** terminali proje kökünde açın (`fatal: not a git repository` ve script bulunamadı hataları buradan çıkar). **PowerShell:** `Set-Location -LiteralPath 'C:\Users\...\super_otonom_v7'` (`cd /d` yalnızca CMD içindir). **CMD:** `cd /d "C:\Users\...\super_otonom_v7"`.
+2. **`git pull`** — uzaktaki `main` ile senkron (merge çakışması varsa önce çözün).
+3. **`scripts\fastrun_go_live.cmd`** — lint/smoke/deploy_env_check zinciri yeşil olmadan bot başlatmayın.
+4. **`python -m super_otonom.main_loop`** — yalnızca üstteki kapılar yeşil ve ortam matrisi (DRY_RUN / PAPER_MODE / LIVE_CONFIRM) uygunsa.
+5. **CI/CD paralelliği:** zorunlu check listesi ve otomasyon için `.github/REQUIRED_CHECKS.md`; koruma API/UI için `scripts\fastrun_faz1.cmd`. Dependabot PR’larında önce `main` ile güncel dal, CI yeşil olunca **sırayla** merge (CLI: `gh pr list --author app/dependabot`, sonra `gh pr merge <no>`).
+
+### Faz 3 — Vault ve sırlar (sıra ve adres)
+
+**3.1 — Host port (doğrulama)**  
+`docker-compose.yml` içinde **Vault** servisi **`127.0.0.1:8200:8200`** ile host’a bağlı; health check `127.0.0.1:8200`. Konteyner içi `VAULT_ADDR=http://127.0.0.1:8200`. **Host’tan** seed / `main_loop` çalıştırırken: `http://127.0.0.1:8200` (veya `vault_bridge` ile fallback); yalnızca `http://vault:8200` bırakıp hosttan çalıştırmayın — bağlantı reddi oluşur.
+
+**3.2 — Seed sırası (zorunlu disiplin)**  
+1. **`scripts\vault_seed.cmd`** — Vault KV’ye borsa / gerekli sırları yazar (`vault_seed_host.ps1`).  
+2. **`scripts\env_harden_secrets.cmd`** — `.env` içindeki hassas alanları sıkılaştırır; **mutlaka seed’den sonra**; ters sıra “seed sonra env_hard sıçrama” ve eksik anahtar hataları üretir.  
+3. Anahtar yokken geçici: **`data\local\telegram.env`** veya yerel `.env` (asla commit yok).
+
+**3.3 — Canlı: SECRETS_VAULT_ONLY**  
+Canlı profile geçmeden önce: **`SECRETS_VAULT_ONLY=true`**, yalnızca **AppRole** (`VAULT_ROLE_ID`, `VAULT_SECRET_ID`) veya kısa ömürlü `VAULT_TOKEN`; **`.env`’de düz `BINANCE_API_KEY` / `BINANCE_SECRET` olmamalı** — `deploy_env_check` ve RUNBOOK canlı matrisi ile uyumlu.
+
+### Faz 4 — Veri tazeliği ve zaman mantığı (mum / TF uyumu)
+
+**4.1 — Ortak kaynak (`super_otonom/data_freshness.py`)**  
+- **`stale_threshold_sec()`** → `main_loop` **STALE_DATA** eşiği (`TIMEFRAME` / `EXCHANGE_TIMEFRAME` + `STALE_DATA_TIMEFRAME_BUFFER_SEC`).  
+- **`max_candle_age_ms()`** → `position_sizer` **ZAMAN_KAYMASI** (isteğe `POSITION_SIZER_MAX_DATA_AGE_MS`; yoksa `stale_threshold_sec` ile aynı cap).  
+**TF değişince** yalnız bu modül + ilgili env’leri güncelleyin; iki alarm ayrı eşikle spam üretmez.
+
+**4.2 — Redis (`super_otonom/redis_bridge.py`)**  
+- **`redis_kline_max_age_ms()`** aynı dosyadan: `updated_at` yaşı için üst sınır (varsayılan `REDIS_KLINE_TIMEFRAME=5m` + buffer; ince ayar **`REDIS_KLINE_MAX_AGE_MS`**).  
+- Bozuk / çok eski anahtarlar: **`RedisBridge.clear_stale_kline_keys()`** (ops / deploy öncesi).  
+- **Go köprüsü (`go_service`, `go_redis_bridge`):** her `SET` **`REDIS_KLINE_TTL_SECONDS`** (varsayılan **900**) ile TTL — yazım kesilince anahtarlar kendiliğinden düşer; `go_service` **`:history`** listesine de aynı TTL (`EXPIRE`).  
+- Anahtar soneki: **`REDIS_KLINE_KEY_SUFFIX`** (varsayılan `kline_5m`; Go ve Python aynı env’i okur).
+
+### Faz 5 — Mutabakat ve paper log gürültüsü
+
+**5.1 — DRY_RUN + read-only / imzalı istek**  
+- **`RECON_SIM_SKIP_SIGNED_FETCH=1`** + `DRY_RUN=true` + `PAPER_MODE=true` → mutabakat **borsadan bakiye/pozisyon çekmez** (apiKey / `-2008` gürültüsü yok); yerel `NAV` kullanılır. Özet recon satırı **INFO**; uyarılar **DEBUG** (hard block hariç).  
+- Gerçek bakiye okumak için: **`RECON_FETCH_BALANCE_IN_SIM=1`** + **`BINANCE_SIGN_REQUESTS_IN_DRY_RUN=1`** + Vault’tan geçerli (tercihen **read-only**) anahtar — bu durumda `RECON_SIM_SKIP_SIGNED_FETCH` kapalı olmalı.
+
+**5.2 — `pending_orders.json`**  
+Bot **kapalıyken** gereksiz / eski dosyayı silin (`data/pending_orders.json`).  
+Çalışırken: **`RECON_AUTO_FAIL_SKIPPED_PENDING=true`** (sim/paper) → recovery **SKIPPED** olan satırlar **iptal** edilir; dosya boşalınca **otomatik silinir**. Varsayılan `false` — bilinçli açın.
+
 ### Ortam matrisi (sırayla)
 
 | Aşama | `DRY_RUN` | `PAPER_MODE` | `LIVE_CONFIRM` | `BINANCE_TESTNET` | Emir |
@@ -30,12 +74,15 @@ Kurallar:
 | IP kısıtı (whitelist) | Önerilir |
 | Testnet anahtarı ≠ mainnet anahtarı | Zorunlu ayrım |
 
-Vault yolu: `secret/trading/binance` → `api_key`, `api_secret` (kurulum: `scripts/fastrun_vault.ps1`).
+Vault yolu: `secret/trading/binance` → `api_key`, `api_secret` (KV seed: `scripts\vault_seed.cmd`; tam Vault/stack: `scripts\fastrun_vault.cmd`).
 
 ### Açma sırası (checklist)
 
 ```
 [ ] 1. .env kopyala: cp .env.example .env  (veya .env.template) — commit etme
+[ ] 1b. Vault (Faz 3): compose ile Vault ayakta; host `http://127.0.0.1:8200` — önce `scripts\vault_seed.cmd`, sonra `scripts\env_harden_secrets.cmd` (ters sıra kullanma)
+[ ] 1c. Redis kline (Faz 4): `TIMEFRAME` / `data_freshness` ile uyum; suni stale → `REDIS_KLINE_MAX_AGE_MS` veya `RedisBridge.clear_stale_kline_keys()` (RUNBOOK Faz 4)
+[ ] 1d. Mutabakat (Faz 5): sim/paper gürültüsü için `RECON_SIM_SKIP_SIGNED_FETCH=1`; `data/pending_orders.json` gereksizse bot kapalıyken sil; otomatik temizlik: `RECON_AUTO_FAIL_SKIPPED_PENDING=true` (RUNBOOK Faz 5)
 [ ] 2. Aşama 0→1→2→3 matrisine göre bayrakları ayarla
 [ ] 3. Zayıf şifre yok (POSTGRES_*, GRAFANA_*, TIMESCALE_* — deploy_env_check reddeder)
 [ ] 4. fastrun_go_live (release_gate + fastrun + deploy_env_check)

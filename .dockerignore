@@ -13,4 +13,7 @@ logs/
 x_logs/
 *.zip
 test_*.py
+super_otonom/test_*.py
+tests/
 docs/
+htmlcov/

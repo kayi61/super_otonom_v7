@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -50,7 +51,45 @@ var symbols = []string{"btcusdt", "ethusdt", "bnbusdt", "solusdt"}
 var interval = "5m"
 var ctx = context.Background()
 
+// redisKlineTTL — Python Faz 4 / data_freshness ile uyumlu; her SET ile yenilenir.
+func redisKlineTTL() time.Duration {
+	s := os.Getenv("REDIS_KLINE_TTL_SECONDS")
+	if s == "" {
+		return 900 * time.Second
+	}
+	sec, err := strconv.Atoi(s)
+	if err != nil || sec < 120 {
+		return 900 * time.Second
+	}
+	return time.Duration(sec) * time.Second
+}
+
+func redisKlineKeySuffix() string {
+	if v := os.Getenv("REDIS_KLINE_KEY_SUFFIX"); v != "" {
+		return v
+	}
+	return "kline_5m"
+}
+
 func buildStreamURL() string {
+	// Exchange seçimi: EXCHANGE env (varsayılan: binance)
+	exchange := os.Getenv("EXCHANGE")
+	if exchange == "" {
+		exchange = "binance"
+	}
+
+	// OKX desteği
+	if exchange == "okx" {
+		return "wss://ws.okx.com:8443/ws/v5/public"
+	}
+
+	// Binance testnet/mainnet
+	baseURL := "wss://stream.binance.com:9443"
+	testnet := os.Getenv("BINANCE_TESTNET")
+	if testnet == "true" || testnet == "1" {
+		baseURL = "wss://testnet.binance.vision"
+	}
+
 	streams := ""
 	for i, s := range symbols {
 		if i > 0 {
@@ -58,7 +97,7 @@ func buildStreamURL() string {
 		}
 		streams += fmt.Sprintf("%s@kline_%s", s, interval)
 	}
-	return fmt.Sprintf("wss://stream.binance.com:9443/stream?streams=%s", streams)
+	return fmt.Sprintf("%s/stream?streams=%s", baseURL, streams)
 }
 
 func newRedisClient() *redis.Client {
@@ -154,13 +193,23 @@ func connectAndStream(rdb *redis.Client) {
 			UpdatedAt: time.Now().UnixMilli(),
 		}
 		tickJSON, _ := json.Marshal(full)
-		key := fmt.Sprintf("market:%s:kline_5m", tick.Symbol)
+		sfx := redisKlineKeySuffix()
+		key := fmt.Sprintf("market:%s:%s", tick.Symbol, sfx)
+		ttl := redisKlineTTL()
 
-		if err := rdb.Set(ctx, key, tickJSON, 10*time.Minute).Err(); err != nil {
+		if err := rdb.Set(ctx, key, tickJSON, ttl).Err(); err != nil {
 			log.Printf("[REDIS] ❌ Yazma hatası %s: %v", key, err)
 		} else {
+			// Pub/Sub: Python tarafına anlık bildirim
+			rdb.Publish(ctx, "market:kline_update", tick.Symbol)
+
 			if tick.IsClosed {
-				log.Printf("[GO-WS] ✅ MUM KAPANDI | %s | C:%s → Redis'e yazıldı", tick.Symbol, string(tick.Close))
+				// Kapanan mumu listeye ekle (tarihsel veri)
+				histKey := fmt.Sprintf("market:%s:%s:history", tick.Symbol, sfx)
+				rdb.LPush(ctx, histKey, tickJSON)
+				rdb.LTrim(ctx, histKey, 0, 299) // Son 300 mum tut
+				_ = rdb.Expire(ctx, histKey, ttl).Err()
+				log.Printf("[GO-WS] ✅ MUM KAPANDI | %s | C:%s → Redis'e yazıldı + history", tick.Symbol, string(tick.Close))
 			} else {
 				log.Printf("[GO-WS] 📊 %s | Close: %s → Redis güncellendi", tick.Symbol, string(tick.Close))
 			}

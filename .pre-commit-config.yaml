@@ -1,4 +1,5 @@
 # Yerel: pip install pre-commit && pre-commit install
+# Tam regresyon (isteğe bağlı): pre-commit install --hook-type pre-push
 # Commit öncesi: ruff (staj dosyalar) + ruff format
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -11,3 +12,13 @@ repos:
       - id: ruff-format
         types_or: [python, pyi]
         files: ^(super_otonom|tests)/
+
+  - repo: local
+    hooks:
+      - id: pytest-full-tests
+        name: pytest full tests/ (Aşama 5 — push öncesi)
+        entry: python -m pytest tests/ -q --tb=short
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

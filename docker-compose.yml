@@ -86,6 +86,7 @@ services:
     restart: unless-stopped
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - REDIS_KLINE_TTL_SECONDS=${REDIS_KLINE_TTL_SECONDS:-900}
     depends_on:
       redis:
         condition: service_healthy
@@ -223,6 +224,8 @@ services:
     volumes:
       - ./docker/vault.hcl:/vault/config/vault.hcl:ro
       - vault_data:/vault/data
+    ports:
+      - "127.0.0.1:8200:8200"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8200/v1/sys/health >/dev/null 2>&1 || exit 1"]
       interval: 10s

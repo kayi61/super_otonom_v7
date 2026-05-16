@@ -506,7 +506,7 @@ def test_order_engine_recovery_not_found_and_no_method(tmp_path: Path) -> None:
     eng2 = _new_order_engine(tmp_path / "sub")
     xid = eng2.intent("X", "BUY", 1.0, 1.0)
     out = asyncio.run(eng2.recover(object()))
-    assert xid in out
+    assert out == []
     assert eng2.get(xid).state == "PENDING"
 
 

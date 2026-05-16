@@ -5,6 +5,8 @@
 <!-- İsteğe bağlı tek satır — otomatik: python scripts/governance_pr_items.py [--gate]
      veya el ile: docs/GOVERNANCE_PR_FILE_TO_ITEM_MAP_TR.md → "PR gövdesine yapıştır — şablon"
 GOVERNANCE maddeleri (main…HEAD): … — python -m pytest -m release_gate: …
+
+**CI (merge oncesi):** `ci-quick` (fastrun) + **`pytest-full`** (tam suite) + `coverage` yesil.
 -->
 
 ## Tetiklenen iç kontrol / doküman

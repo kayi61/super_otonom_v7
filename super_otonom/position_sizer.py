@@ -5,7 +5,7 @@ PositionSizer v5.1
 ─────────────────────────────────────────────────────────────────────────────
 v5   → Slippage + Order Book entegrasyonu (calculate_with_slippage)
 v5.1 → 3 Katmanlı Güvenlik Filtresi (validate_and_calculate):
-         1. Zaman Senkronizasyonu  : son mum çok eskiyse işlem yok (POSITION_SIZER_MAX_DATA_AGE_MS, varsayılan 5 dk)
+         1. Zaman Senkronizasyonu  : son mum çok eskiyse işlem yok (``data_freshness.max_candle_age_ms``; isteğe ``POSITION_SIZER_MAX_DATA_AGE_MS``)
          2. Order Book Imbalance   : bid/ask < 0.3 → flash crash riski = işlem yok
          3. Fractional Kelly       : ham boyutun %70'i kullan (overfitting koruması)
 """
@@ -23,8 +23,11 @@ _KELLY_FRACTION = 0.5
 _KELLY_MAX = 0.30
 _KELLY_FALLBACK = 0.15
 
-# v5.1 — ZAMAN_KAYMASI: son mum / kline yaşı (ms). 5000ms REST 1H için fazla sıkıydı.
-_MAX_DATA_AGE_MS = float(os.getenv("POSITION_SIZER_MAX_DATA_AGE_MS", "300000"))
+# v5.1 — ZAMAN_KAYMASI: son mum yasi (ms); 1h icin data_freshness ile hizali (~3720s).
+def _max_data_age_ms() -> float:
+    from super_otonom.data_freshness import max_candle_age_ms
+
+    return max_candle_age_ms()
 _MIN_BID_IMBALANCE = 0.3  # bid/ask hacim oranı eşiği
 _KELLY_SAFETY_MULT = 0.70  # Fractional Kelly çarpanı
 _IMBALANCE_DEPTH = 5  # Kaç order book katmanı değerlendirilsin
@@ -157,7 +160,7 @@ class PositionSizer:
         equity: float,
         order_book: Dict[str, List],
         last_candle_ts: float,
-        max_candle_age_ms: float = _MAX_DATA_AGE_MS,
+        max_candle_age_ms: float | None = None,
         min_bid_imbalance: float = _MIN_BID_IMBALANCE,
         kelly_safety: float = _KELLY_SAFETY_MULT,
         **kwargs,
@@ -179,7 +182,7 @@ class PositionSizer:
 
         Args:
             last_candle_ts    : Son mumun ms cinsinden Unix timestamp'i
-            max_candle_age_ms : Maksimum izin verilen gecikme (varsayılan: env POSITION_SIZER_MAX_DATA_AGE_MS veya 300000 ms)
+            max_candle_age_ms : Maksimum izin verilen gecikme (varsayılan: ``data_freshness.max_candle_age_ms``)
             min_bid_imbalance : Minimum bid/ask hacim oranı (varsayılan: 0.30)
             kelly_safety      : Fractional Kelly çarpanı (varsayılan: 0.70)
             **kwargs          : calculate() 'e iletilir (volatility, ai_conf vb.)
@@ -188,6 +191,8 @@ class PositionSizer:
         """
 
         # ── KATMAN 1: Zaman Senkronizasyonu Kontrolü ─────────────────────────
+        if max_candle_age_ms is None:
+            max_candle_age_ms = _max_data_age_ms()
         current_ts = time.time() * 1000
         ts = float(last_candle_ts)
         if ts < 1e12:

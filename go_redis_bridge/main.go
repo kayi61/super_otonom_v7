@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -15,11 +16,31 @@ import (
 // ── Yapılandırma ──────────────────────────────────────────────────────────────
 
 var (
-	REDIS_URL  = getEnv("REDIS_URL", "redis://localhost:6379/0")
-	WS_URL     = "wss://stream.binance.com:9443/stream?streams=btcusdt@kline_5m/ethusdt@kline_5m/bnbusdt@kline_5m/solusdt@kline_5m"
-	SYMBOLS    = []string{"btcusdt", "ethusdt", "bnbusdt", "solusdt"}
-	REDIS_TTL  = 10 * time.Second // Veri bu kadar süre geçerli
+	REDIS_URL = getEnv("REDIS_URL", "redis://localhost:6379/0")
+	WS_URL    = "wss://stream.binance.com:9443/stream?streams=btcusdt@kline_5m/ethusdt@kline_5m/bnbusdt@kline_5m/solusdt@kline_5m"
+	SYMBOLS   = []string{"btcusdt", "ethusdt", "bnbusdt", "solusdt"}
 )
+
+// redisKlineTTL — Python data_freshness.redis_kline_max_age_ms (5m+buffer ~390s) ile uyumlu;
+// yazım durunca anahtarın kendiliğinden silinmesi. Varsayılan 900s (~2× max yaş).
+func redisKlineTTL() time.Duration {
+	s := os.Getenv("REDIS_KLINE_TTL_SECONDS")
+	if s == "" {
+		return 900 * time.Second
+	}
+	sec, err := strconv.Atoi(s)
+	if err != nil || sec < 120 {
+		return 900 * time.Second
+	}
+	return time.Duration(sec) * time.Second
+}
+
+func redisKlineKeySuffix() string {
+	if v := os.Getenv("REDIS_KLINE_KEY_SUFFIX"); v != "" {
+		return v
+	}
+	return "kline_5m"
+}
 
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
@@ -90,10 +111,10 @@ func writeToRedis(rdb *redis.Client, kline KlineData) {
 		return
 	}
 
-	// Anahtar: market:BTCUSDT:kline_5m
-	key := "market:" + kline.Symbol + ":kline_5m"
+	// Anahtar: market:BTCUSDT:kline_5m (REDIS_KLINE_KEY_SUFFIX ile Python redis_bridge ile aynı)
+	key := "market:" + kline.Symbol + ":" + redisKlineKeySuffix()
 
-	if err := rdb.Set(ctx, key, data, REDIS_TTL).Err(); err != nil {
+	if err := rdb.Set(ctx, key, data, redisKlineTTL()).Err(); err != nil {
 		log.Printf("[REDIS] Yazma hatası key=%s: %v", key, err)
 		return
 	}

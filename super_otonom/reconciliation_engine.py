@@ -45,6 +45,21 @@ _RECON_TOLERANCE = 0.02  # %2 NAV farkı kabul edilir — üstü HARD uyarı
 _HARD_BLOCK_PCT = 0.10  # %10 fark → botu durdur
 
 
+def _truthy_env(name: str, default: str = "false") -> bool:
+    return os.getenv(name, default).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _dry_paper_skip_signed_exchange_fetch() -> bool:
+    """Faz 5 — sim/paper'da imzalı fetch'i atla (apiKey gürültüsü). Varsayılan kapalı; aç: RECON_SIM_SKIP_SIGNED_FETCH=1."""
+    if _truthy_env("RECON_FETCH_BALANCE_IN_SIM", "false"):
+        return False
+    if not _truthy_env("DRY_RUN", "true"):
+        return False
+    if not _truthy_env("PAPER_MODE", "true"):
+        return False
+    return _truthy_env("RECON_SIM_SKIP_SIGNED_FETCH", "false")
+
+
 # ── Reconcile Result ──────────────────────────────────────────────────────────
 
 
@@ -194,6 +209,16 @@ class ReconciliationEngine:
         ex_nav = 0.0
         ex_positions: Dict[str, float] = {}
         balance_total: Dict[str, float] = {}
+
+        if _dry_paper_skip_signed_exchange_fetch():
+            ln = float(self._capital.nav)
+            log.info(
+                "RECON | sim/paper — exchange bakiye/pozisyon cekilmedi; yerel NAV=%.2f "
+                "(imzali okuma: RECON_FETCH_BALANCE_IN_SIM=1 + BINANCE_SIGN_REQUESTS_IN_DRY_RUN "
+                "+ Vault read-only anahtar; bu kisa yol: RECON_SIM_SKIP_SIGNED_FETCH=1, RUNBOOK Faz 5)",
+                ln,
+            )
+            return ln, ex_positions, balance_total
 
         try:
             bal: Optional[Dict[str, Any]] = None
@@ -395,9 +420,15 @@ class ReconciliationEngine:
 
     def _log_result(self, result: ReconResult) -> None:
         status = "✓ PASSED" if result.passed else "✗ FAILED"
-        level = logging.WARNING if not result.passed else logging.INFO
+        quiet = _dry_paper_skip_signed_exchange_fetch()
+        if result.hard_blocked:
+            summary_level = logging.CRITICAL
+        elif quiet:
+            summary_level = logging.INFO
+        else:
+            summary_level = logging.INFO if result.passed else logging.WARNING
         log.log(
-            level,
+            summary_level,
             "RECON | %s | %s | local=%.2f exchange=%.2f diff=%+.2f (%.2f%%) | "
             "positions: local=%d exchange=%d mismatch=%d | recovered=%d",
             result.trigger,
@@ -411,8 +442,13 @@ class ReconciliationEngine:
             len(result.position_mismatch),
             result.pending_recovered,
         )
+        warn_level = (
+            logging.DEBUG
+            if (quiet and not result.hard_blocked)
+            else logging.WARNING
+        )
         for w in result.warnings:
-            log.warning("RECON UYARI | %s", w)
+            log.log(warn_level, "RECON UYARI | %s", w)
         if result.hard_blocked:
             log.critical(
                 "RECON | HARD BLOCK | Manuel müdahale gerekli | NAV farkı toleransı aştı: %.2f%%",

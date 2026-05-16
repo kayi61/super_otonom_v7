@@ -61,9 +61,27 @@ jobs:
           python -m pip install --upgrade pip pip-audit>=2.7.0
           python scripts/dependency_security.py --sbom --fail-on critical,high
 
+  go-build:
+    needs: [kanon-drift]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.22"
+
+      - name: Build go_service (Docker go_bridge)
+        working-directory: go_service
+        run: go mod download && go build -o /tmp/super_otonom_go .
+
+      - name: Build go_redis_bridge
+        working-directory: go_redis_bridge
+        run: go mod download && go build -o /tmp/go_redis_bridge .
+
   # PR zorunlu: tam test/ — branch protection'da bu job adini required yapin
   pytest-full:
-    needs: [kanon-drift, ci-quick]
+    needs: [kanon-drift, ci-quick, go-build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

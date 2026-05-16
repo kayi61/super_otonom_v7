@@ -3,6 +3,11 @@ Cross-Module Invariant Testi
 ============================
 Test: RiskManager._peak_equity ile CapitalEngine.nav zamanla kopuyor mu?
 
+Pytest sürümü (``gate_check`` fixture + fabrikalar): ``tests/test_cross_module_invariant.py``
+
+Bu dosya eski script olarak tutulur; CI ve günlük çalıştırma için:
+``python -m pytest tests/test_cross_module_invariant.py -q``
+
 Senaryo:
   1. onto=None olarak başlatılır (RiskOntology bağlı değil)
   2. NAV yükselir → BotEngine._peak_equity güncellenir

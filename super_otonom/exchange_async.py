@@ -56,6 +56,8 @@ async def _install_aiohttp_default_resolver_session(ex: Any) -> None:
 
     import aiohttp
 
+    from super_otonom.aiohttp_compat import aiohttp_trust_env, make_tcp_connector
+
     loop = asyncio.get_running_loop()
     if ex.asyncio_loop is None:
         ex.asyncio_loop = loop
@@ -75,20 +77,18 @@ async def _install_aiohttp_default_resolver_session(ex: Any) -> None:
         await ex.tcp_connector.close()
         ex.tcp_connector = None
 
-    ex.tcp_connector = aiohttp.TCPConnector(
-        ssl=ex.ssl_context,
-        loop=loop,
-        use_dns_cache=False,
-        resolver=aiohttp.DefaultResolver(),
-        enable_cleanup_closed=True,
-    )
+    ex.tcp_connector = make_tcp_connector(loop, ssl_context=ex.ssl_context)
     ex.session = aiohttp.ClientSession(
         loop=loop,
         connector=ex.tcp_connector,
-        trust_env=bool(getattr(ex, "aiohttp_trust_env", True)),
+        trust_env=aiohttp_trust_env(),
     )
     ex.own_session = True
-    log.info("ccxt aiohttp: DefaultResolver (sistem DNS) + trust_env=%s", ex.aiohttp_trust_env)
+    log.info(
+        "ccxt aiohttp: ThreadedResolver + trust_env=%s ipv4_only=%s",
+        aiohttp_trust_env(),
+        os.getenv("SUPER_OTONOM_AIOHTTP_IPV4_ONLY", ""),
+    )
 
 
 # Binance demo (Kasım 2025+): ``set_sandbox_mode`` spot için testnet.binance.vision kullanır (kalkmış).
@@ -443,6 +443,118 @@ class AsyncExchangeHandler:
                 get_rate_limit_storm_tracker().on_ratelimit()
             log.warning("fetch_balance hata | err=%s", exc)
             raise
+
+    # ── Emir gönderimi ─────────────────────────────────────────────────────
+
+    async def create_order(
+        self,
+        symbol: str,
+        side: str,
+        amount: float,
+        price: Optional[float] = None,
+        order_type: str = "limit",
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Borsaya emir gönderir.
+
+        Args:
+            symbol:     Çift ismi (BTC/USDT)
+            side:       'buy' veya 'sell'
+            amount:     Miktar (base currency)
+            price:      Limit fiyatı (market order için None)
+            order_type: 'limit' veya 'market'
+            params:     Borsa özel parametreler (clientOrderId vb.)
+
+        Dönüş: ccxt order dict
+            {
+                'id': '12345',
+                'clientOrderId': 'so_xxx',
+                'status': 'open'|'closed',
+                'filled': 0.01,
+                'average': 100000.0,
+                'fee': {'cost': 0.1, 'currency': 'USDT'},
+                ...
+            }
+
+        Raises:
+            RuntimeError: ccxt yok veya exchange bağlantısı yok
+            Exception: Borsa hatası (ccxt exception'ları)
+        """
+        if self._ex is None:
+            raise RuntimeError("Exchange bağlantısı yok — ccxt başlatılmamış")
+
+        params = params or {}
+        side = side.lower()
+        order_type = order_type.lower()
+
+        log.info(
+            "CREATE_ORDER | %s %s %s | qty=%.8f price=%s | params=%s",
+            symbol, side, order_type, amount,
+            f"{price:.6f}" if price else "MARKET",
+            {k: v for k, v in params.items() if k != "clientOrderId"},
+        )
+
+        try:
+            if order_type == "market":
+                result = await self._ex.create_order(
+                    symbol=symbol,
+                    type="market",
+                    side=side,
+                    amount=amount,
+                    params=params,
+                )
+            else:
+                if price is None:
+                    raise ValueError("Limit order için price gerekli")
+                result = await self._ex.create_order(
+                    symbol=symbol,
+                    type="limit",
+                    side=side,
+                    amount=amount,
+                    price=price,
+                    params=params,
+                )
+
+            get_rate_limit_storm_tracker().on_success()
+
+            status = result.get("status", "unknown")
+            filled = float(result.get("filled", 0) or 0)
+            avg_price = float(result.get("average", 0) or 0)
+            fee_cost = float((result.get("fee") or {}).get("cost", 0))
+
+            log.info(
+                "ORDER_RESULT | %s %s | id=%s | status=%s | filled=%.8f avg=%.6f fee=%.6f",
+                symbol, side,
+                result.get("id", "?"),
+                status, filled, avg_price, fee_cost,
+            )
+            return result
+
+        except Exception as exc:
+            if is_ratelimit_error(exc):
+                get_rate_limit_storm_tracker().on_ratelimit()
+            log.error("CREATE_ORDER HATA | %s %s | err=%s", symbol, side, exc)
+            raise
+
+    async def fetch_order(
+        self, order_id: str, symbol: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Borsadan emir detayını çeker (fill, status, fee).
+        OrderEngine recovery ve fill takibi için.
+        """
+        if self._ex is None:
+            return None
+        try:
+            result = await self._ex.fetch_order(order_id, symbol)
+            get_rate_limit_storm_tracker().on_success()
+            return result
+        except Exception as exc:
+            if is_ratelimit_error(exc):
+                get_rate_limit_storm_tracker().on_ratelimit()
+            log.warning("fetch_order hata | order_id=%s symbol=%s err=%s", order_id, symbol, exc)
+            return None
 
     # ── Emir yönetimi (OrderTracker için) ────────────────────────────────────
 

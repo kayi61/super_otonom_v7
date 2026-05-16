@@ -20,14 +20,40 @@ Kullanım:
 import json
 import logging
 import os
+import socket
 import time
 import urllib.error
 import urllib.request
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 log = logging.getLogger("super_otonom.vault_bridge")
 
 _VAULT_ADDR = os.getenv("VAULT_ADDR", "http://vault:8200")
+
+
+def resolve_vault_addr(preferred: str = "") -> str:
+    """Docker icin http://vault:8200; Windows host CLI icin http://127.0.0.1:8200."""
+    host_override = os.getenv("VAULT_ADDR_HOST", "").strip().rstrip("/")
+    if host_override:
+        return host_override
+    addr = (preferred or os.getenv("VAULT_ADDR", "http://vault:8200")).strip().rstrip("/")
+    if os.getenv("VAULT_ADDR_FORCE", "").strip().lower() in ("1", "true", "yes", "on"):
+        return addr
+    try:
+        hostname = (urlparse(addr).hostname or "").lower()
+        port = urlparse(addr).port or 8200
+    except Exception:
+        return addr
+    if hostname not in ("vault", "super_otonom_vault"):
+        return addr
+    try:
+        socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+        return addr
+    except OSError:
+        fallback = f"http://127.0.0.1:{port}"
+        log.debug("VAULT_ADDR host fallback: %s -> %s", addr, fallback)
+        return fallback
 _VAULT_MOUNT = os.getenv("VAULT_MOUNT", "secret")
 _VAULT_BASE_PATH = os.getenv("VAULT_BASE_PATH", "trading")
 _VAULT_TIMEOUT = int(os.getenv("VAULT_TIMEOUT", "5"))
@@ -102,11 +128,11 @@ class VaultBridge:
 
     def __init__(
         self,
-        addr: str = _VAULT_ADDR,
+        addr: str = "",
         token: str = "",
         mount: str = _VAULT_MOUNT,
     ):
-        self._addr = addr.rstrip("/")
+        self._addr = resolve_vault_addr(addr or _VAULT_ADDR)
         self._mount = mount
         self._token = token.strip() if token else ""
         self._token_expires: float = 0.0
@@ -220,7 +246,7 @@ class VaultBridge:
             if self._vault_only:
                 log.error("Vault erişilemedi (SECRETS_VAULT_ONLY): %s", exc)
             else:
-                log.warning("Vault erişilemedi (%s) — .env fallback", exc)
+                log.warning("Vault erisilemedi (%s) - .env fallback", exc)
             return False
 
     def status(self) -> Dict[str, Any]:

@@ -261,6 +261,62 @@ def test_redis_bridge_get_kline_stale_returns_none(
     assert b.get_kline("ethusdt") is None
 
 
+def test_redis_bridge_get_kline_future_updated_at_returns_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import super_otonom.redis_bridge as rb
+
+    pytest.importorskip("redis")
+    fut = time.time() * 1000 + 999_999_999
+    payload = json.dumps({"updated_at": fut, "close": 1.0})
+
+    class _Client:
+        def ping(self) -> None:
+            return None
+
+        def get(self, *_a: Any, **_k: Any) -> str:
+            return payload
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(rb, "_REDIS_AVAILABLE", True)
+    monkeypatch.setattr(rb.redis, "from_url", lambda *a, **k: _Client())
+    b = rb.RedisBridge(url="redis://localhost:0")
+    assert b.get_kline("BTCUSDT") is None
+
+
+def test_redis_bridge_clear_stale_kline_keys_deletes_old(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import super_otonom.redis_bridge as rb
+
+    pytest.importorskip("redis")
+    old = time.time() * 1000 - 9_999_999_999
+    deleted: list[str] = []
+
+    class _Client:
+        def ping(self) -> None:
+            return None
+
+        def get(self, key: str, *_a: Any, **_k: Any) -> str:
+            return json.dumps({"updated_at": old, "close": 1.0})
+
+        def delete(self, key: str) -> int:
+            deleted.append(key)
+            return 1
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(rb, "_REDIS_AVAILABLE", True)
+    monkeypatch.setattr(rb.redis, "from_url", lambda *a, **k: _Client())
+    b = rb.RedisBridge(url="redis://localhost:0")
+    n = b.clear_stale_kline_keys()
+    assert n == len(rb.SYMBOLS)
+    assert len(deleted) == len(rb.SYMBOLS)
+
+
 def test_redis_bridge_get_kline_invalid_json_logs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -38,6 +38,19 @@ _ORDER_LOG_FILE = "data/orders.jsonl"
 _PENDING_FILE = "data/pending_orders.json"
 
 
+def _truthy_env(name: str, default: str = "false") -> bool:
+    return os.getenv(name, default).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _dry_paper() -> bool:
+    return _truthy_env("DRY_RUN", "true") and _truthy_env("PAPER_MODE", "true")
+
+
+def _auto_fail_skipped_recovery() -> bool:
+    """Sim/paper'da SKIPPED recovery sonrası pending temizligi (opsiyonel, RUNBOOK Faz 5)."""
+    return _dry_paper() and _truthy_env("RECON_AUTO_FAIL_SKIPPED_PENDING", "false")
+
+
 # ── Order State ───────────────────────────────────────────────────────────────
 
 
@@ -314,7 +327,10 @@ class OrderEngine:
         rec.updated_at = time.time()
         self._write_log(rec, "CANCELLED")
         self._save_pending()
-        log.info("ORDER | CANCELLED | %s | id=%s | sebep=%s", rec.symbol, order_id, reason)
+        if reason.startswith("recovery_skipped_sim"):
+            log.debug("ORDER | CANCELLED | %s | id=%s | sebep=%s", rec.symbol, order_id, reason)
+        else:
+            log.info("ORDER | CANCELLED | %s | id=%s | sebep=%s", rec.symbol, order_id, reason)
         return True
 
     # ── Duplicate koruması ────────────────────────────────────────────────────
@@ -351,7 +367,9 @@ class OrderEngine:
             log.info("OrderEngine | recovery | PENDING emir yok")
             return []
 
-        log.warning(
+        hdr = logging.INFO if _dry_paper() else logging.WARNING
+        log.log(
+            hdr,
             "OrderEngine | recovery | %d PENDING emir bulundu — borsaya sorgulanıyor",
             len(pending),
         )
@@ -360,8 +378,16 @@ class OrderEngine:
         for rec in pending:
             try:
                 result = await self._query_exchange(rec, exchange_handler)
-                recovered.append(rec.order_id)
-                log.info(
+                if result == "SKIPPED" and _auto_fail_skipped_recovery():
+                    self.cancel(
+                        rec.order_id,
+                        "recovery_skipped_sim_unsigned_or_no_exchange_query",
+                    )
+                elif result != "SKIPPED":
+                    recovered.append(rec.order_id)
+                line = logging.DEBUG if (_dry_paper() and result == "SKIPPED") else logging.INFO
+                log.log(
+                    line,
                     "OrderEngine | recovery | %s | %s → %s",
                     rec.symbol,
                     rec.order_id,
@@ -481,6 +507,13 @@ class OrderEngine:
             for oid, rec in self._orders.items()
             if rec.state in (OrderState.PENDING, OrderState.SENT, OrderState.PARTIAL)
         }
+        if not pending:
+            try:
+                if os.path.isfile(self._pending_file):
+                    os.remove(self._pending_file)
+            except OSError:
+                pass
+            return
         tmp = self._pending_file + ".tmp"
         try:
             with open(tmp, "w", encoding="utf-8") as f:
@@ -496,6 +529,12 @@ class OrderEngine:
         try:
             with open(self._pending_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            if not data:
+                try:
+                    os.remove(self._pending_file)
+                except OSError:
+                    pass
+                return
             for oid, rec_dict in data.items():
                 # exchange_raw dict olarak gelir
                 if isinstance(rec_dict.get("exchange_raw"), str):

@@ -3,6 +3,8 @@
 **Hedef olgunluk:** **+9.9 üstü** güven skoru ile uyumlu, tekrarlanabilir kontroller.  
 Bu liste **yasal denetim yerine geçmez**; iç ve dış denetime hazırlık içindir.
 
+**9 bant özeti ve öncelikli 3 PR:** `docs/P09_BANDS.md` — yerel kapılar: `scripts/fastrun_p09.ps1`
+
 ---
 
 ## 1) Denetim kontrol listesi

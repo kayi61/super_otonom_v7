@@ -151,9 +151,11 @@ def _circuit_breaker_open(handler: AsyncExchangeHandler, symbol: str) -> bool:
 
 def _is_stale_data(candles_1h: List[Dict[str, float]], symbol: str) -> bool:
     """Stale data kontrolü. True ise veri çok eski."""
+    from super_otonom.data_freshness import stale_threshold_sec
+
     if not candles_1h:
         return False
-    _STALE_THRESHOLD_SEC = int(os.getenv("STALE_DATA_THRESHOLD_SEC", "300"))
+    _STALE_THRESHOLD_SEC = stale_threshold_sec()
     _last_candle_ts = float(candles_1h[-1].get("timestamp", 0)) / 1000.0
     _data_age_sec = time.time() - _last_candle_ts
     if _last_candle_ts > 0 and _data_age_sec > _STALE_THRESHOLD_SEC:
@@ -179,17 +181,19 @@ def _apply_ob_safe_size(
     """OB'dan güvenli boyut hesaplar ve analysis'e yazar."""
     if ob["asks"] and candles_1h:
         engine.sizer.set_trade_log(engine.trade_log)
+        now_ms = time.time() * 1000
+        last_ts = float(candles_1h[-1].get("timestamp", now_ms))
         try:
             from super_otonom.redis_bridge import RedisBridge
 
             _rb = RedisBridge()
             _kline = _rb.get_kline(symbol.replace("/", ""))
             if _kline and _kline.get("updated_at"):
-                last_ts = float(_kline["updated_at"])
-            else:
-                last_ts = float(candles_1h[-1].get("timestamp", time.time() * 1000))
+                redis_ts = float(_kline["updated_at"])
+                if redis_ts > last_ts:
+                    last_ts = redis_ts
         except Exception:
-            last_ts = float(candles_1h[-1].get("timestamp", time.time() * 1000))
+            pass
         safe_size = engine.sizer.validate_and_calculate(
             symbol=symbol,
             equity=engine.equity,
