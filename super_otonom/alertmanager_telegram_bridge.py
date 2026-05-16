@@ -31,17 +31,20 @@ def _telegram_creds() -> Tuple[str, str]:
 
 def _format_alerts(body: Dict[str, Any]) -> str:
     alerts: List[Dict[str, Any]] = body.get("alerts") or []
-    if not alerts:
-        return "Prometheus alert (bos payload)"
-    lines = [f"*{body.get('status', 'unknown').upper()}* | {body.get('groupKey', '')[:80]}"]
-    for a in alerts[:8]:
-        name = a.get("labels", {}).get("alertname", "?")
-        sev = a.get("labels", {}).get("severity", "")
-        summary = a.get("annotations", {}).get("summary", "")
-        lines.append(f"- [{sev}] {name}: {summary}")
-    if len(alerts) > 8:
-        lines.append(f"... +{len(alerts) - 8} alert")
-    return "\n".join(lines)[:4090]
+    if alerts:
+        lines = [f"*{body.get('status', 'unknown').upper()}* | {body.get('groupKey', '')[:80]}"]
+        for a in alerts[:8]:
+            name = a.get("labels", {}).get("alertname", "?")
+            sev = a.get("labels", {}).get("severity", "")
+            summary = a.get("annotations", {}).get("summary", "")
+            lines.append(f"- [{sev}] {name}: {summary}")
+        if len(alerts) > 8:
+            lines.append(f"... +{len(alerts) - 8} alert")
+        return "\n".join(lines)[:4090]
+    slack_text = body.get("text")
+    if slack_text:
+        return str(slack_text).strip()[:4090]
+    return "Prometheus/alert payload (bos)"
 
 
 def _send_telegram(text: str) -> bool:

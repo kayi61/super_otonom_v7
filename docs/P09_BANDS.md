@@ -9,12 +9,12 @@
 | 1 | CI / lint / release_gate | Kod | Yeşil (`ci.yml`) | — |
 | 2 | Bağımlılık güvenliği | Kod | Yeşil (`fastrun_security`, Dependabot) | — |
 | 3 | Test + coverage | Kod | Yeşil (`pytest-full`, %90) | — |
-| 4 | Gözlemlenebilirlik | Altyapı | Kısmi | `fastrun_observability.ps1` + Grafana |
-| 5 | Vault / sırlar | Altyapı + süreç | Kısmi | `vault_seed.cmd` → `env_harden_secrets.cmd`; `fastrun_vault.cmd`; `SECRETS_VAULT_ONLY` (RUNBOOK Faz 3) |
+| 4 | Gözlemlenebilirlik | Altyapı | Drill | `scripts\fastrun_observability.cmd` → `docs/OBSERVABILITY_DRILL.md` |
+| 5 | Vault / sırlar | Altyapı + süreç | Denetim | `scripts\fastrun_secrets_audit.cmd` → `docs/SECRETS_AUDIT_LAST.md`; seed: `vault_seed.cmd` |
 | 6 | Canlı açma sözleşmesi | Süreç | RUNBOOK + `fastrun_go_live` | Aşama 3 canlı tatbikat |
 | 7 | Kurumsal kontrol listesi | Süreç | **Bu PR** | `INSTITUTIONAL_CONTROL_CHECKLIST_TR.md` |
 | 8 | DR / yedekleme | Süreç + altyapı | **Bu PR** | `scripts/backup_daily.ps1` + cron |
-| 9 | Dal koruması / RCO | Süreç (GitHub) | Manuel | Branch protection + required checks |
+| 9 | Dal koruması / RCO | Süreç (GitHub) | **Aktif** | `docs/BRANCH_PROTECTION_STATUS.md` — yenile: `scripts\report_branch_protection_status.ps1 -WriteDoc` |
 
 ## Önce ele alınan 3 madde (öneri)
 

@@ -22,6 +22,7 @@ htmlcov/
 build/pytest-temproot/
 artifacts/
 logs/
+data/backup/
 data/bot_state.json
 data/local/vault_init.json
 data/local/vault_admin_token.json

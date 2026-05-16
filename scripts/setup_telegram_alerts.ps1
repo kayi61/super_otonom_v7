@@ -3,6 +3,12 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $root
 
+try {
+    powershell -NoProfile -ExecutionPolicy Bypass -File "$root\scripts\vault_unseal.ps1"
+} catch {
+    Write-Host "vault_unseal atlandi: $_"
+}
+
 $local = Join-Path $root "data\local\telegram.env"
 $envPath = Join-Path $root ".env"
 if (-not (Test-Path $local)) {
@@ -30,6 +36,7 @@ function Set-EnvLine($key, $val) {
 Set-EnvLine "TELEGRAM_BOT_TOKEN" $tok
 Set-EnvLine "TELEGRAM_CHAT_ID" $chat
 Set-EnvLine "WEBHOOK_URL" "http://alert_telegram:8081/alert"
+Set-EnvLine "ALERTMANAGER_WEBHOOK_URL" "http://alert_telegram:8081/alert"
 
 $env:TELEGRAM_BOT_TOKEN = $tok
 $env:TELEGRAM_CHAT_ID = $chat

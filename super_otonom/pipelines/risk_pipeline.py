@@ -27,9 +27,9 @@ def tick_kill_switch_and_spike(
     """
     Global kill + fiyat spike. True dönerse tick erken çıkmalıdır.
     """
-    import super_otonom.bot_engine as be_mod
+    from super_otonom.hard_safety_contract import enforce_global_trade_allowed
 
-    g_ok, g_code = be_mod.gate_global_trade_disable()
+    g_ok, g_code = enforce_global_trade_allowed()
     if not g_ok:
         dctx.risk_passed = False
         dctx.emergency_code = f"EMERGENCY_STOP:{g_code}"

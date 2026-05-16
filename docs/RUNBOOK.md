@@ -17,13 +17,16 @@ Tek komut (kapılar + ortam özeti): `scripts/fastrun_go_live.ps1` veya `scripts
 **3.1 — Host port (doğrulama)**  
 `docker-compose.yml` içinde **Vault** servisi **`127.0.0.1:8200:8200`** ile host’a bağlı; health check `127.0.0.1:8200`. Konteyner içi `VAULT_ADDR=http://127.0.0.1:8200`. **Host’tan** seed / `main_loop` çalıştırırken: `http://127.0.0.1:8200` (veya `vault_bridge` ile fallback); yalnızca `http://vault:8200` bırakıp hosttan çalıştırmayın — bağlantı reddi oluşur.
 
+**Mühürlü Vault:** Konteyner yeniden başlatılınca Vault **sealed** kalabilir → HTTP **503**. `data\local\vault_init.json` varsa **`scripts\vault_unseal.ps1`** ile açın; **`setup_telegram_alerts`** ve **`fastrun_observability`** zinciri başta bunu dener.
+
 **3.2 — Seed sırası (zorunlu disiplin)**  
 1. **`scripts\vault_seed.cmd`** — Vault KV’ye borsa / gerekli sırları yazar (`vault_seed_host.ps1`).  
 2. **`scripts\env_harden_secrets.cmd`** — `.env` içindeki hassas alanları sıkılaştırır; **mutlaka seed’den sonra**; ters sıra “seed sonra env_hard sıçrama” ve eksik anahtar hataları üretir.  
 3. Anahtar yokken geçici: **`data\local\telegram.env`** veya yerel `.env` (asla commit yok).
 
 **3.3 — Canlı: SECRETS_VAULT_ONLY**  
-Canlı profile geçmeden önce: **`SECRETS_VAULT_ONLY=true`**, yalnızca **AppRole** (`VAULT_ROLE_ID`, `VAULT_SECRET_ID`) veya kısa ömürlü `VAULT_TOKEN`; **`.env`’de düz `BINANCE_API_KEY` / `BINANCE_SECRET` olmamalı** — `deploy_env_check` ve RUNBOOK canlı matrisi ile uyumlu.
+Canlı profile geçmeden önce: **`SECRETS_VAULT_ONLY=true`**, yalnızca **AppRole** (`VAULT_ROLE_ID`, `VAULT_SECRET_ID`) veya kısa ömürlü `VAULT_TOKEN`; **`.env`’de düz `BINANCE_API_KEY` / `BINANCE_SECRET` olmamalı** — `deploy_env_check` ve RUNBOOK canlı matrisi ile uyumlu.  
+**Sir denetimi (PROMPT 2):** `scripts\fastrun_secrets_audit.cmd` → kanıt `docs\SECRETS_AUDIT_LAST.md` (sır değerleri dosyada yok).
 
 ### Faz 4 — Veri tazeliği ve zaman mantığı (mum / TF uyumu)
 
@@ -47,6 +50,35 @@ Canlı profile geçmeden önce: **`SECRETS_VAULT_ONLY=true`**, yalnızca **AppRo
 **5.2 — `pending_orders.json`**  
 Bot **kapalıyken** gereksiz / eski dosyayı silin (`data/pending_orders.json`).  
 Çalışırken: **`RECON_AUTO_FAIL_SKIPPED_PENDING=true`** (sim/paper) → recovery **SKIPPED** olan satırlar **iptal** edilir; dosya boşalınca **otomatik silinir**. Varsayılan `false` — bilinçli açın.
+
+### Faz 6 — Gözlemlenebilirlik ve uyarılar
+
+**6.1 — Stack + drill (PROMPT 3):** `scripts\fastrun_observability.cmd` → stack + **`python -m super_otonom.observability_drill`** (kasitli test alert → Telegram **HTTP 200** sart; yalnizca stack ayakta yetmez). Kanit: **`docs/OBSERVABILITY_DRILL.md`**. Grafana: `http://127.0.0.1:3000/d/super-otonom-ops`. Telegram: `data\local\telegram.env` veya Vault. Alertmanager → **`ALERTMANAGER_WEBHOOK_URL`** (varsayilan `http://alert_telegram:8081/alert`). Stack zaten ayaktaysa: `python -m super_otonom.observability_drill` veya `fastrun_observability.ps1 -SkipStack`.
+
+**6.2 — Webhook / DNS:** Bot içi doğrudan Slack vb. için **`ALERT_WEBHOOK_URL`** kullanın. **`WEBHOOK_URL=http://alert_telegram:8081/alert`** yalnızca Alertmanager içindir; bot (`AlertManager`) bu köprü adresini otomatik yok sayar — host üzerinde **`getaddrinfo failed`** gürültüsü oluşmaz. Paper/sim’de ek kanal istemiyorsanız `ALERT_WEBHOOK_URL` boş bırakın; uyarılar Prometheus → Alertmanager → Telegram (veya yalnızca metrik/Grafana).
+
+### Faz 7 — Yedek ve süreklilik
+
+**7.1 — Günlük yedek:** **`scripts\backup_daily.cmd`** veya **`scripts\backup_daily.ps1`** (`-DryRun`, `-RetentionDays`, `-ExcludeSecrets`, `-BackupRoot`). Görev zamanlayıcı: **`scripts\register_backup_task.ps1`** (çoğu sistemde yönetici PowerShell). Özet: `docs\DR_BCP.md`.
+
+**7.2 — Docker volume riski:** **`docker compose down -v`** named volume’ları (Vault, Timescale, Redis, Prometheus, Grafana) siler; **`./data`** bind mount genelde kalır. Tablo ve felaket adımları: **`docs\DR_BCP.md`** (bölüm “Docker Compose”).
+
+### Faz 9 — Strateji kanıtı ve küçük canlı tatbikat (ticari gerçekçilik)
+
+**9.1 — Edge kanıtı (komisyon + slip, HOLD dağılımı)**  
+- **Komut:** `python -m super_otonom.edge_evidence --source synthetic` (hızlı, ağ yok) veya `--source ccxt --symbol BTC/USDT --timeframe 5m --limit 800` (CCXT ile mum çeker).  
+- **Özet:** Tam örnek geri test + isteğe bağlı **WFA test dilimleri** (`WFAManager`); `final_signal` histogramında HOLD/BUY/SELL sayıları. Çıktıdaki yorum: çoğu HOLD’un **beklenen düşük frekans** mı yoksa **sıkı filtre** sonucu mu olduğu bağlamda okunmalı; **“bot çalışıyor = para kazanıyor”** çıkarımı yapılmaz — net getiri ve işlem sayısı kanıt gerekir.  
+- **Geri test parametreleri:** `--fee-bps` (taraf başına basis point), `--slip-min` / `--slip-max`, `--exec-seed` (tekrarlanabilir slip/fill). `super_otonom.backtester.run_backtest` → paper motorunda `paper_fee_bps_per_side` + `ExecutionSimulator` slip aralığı.  
+- **Hızlı script:** `scripts\fastrun_phase9_strategy.cmd` — synthetic özet + `pytest tests/test_edge_evidence_fastrun.py`.
+
+**9.2 — Canlı küçük nominal tatbikat (RUNBOOK checklist)**  
+Aşağıdakiler **üretim yolunun teknik doğrulaması** içindir; sermaye riski operatördedir.
+
+1. **Tek çift:** `.env` veya konfigürasyonda yalnızca bir işlem çifti (ör. `PAIRS` / tek sembol).  
+2. **Küçük boyut:** `max_position_pct` / minimum notional ile **nihai küçük** yüzey; staging ile asla aynı boyutu kullanmayın.  
+3. **`LIVE_CONFIRM=YES`:** Canlı profilde (`DRY_RUN=false`, `PAPER_MODE=false`) zorunlu kapı; önce `python -m super_otonom.deploy_env_check`.  
+4. **Kill-switch / acil durdurma:** `GLOBAL_TRADE_DISABLE=1` ile bot sürecinden çıkmadan emir gönderimini doğrulayın (RUNBOOK “Golden path” ve smoke ile uyumlu).  
+5. **İzleme:** İlk 15–30 dk log + `metrics` / Grafana; anomali halinde süreci durdurun ve matrisi **Aşama 2** (kuru/paper) geri alın.
 
 ### Ortam matrisi (sırayla)
 

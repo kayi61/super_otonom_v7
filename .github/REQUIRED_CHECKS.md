@@ -9,6 +9,8 @@
 scripts\fastrun_faz1.cmd
 ```
 
+**Doğrulanmış durum (son kayıt):** [`docs/BRANCH_PROTECTION_STATUS.md`](../docs/BRANCH_PROTECTION_STATUS.md) — yenile: `powershell -File scripts/report_branch_protection_status.ps1 -WriteDoc`
+
 `setup_branch_protection.ps1` şu check adlarını API’ye yazar (matrix nedeniyle iki coverage):
 
 | Check | Kaynak |

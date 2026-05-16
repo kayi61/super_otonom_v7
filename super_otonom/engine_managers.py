@@ -19,6 +19,18 @@ from super_otonom.risk_ontology import RiskOntology
 log = logging.getLogger("super_otonom.engine")
 
 
+def _paper_exchange_fee_usdt(
+    engine: Any, analysis: Dict[str, Any], notional_usdt: float
+) -> None:
+    """Paper modda taraf başına komisyon (bps); canlı yolda borsa fee alanı kullanılır."""
+    if getattr(engine, "mode", "") != "PAPER":
+        return
+    bps = float(getattr(engine, "paper_fee_bps_per_side", 0.0) or 0.0)
+    if bps <= 0 or notional_usdt <= 0:
+        return
+    analysis["fee"] = float(notional_usdt) * (bps / 10000.0)
+
+
 def _state_file_path() -> str:
     from super_otonom import bot_engine as be
 
@@ -278,6 +290,7 @@ class TradeExecutor:
                 sim_result["latency"] * 1000,
                 sim_result["slippage"] * 100,
             )
+            _paper_exchange_fee_usdt(self._e, analysis, float(fill_price) * float(qty))
         else:
             qty = size / float(price or 1.0)
             order_id = self._e.order_engine.intent(_symbol, "BUY", qty, price)
@@ -416,6 +429,7 @@ class TradeExecutor:
                 )
                 filled_qty = sell_qty
 
+        _paper_exchange_fee_usdt(self._e, analysis, float(exit_px) * float(filled_qty))
         _cap_pnl = self._e.capital.close_partial(
             symbol=symbol,
             order_id=pos.get("order_id", f"{symbol}_partial_{int(time.time() * 1000)}"),
@@ -546,6 +560,7 @@ class TradeExecutor:
                 )
                 filled_qty = qty
 
+        _paper_exchange_fee_usdt(self._e, analysis, float(exit_px) * float(filled_qty))
         _cap_pnl = self._e.capital.close_position(
             symbol=symbol,
             order_id=pos.get("order_id", f"{symbol}_close_{int(time.time() * 1000)}"),

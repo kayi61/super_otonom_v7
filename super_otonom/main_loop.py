@@ -76,6 +76,20 @@ _shutdown = asyncio.Event()
 _loop_counter = 0
 _CB_OPEN_MSG = "CB_OPEN: %s atlandi"
 
+# Devre kesici konsol gürültüsü: Prometheus/Grafana hat görünür; per-tick WARNING azaltılır.
+_CB_AGG_LOG_TS = 0.0
+
+
+def _log_cb_aggregate_throttled(template: str, *args: Any) -> None:
+    """CB ile ilgili özet uyarıyı en fazla CB_CONSOLE_LOG_INTERVAL_SEC'te bir WARNING bas."""
+    global _CB_AGG_LOG_TS
+    interval = float(os.getenv("CB_CONSOLE_LOG_INTERVAL_SEC", "120"))
+    now = time.time()
+    if now - _CB_AGG_LOG_TS >= interval:
+        log.warning(template, *args)
+        _CB_AGG_LOG_TS = now
+
+
 # WebSocket: MTF/ALT REST önbelleği (mum kapanışı başına değil, periyodik yenileme)
 _ws_mtf_raw: Dict[str, Any] = {}
 _ws_alt_raw: Dict[str, Any] = {}
@@ -231,13 +245,13 @@ async def prep_symbol_for_tick(
     raw_1h = raw_data_1h.get(symbol)
     if not raw_1h:
         if _circuit_breaker_open(handler, symbol):
-            log.warning(_CB_OPEN_MSG, symbol)
+            log.debug(_CB_OPEN_MSG, symbol)
         else:
             log.debug("1H veri yok: %s", symbol)
         return None
 
     if _circuit_breaker_open(handler, symbol):
-        log.warning(_CB_OPEN_MSG, symbol)
+        log.debug(_CB_OPEN_MSG, symbol)
         return None
 
     candles_1h = ohlcv_to_candles(raw_1h)
@@ -360,7 +374,7 @@ def _update_adaptive_throttle(handler: Any, engine: Any) -> None:
     if cb_open_count > 0:
         _RATE_LIMIT_HITS += 1
         _ADAPTIVE_POLL_SEC = min(300, _POLL_INTERVAL * (1.5 ** min(_RATE_LIMIT_HITS, 5)))
-        log.warning(
+        _log_cb_aggregate_throttled(
             "ADAPTIVE_THROTTLE | cb_open=%d | hits=%d | poll=%.0fs",
             cb_open_count,
             _RATE_LIMIT_HITS,
@@ -476,7 +490,7 @@ async def _run_loop_iteration(handler: Any, analyzer: Any, engine: Any) -> None:
     cb_status = handler.circuit_breaker_status()
     engine.metrics.update_circuit_breakers(cb_status)
     if any(s.startswith("OPEN") for s in cb_status.values()):
-        log.warning("CircuitBreaker durum: %s", cb_status)
+        _log_cb_aggregate_throttled("CircuitBreaker durum: %s", cb_status)
 
     if apply_storm_trip_to_risk(engine.risk):
         log.critical(
@@ -497,7 +511,7 @@ async def _run_loop_iteration(handler: Any, analyzer: Any, engine: Any) -> None:
             continue
         symbol, analysis, candles_1h = row
         if _circuit_breaker_open(handler, symbol):
-            log.warning(_CB_OPEN_MSG, symbol)
+            log.debug(_CB_OPEN_MSG, symbol)
             continue
         result = await engine.tick(symbol, analysis, candles_1h)
         _process_tick_result(symbol, result, candles_1h, engine)
@@ -519,6 +533,10 @@ async def main() -> None:
     global _loop_counter
     loop = asyncio.get_running_loop()
     _setup_signal_handlers(loop)
+
+    # finally bloğu handler açılmadan patlarsa NameError olmasın
+    _ws_manager: Any = None
+    _ws_task: Any = None
 
     analyzer = MarketAnalyzer()
     engine = BotEngine(
@@ -624,9 +642,6 @@ async def main() -> None:
             )
 
             # ── WebSocket Event-Driven Mode ────────────────────────────
-            _ws_manager: Any = None
-            _ws_task: Any = None
-
             if _WS_ENABLED and _WS_AVAILABLE:
                 _wm_candidate = WebSocketManager(
                     symbols=PAIRS,
@@ -681,7 +696,7 @@ async def main() -> None:
                                 return
                             sym, analysis, candles_1h = row
                             if _circuit_breaker_open(handler, sym):
-                                log.warning(_CB_OPEN_MSG, sym)
+                                log.debug(_CB_OPEN_MSG, sym)
                                 return
                             result = await engine.tick(sym, analysis, candles_1h)
                             _process_tick_result(sym, result, candles_1h, engine)

@@ -31,17 +31,12 @@ from super_otonom.omega_regime import compute_omega_regime  # noqa: F401 — tes
 from super_otonom.order_engine import OrderEngine
 from super_otonom.pipelines import execution_pipeline, signal_pipeline
 from super_otonom.pipelines.override_phase_bridge import attach_override_phases_to_analysis
-from super_otonom.pre_trade_gate import (
-    fat_finger_check,
-    gate_buy_signal_and_slots,
-    gate_buy_size_and_exposure,
-    gate_entry_cooldown,
+from super_otonom.hard_safety_contract import (
+    enforce_entry_leverage_cap,
+    enforce_entry_prechecks,
+    enforce_entry_size_safety,
     gate_global_trade_disable,  # noqa: F401 — test patch
-    gate_leverage_notional,
     merge_entry_notional,
-    ob_depth_check,
-    same_bar_guard,
-    spread_check,
 )
 from super_otonom.risk_ontology import RiskOntology
 from super_otonom.self_feedback_guard import (
@@ -374,9 +369,15 @@ class BotEngine:
         corr_threshold: float = 0.75,
         sentiment_mock_score: Optional[float] = None,
         exchange_handler: Any = None,
+        *,
+        paper_fee_bps_per_side: float = 0.0,
+        exec_slippage_range: Optional[Tuple[float, float]] = None,
+        exec_latency_range: Optional[Tuple[float, float]] = None,
+        exec_seed: Optional[int] = None,
     ):
         self.mode = "PAPER" if paper else "LIVE"
         self.initial_capital = float(capital)
+        self.paper_fee_bps_per_side = float(paper_fee_bps_per_side or 0.0)
         # v9 — CapitalEngine: kurumsal sermaye muhasebesi
         journal_sink = None
         if os.getenv("TIMESCALE_JOURNAL_MIRROR", "").lower() in ("1", "true", "yes"):
@@ -416,8 +417,18 @@ class BotEngine:
         )
         self.slippage = SlippageModel()
 
-        # FIX 4: ExecutionSimulator entegre edildi
-        self.exec_sim = ExecutionSimulator()
+        # FIX 4: ExecutionSimulator entegre edildi (geri testte slip aralığı/tekrar üretilebilirlik)
+        _slip_rng = (
+            exec_slippage_range if exec_slippage_range is not None else (0.0001, 0.001)
+        )
+        _lat_rng = (
+            exec_latency_range if exec_latency_range is not None else (0.05, 0.3)
+        )
+        self.exec_sim = ExecutionSimulator(
+            slippage_range=_slip_rng,
+            latency_range=_lat_rng,
+            seed=exec_seed,
+        )
 
         # Gerçek emir yönetimi (LIVE mod için)
         self.order_engine = OrderEngine()
@@ -913,37 +924,27 @@ class BotEngine:
         candles: Optional[List[Dict[str, Any]]],
         dctx: Optional[DecisionContext],
     ) -> tuple:
-        """Same-bar guard ve buy gate kontrolü. (ok, bar_ts) döner."""
-        bar_ts = float(candles[-1].get("timestamp", 0)) if candles else 0.0
-        ok_sb, block_sb = same_bar_guard(symbol, bar_ts, self._last_order_bar_ts)
-        if not ok_sb:
-            if dctx is not None:
-                dctx.entry_blocked = block_sb
-            log.debug("pre_trade_gate | %s | %s", symbol, block_sb)
-            return False, bar_ts
-
-        ok_gate, block = gate_buy_signal_and_slots(
-            signal, len(self.open_positions), float(confidence)
+        """Hard safety: same-bar, BUY slot, cooldown. (ok, bar_ts) döner."""
+        ok, bar_ts, block = enforce_entry_prechecks(
+            symbol,
+            signal,
+            confidence,
+            candles,
+            self._last_order_bar_ts,
+            self._last_entry_wall_ts,
+            len(self.open_positions),
         )
-        if not ok_gate:
+        if not ok:
             if dctx is not None:
                 dctx.entry_blocked = block
-                dctx.add_trace(DecisionStage.ENTRY.value, f"gate:{block}")
-            log.debug("pre_trade_gate | %s | %s", symbol, block)
+                stage = (
+                    DecisionStage.ENTRY.value
+                    if block != "same_bar_duplicate"
+                    else DecisionStage.ENTRY.value
+                )
+                dctx.add_trace(stage, f"hard:{block}")
+            log.debug("hard_safety | %s | %s", symbol, block)
             return False, bar_ts
-
-        ok_cd, block_cd = gate_entry_cooldown(
-            symbol,
-            self._last_entry_wall_ts,
-            float(RISK.get("min_entry_cooldown_sec", 0.0)),
-        )
-        if not ok_cd:
-            if dctx is not None:
-                dctx.entry_blocked = block_cd
-                dctx.add_trace(DecisionStage.ENTRY.value, f"cooldown:{block_cd}")
-            log.debug("pre_trade_gate | cooldown | %s | %s", symbol, block_cd)
-            return False, bar_ts
-
         return True, bar_ts
 
     def _entry_calculate_size(
@@ -1005,8 +1006,9 @@ class BotEngine:
         analysis: Dict,
         dctx: Optional[DecisionContext],
     ) -> bool:
-        """Faz 3: fat-finger, spread, ob depth, exposure kontrolleri."""
-        ok_sz, block_sz = gate_buy_size_and_exposure(
+        """Hard safety: fat-finger, spread, OB depth, exposure."""
+        _ob = analysis.get("order_book") or {}
+        ok, block = enforce_entry_size_safety(
             self.sizer,
             symbol,
             self.equity,
@@ -1014,37 +1016,18 @@ class BotEngine:
             raw_size,
             self.free_capital,
             self.open_positions,
+            _ob,
         )
-        if not ok_sz:
+        if not ok:
             if dctx is not None:
-                dctx.entry_blocked = block_sz
-                dctx.add_trace(DecisionStage.ENTRY.value, f"size:{block_sz}")
-            log.debug("pre_trade_gate size | %s | %s", symbol, block_sz)
-            return False
-
-        ok_ff, block_ff = fat_finger_check(size)
-        if not ok_ff:
-            if dctx is not None:
-                dctx.entry_blocked = block_ff
-                dctx.add_trace(DecisionStage.ENTRY.value, f"fat_finger:{block_ff}")
-            log.warning("FAT_FINGER | %s | size=%.2f", symbol, size)
-            return False
-
-        _ob = analysis.get("order_book") or {}
-        ok_sp, block_sp = spread_check(_ob)
-        if not ok_sp:
-            if dctx is not None:
-                dctx.entry_blocked = block_sp
-                dctx.add_trace(DecisionStage.ENTRY.value, f"spread:{block_sp}")
-            log.warning("SPREAD_WIDE | %s | %s", symbol, block_sp)
-            return False
-
-        ok_ob, block_ob = ob_depth_check(_ob, size)
-        if not ok_ob:
-            if dctx is not None:
-                dctx.entry_blocked = block_ob
-                dctx.add_trace(DecisionStage.ENTRY.value, f"ob_depth:{block_ob}")
-            log.warning("OB_DEPTH | %s | %s", symbol, block_ob)
+                dctx.entry_blocked = block
+                dctx.add_trace(DecisionStage.ENTRY.value, f"hard:{block}")
+            if "fat_finger" in block:
+                log.warning("FAT_FINGER | %s | size=%.2f", symbol, size)
+            elif "spread" in block:
+                log.warning("SPREAD_WIDE | %s | %s", symbol, block)
+            else:
+                log.debug("hard_safety size | %s | %s", symbol, block)
             return False
 
         if dctx is not None:
@@ -1110,11 +1093,9 @@ class BotEngine:
         if not ok_size:
             return
 
-        ok_lv, block_lv = gate_leverage_notional(
+        ok_lv, block_lv = enforce_entry_leverage_cap(
             self.equity,
             max(float(size), float(raw_size)),
-            float(RISK["max_position_pct"]),
-            float(RISK.get("max_leverage", 1.0)),
         )
         if not ok_lv:
             if dctx is not None:
