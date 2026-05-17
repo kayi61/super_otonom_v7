@@ -69,6 +69,9 @@ jobs:
       - name: PROMPT-8 BotEngine god-class topology audit
         run: python -m super_otonom.bot_engine_audit
 
+      - name: PROMPT-9 Test layout (in-package tests excluded from wheel)
+        run: python -m super_otonom.layout_topology_audit --verify-wheel
+
       - name: Pytest fastrun (5000 gate)
         run: python -m pytest tests -m fastrun -q --tb=short
 

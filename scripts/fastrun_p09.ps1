@@ -33,6 +33,9 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 powershell -NoProfile -ExecutionPolicy Bypass -File "$root\scripts\fastrun_bot_engine_topology.ps1"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+powershell -NoProfile -ExecutionPolicy Bypass -File "$root\scripts\fastrun_test_layout.ps1"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 if (-not $SkipVault) {
     if (Get-Command docker -ErrorAction SilentlyContinue) {
         Write-Host ""

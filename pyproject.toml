@@ -41,9 +41,13 @@ lstm = ["torch>=2.0.0"]
 super-otonom = "super_otonom.main_loop:main"
 super-otonom-release-gate = "super_otonom.release_gate:main"
 
+# Audit 9: super_otonom/test_*.py wheel'e girmesin; pytest tests/ altında.
+[tool.setuptools.cmdclass]
+build_py = "_setup_build.BuildPyExcludeInPackageTests"
+
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["super_otonom*"]
+include = ["super_otonom", "super_otonom.pipelines"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

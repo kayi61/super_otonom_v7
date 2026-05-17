@@ -13,6 +13,8 @@ from super_otonom.clock_skew_audit import audit_clock_skew_claims
 from super_otonom.clock_skew_audit import main as clock_main
 from super_otonom.ha_audit import audit_ha_claims
 from super_otonom.ha_audit import main as ha_main
+from super_otonom.layout_topology_audit import audit_test_layout_claims
+from super_otonom.layout_topology_audit import main as tl_audit_main
 from super_otonom.package_topology_audit import audit_package_topology_claims
 from super_otonom.package_topology_audit import main as pkg_topo_main
 from super_otonom.sharpe_audit import (
@@ -258,6 +260,26 @@ def test_bot_engine_topology_cli_write_manifest(
     monkeypatch.setattr("super_otonom.bot_engine_topology._DEFAULT_MANIFEST", out)
     assert be_top_main(["--write-manifest"]) == 0
     assert out.is_file()
+
+
+def test_test_layout_audit_read_error(tmp_path: Path) -> None:
+    bad = tmp_path / "x.md"
+    bad.write_text("ok\n", encoding="utf-8")
+    with patch.object(Path, "read_text", side_effect=OSError("denied")):
+        issues = audit_test_layout_claims(root=tmp_path)
+    assert any("read error" in i for i in issues)
+
+
+def test_test_layout_audit_cli_json_fail(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "super_otonom.layout_topology_audit.audit_test_layout_claims",
+        lambda root=None, verify_wheel=False: ["fake: fail"],
+    )
+    assert tl_audit_main(["--json"]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False
 
 
 def test_package_topology_validate_missing_manifest(tmp_path: Path) -> None:

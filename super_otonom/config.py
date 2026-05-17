@@ -209,6 +209,11 @@ BOT_ENGINE_TOPOLOGY = {
     "god_class_min_lines": int(os.getenv("BOT_ENGINE_GOD_CLASS_MIN_LINES", "800")),
 }
 
+TEST_LAYOUT = {
+    "in_package_test_ceiling": int(os.getenv("IN_PACKAGE_TEST_MODULE_CEILING", "35")),
+    "canonical_test_dir": "tests",
+}
+
 WFA = {
     "window_size": int(os.getenv("WFA_WINDOW", "1000")),
     "step_size": int(os.getenv("WFA_STEP", "200")),

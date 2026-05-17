@@ -21,6 +21,18 @@ python scripts/print_resolved_risk.py --summary
 | Kaldıraç tavanı | `max_leverage` | `MAX_LEVERAGE` | [ ] |
 | Sinyal kalite min | `signal_quality_min` | `SIGNAL_QUALITY_MIN` | [ ] |
 
+## §2 — Test yerleşimi (Audit 9)
+
+| Kontrol | Komut / kanıt | RCO |
+|---------|----------------|-----|
+| `super_otonom/test_*.py` manifest | `data/test_layout_manifest.json` | [ ] |
+| Wheel'de test modülü **yok** | `layout_topology_audit --verify-wheel` → 0 | [ ] |
+| Pytest kökü `tests/` | `pyproject.toml` testpaths | [ ] |
+| Kurumsal temiz paket iddiası **yok** | `institutional_production_test_layout_claim_allowed=false` | [ ] |
+| Yerel gate | `scripts/fastrun_test_layout.cmd` PASS | [ ] |
+
+Yeni `super_otonom/test_*.py`: manifest güncelle + wheel doğrula.
+
 ## §3 — BotEngine god class (Audit 8)
 
 | Kontrol | Komut / kanıt | RCO |

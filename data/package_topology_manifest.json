@@ -1,7 +1,7 @@
 {
   "audit": 7,
   "schema_version": 1,
-  "flat_production_count": 117,
+  "flat_production_count": 119,
   "flat_test_count": 29,
   "flat_production_ceiling": 120,
   "allowed_subpackages": [
@@ -69,6 +69,8 @@
     "incident_response_engine.py",
     "kanon_drift_check.py",
     "kill_switch.py",
+    "layout_topology.py",
+    "layout_topology_audit.py",
     "liquidity_games_detector.py",
     "lstm_trainer.py",
     "main_loop.py",
