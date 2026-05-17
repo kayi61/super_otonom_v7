@@ -9,12 +9,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import statistics
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from super_otonom.backtester import BacktestReport, run_backtest_async
+from super_otonom.clock_skew import check_candle_timestamps_monotonic
+
+_log = logging.getLogger("super_otonom.backtest_universe")
 
 
 @dataclass(frozen=True)
@@ -191,6 +195,13 @@ async def run_universe_backtest_async(
     for symbol, candles in candle_by_symbol.items():
         entry = schedule_for_symbol(schedule, symbol)
         filtered = filter_candles_by_schedule(candles, entry)
+        order_issues = check_candle_timestamps_monotonic(filtered)
+        if order_issues:
+            _log.warning(
+                "clock_skew | %s non-monotonic candles: %s",
+                symbol,
+                order_issues[0],
+            )
         rep = await run_backtest_async(
             filtered,
             symbol=symbol,

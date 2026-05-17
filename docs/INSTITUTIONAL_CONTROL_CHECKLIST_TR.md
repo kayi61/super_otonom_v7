@@ -21,6 +21,18 @@ python scripts/print_resolved_risk.py --summary
 | Kaldıraç tavanı | `max_leverage` | `MAX_LEVERAGE` | [ ] |
 | Sinyal kalite min | `signal_quality_min` | `SIGNAL_QUALITY_MIN` | [ ] |
 
+## §5 — Saat / clock skew (Audit 6)
+
+| Kontrol | Komut / kanıt | RCO |
+|---------|----------------|-----|
+| Borsa skew metrik + alarm | `bot_clock_skew_abs_ms`, `BotClockSkewHigh` | [ ] |
+| Host NTP sondası (best-effort) | `bot_host_ntp_synchronized` | [ ] |
+| Kurumsal NTP iddiası **yok** | `institutional_ntp_claim_allowed=false` | [ ] |
+| Repo taraması | `python -m super_otonom.clock_skew_audit` → OK | [ ] |
+| Yerel gate | `scripts/fastrun_clock_skew.cmd` PASS | [ ] |
+
+Mum sırası: `check_candle_timestamps_monotonic` (backtest evreni uyarısı).
+
 ## §6 — Dağıtım / HA (Audit 5)
 
 | Kontrol | Komut / kanıt | RCO |

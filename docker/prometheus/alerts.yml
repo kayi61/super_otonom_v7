@@ -61,3 +61,30 @@ groups:
           severity: warning
         annotations:
           summary: "TimescaleDB baglantisi yok"
+
+      - alert: BotClockSkewHigh
+        expr: bot_clock_skew_abs_ms >= 500
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Borsa-yerel saat farki yuksek"
+          description: "abs_skew_ms={{ $value | printf \"%.0f\" }} (esik CLOCK_SKEW_WARN_MS)"
+
+      - alert: BotClockSkewCritical
+        expr: bot_clock_skew_abs_ms >= 2000
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Borsa-yerel saat farki kritik"
+          description: "abs_skew_ms={{ $value | printf \"%.0f\" }} — mum/imza riski"
+
+      - alert: BotHostNtpNotSynchronized
+        expr: bot_host_ntp_synchronized == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host NTP senkron degil (sonda)"
+          description: "w32tm/timedatectl — chrony kurulumu repoda yok"

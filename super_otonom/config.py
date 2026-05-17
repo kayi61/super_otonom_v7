@@ -194,6 +194,11 @@ METRICS = {
     "update_interval": int(os.getenv("METRICS_INTERVAL", "0")),
 }
 
+CLOCK_SKEW = {
+    "warn_ms": int(os.getenv("CLOCK_SKEW_WARN_MS", "500")),
+    "crit_ms": int(os.getenv("CLOCK_SKEW_CRIT_MS", "2000")),
+}
+
 WFA = {
     "window_size": int(os.getenv("WFA_WINDOW", "1000")),
     "step_size": int(os.getenv("WFA_STEP", "200")),

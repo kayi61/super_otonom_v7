@@ -60,6 +60,9 @@ jobs:
       - name: PROMPT-5 Single-host HA audit
         run: python -m super_otonom.ha_audit
 
+      - name: PROMPT-6 Clock skew / NTP disclosure audit
+        run: python -m super_otonom.clock_skew_audit
+
       - name: Pytest fastrun (5000 gate)
         run: python -m pytest tests -m fastrun -q --tb=short
 

@@ -11,7 +11,7 @@ YENİLİKLER (v4 → v5):
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 log = logging.getLogger("super_otonom.metrics")
 
@@ -76,6 +76,11 @@ class MetricsExporter:
             ("dynamic_daily_limit", "Dinamik günlük kayıp limiti (%)"),  # FIX v6.2
             ("hurst", "Son analiz Hurst exponent"),
             ("volatility", "Son analiz volatilite"),
+            ("clock_skew_abs_ms", "Borsa-yerel saat farki mutlak (ms)"),
+            (
+                "host_ntp_synchronized",
+                "Host NTP: 1=sync, 0=not sync, -1=unknown",
+            ),
         ]
         for name, desc in gauge_defs:
             try:
@@ -119,6 +124,18 @@ class MetricsExporter:
 
             self._gauges["circuit_breaker_open"] = REGISTRY._names_to_collectors.get(
                 f"{namespace}_circuit_breaker_open"
+            )
+        try:
+            self._gauges["clock_skew_exchange_ms"] = Gauge(
+                f"{namespace}_clock_skew_exchange_ms",
+                "Borsa timeDifference (ms); pozitif = yerel saat ileride",
+                ["exchange"],
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["clock_skew_exchange_ms"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_clock_skew_exchange_ms"
             )
 
         # ── Counter'lar ───────────────────────────────────────────────────────
@@ -341,6 +358,25 @@ class MetricsExporter:
             self._gauges["dependency_up"].labels(name=name).set(1.0 if up else 0.0)
         except Exception as exc:
             log.debug("MetricsExporter.set_dependency_up hata: %s", exc)
+
+    def record_clock_skew(self, exchange_id: str, skew_ms: int) -> None:
+        if not self._enabled:
+            return
+        try:
+            skew_f = float(skew_ms)
+            self._gauges["clock_skew_exchange_ms"].labels(exchange=exchange_id).set(skew_f)
+            self._gauges["clock_skew_abs_ms"].set(abs(skew_f))
+        except Exception as exc:
+            log.debug("MetricsExporter.record_clock_skew hata: %s", exc)
+
+    def record_host_ntp(self, synced: Optional[bool]) -> None:
+        if not self._enabled:
+            return
+        val = -1.0 if synced is None else (1.0 if synced else 0.0)
+        try:
+            self._gauges["host_ntp_synchronized"].set(val)
+        except Exception as exc:
+            log.debug("MetricsExporter.record_host_ntp hata: %s", exc)
 
     # ── Durum sorgusu ─────────────────────────────────────────────────────────
 
