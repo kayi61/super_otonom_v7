@@ -21,6 +21,17 @@ python scripts/print_resolved_risk.py --summary
 | Kaldıraç tavanı | `max_leverage` | `MAX_LEVERAGE` | [ ] |
 | Sinyal kalite min | `signal_quality_min` | `SIGNAL_QUALITY_MIN` | [ ] |
 
+## §6 — Dağıtım / HA (Audit 5)
+
+| Kontrol | Komut / kanıt | RCO |
+|---------|----------------|-----|
+| Tek bot instance (compose) | `bot_replicas=1`, sabit `container_name` | [ ] |
+| Kurumsal HA iddiası **yok** | `institutional_ha_claim_allowed=false` | [ ] |
+| Repo sahte HA ifadesi yok | `python -m super_otonom.ha_audit` → OK | [ ] |
+| Yerel gate | `scripts/fastrun_ha.cmd` PASS | [ ] |
+
+Süreklilik: `restart: unless-stopped` + `docs/DR_BCP.md` yedek — bu **HA değil**, tek host SPOF.
+
 ## §7 — Geri test / survivorship (Audit 4)
 
 | Kontrol | Komut / kanıt | RCO |

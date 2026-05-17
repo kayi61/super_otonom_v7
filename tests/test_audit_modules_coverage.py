@@ -1,4 +1,4 @@
-"""sharpe_audit / survivorship_audit — hata yolları ve CLI (coverage)."""
+"""sharpe_audit / survivorship_audit / ha_audit — hata yolları ve CLI (coverage)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from super_otonom.ha_audit import audit_ha_claims
+from super_otonom.ha_audit import main as ha_main
 from super_otonom.sharpe_audit import (
     _REPO_ROOT,
     _scan_file,
@@ -99,4 +101,35 @@ def test_survivorship_cli_text_fail(
         lambda root=None: ["fake: fail"],
     )
     assert surv_main([]) == 1
+    assert "FAIL" in capsys.readouterr().out
+
+
+def test_ha_audit_read_error(tmp_path: Path) -> None:
+    bad = tmp_path / "x.md"
+    bad.write_text("ok\n", encoding="utf-8")
+    with patch.object(Path, "read_text", side_effect=OSError("denied")):
+        issues = audit_ha_claims(root=tmp_path)
+    assert any("read error" in i for i in issues)
+
+
+def test_ha_audit_cli_json_fail(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "super_otonom.ha_audit.audit_ha_claims",
+        lambda root=None: ["fake: forbidden HA claim"],
+    )
+    assert ha_main(["--json"]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False
+
+
+def test_ha_audit_cli_text_fail(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "super_otonom.ha_audit.audit_ha_claims",
+        lambda root=None: ["fake: fail"],
+    )
+    assert ha_main([]) == 1
     assert "FAIL" in capsys.readouterr().out

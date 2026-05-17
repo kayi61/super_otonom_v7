@@ -9,6 +9,9 @@
 # Ag guvenligi: Postgres/Vault/Grafana dis porta acilmaz (yalnizca bot_network).
 # Yerel UI: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 # TLS:      scripts/gen_internal_tls.ps1 + docker-compose.tls.yml
+#
+# HA (audit 5): tek host, tek bot instance (container_name); active-passive / multi-AZ yok.
+# Kurumsal HA iddiasi yapilmaz — DR/yedek: docs/DR_BCP.md, fastrun: scripts/fastrun_ha.cmd
 
 services:
 
