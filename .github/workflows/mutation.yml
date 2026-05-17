@@ -5,16 +5,6 @@
 name: Mutation Testing
 
 on:
-  push:
-    paths:
-      - "super_otonom/risk_manager.py"
-      - "super_otonom/capital_engine.py"
-      - "super_otonom/risk_ontology.py"
-      - "super_otonom/pre_trade_gate.py"
-      - ".github/workflows/mutation.yml"
-      - "pyproject.toml"
-      - "scripts/mutmut_gate.py"
-      - "tests/test_risk_mutation_targets.py"
   pull_request:
     paths:
       - "super_otonom/risk_manager.py"
@@ -27,8 +17,9 @@ on:
       - "tests/test_risk_mutation_targets.py"
   workflow_dispatch:
 
+# push + pull_request ayni branch icin tek kosu (cift mutmut onlenir)
 concurrency:
-  group: mutation-${{ github.workflow }}-${{ github.ref }}
+  group: mutation-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
