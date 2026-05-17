@@ -5,10 +5,12 @@
   "flat_test_count": 29,
   "flat_production_ceiling": 125,
   "allowed_subpackages": [
-    "pipelines"
+    "pipelines",
+    "risk"
   ],
   "subpackages_observed": [
-    "pipelines"
+    "pipelines",
+    "risk"
   ],
   "pipelines_modules": [
     "__init__.py",

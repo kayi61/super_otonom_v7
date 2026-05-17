@@ -47,7 +47,7 @@ build_py = "_setup_build.BuildPyExcludeInPackageTests"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["super_otonom", "super_otonom.pipelines"]
+include = ["super_otonom", "super_otonom.pipelines", "super_otonom.risk"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
