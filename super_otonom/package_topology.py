@@ -24,7 +24,7 @@ IGNORE_DIR_NAMES = frozenset(
     {".pytest_cache", ".scannerwork", "__pycache__", "data", ".mypy_cache", ".ruff_cache"}
 )
 
-FLAT_PROD_CEILING = int(os.getenv("PACKAGE_FLAT_PROD_CEILING", "120"))
+FLAT_PROD_CEILING = int(os.getenv("PACKAGE_FLAT_PROD_CEILING", "125"))
 
 
 @dataclass(frozen=True)

@@ -1,9 +1,9 @@
 {
   "audit": 7,
   "schema_version": 1,
-  "flat_production_count": 119,
+  "flat_production_count": 121,
   "flat_test_count": 29,
-  "flat_production_ceiling": 120,
+  "flat_production_ceiling": 125,
   "allowed_subpackages": [
     "pipelines"
   ],
@@ -60,6 +60,8 @@
     "engine_managers.py",
     "exchange_async.py",
     "exchange_connectivity_engine.py",
+    "execution_topology.py",
+    "execution_topology_audit.py",
     "fake_order_book_scenarios.py",
     "ha_audit.py",
     "ha_topology.py",

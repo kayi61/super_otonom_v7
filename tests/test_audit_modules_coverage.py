@@ -11,6 +11,16 @@ from super_otonom.bot_engine_audit import audit_bot_engine_claims
 from super_otonom.bot_engine_audit import main as be_topo_main
 from super_otonom.clock_skew_audit import audit_clock_skew_claims
 from super_otonom.clock_skew_audit import main as clock_main
+from super_otonom.execution_topology import (
+    ExecutionTopology as ExecutionTopologySnapshot,
+)
+from super_otonom.execution_topology import (
+    compare_topology_to_manifest,
+    execution_disclosure,
+    validate_execution_topology_contract,
+)
+from super_otonom.execution_topology import main as exec_topo_main
+from super_otonom.execution_topology_audit import main as exec_topo_audit_main
 from super_otonom.ha_audit import audit_ha_claims
 from super_otonom.ha_audit import main as ha_main
 from super_otonom.layout_topology import (
@@ -552,6 +562,59 @@ def test_package_topology_validate_missing_manifest(tmp_path: Path) -> None:
     (tmp_path / "docker-compose.yml").write_text("# audit 7\n", encoding="utf-8")
     issues = validate_package_topology_contract(tmp_path)
     assert any("package_topology_manifest.json" in i for i in issues)
+
+
+def test_execution_topology_audit_cli_json_fail(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "super_otonom.execution_topology_audit.audit_execution_topology_claims",
+        lambda root=None: ["fake: fail"],
+    )
+    assert exec_topo_audit_main(["--json"]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False
+
+
+def test_execution_topology_compare_manifest() -> None:
+    topo = ExecutionTopologySnapshot(
+        vwap_signal_modules=["hft_signal_engine.py"],
+        algo_implementation_hits={"bad.py": ["twap_slice"]},
+    )
+    assert compare_topology_to_manifest(
+        topo,
+        {"institutional_twap_vwap_execution_claim_allowed": True},
+    )
+    assert compare_topology_to_manifest(
+        topo,
+        {
+            "institutional_twap_vwap_execution_claim_allowed": False,
+            "algo_implementation_hits_expected_empty": True,
+        },
+    )
+
+
+def test_execution_topology_validate_contract(tmp_path: Path) -> None:
+    issues = validate_execution_topology_contract(tmp_path)
+    assert any("docker-compose.yml" in i for i in issues)
+    assert any("execution_topology_manifest.json" in i for i in issues)
+
+
+def test_execution_topology_disclosure_limitations() -> None:
+    d = execution_disclosure()
+    assert d["institutional_twap_vwap_execution_claim_allowed"] is False
+    assert "twap_metadata_not_algo_router" in d["limitations"]
+
+
+def test_execution_topology_cli_json(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "super_otonom.execution_topology.validate_execution_topology_contract",
+        lambda *a, **k: [],
+    )
+    assert exec_topo_main(["--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["ok"] is True
 
 
 def test_clock_skew_wiring_partial(tmp_path: Path) -> None:
