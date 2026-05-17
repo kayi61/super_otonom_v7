@@ -21,6 +21,19 @@ python scripts/print_resolved_risk.py --summary
 | Kaldıraç tavanı | `max_leverage` | `MAX_LEVERAGE` | [ ] |
 | Sinyal kalite min | `signal_quality_min` | `SIGNAL_QUALITY_MIN` | [ ] |
 
+## §3 — BotEngine god class (Audit 8)
+
+| Kontrol | Komut / kanıt | RCO |
+|---------|----------------|-----|
+| LOC manifest uyumu | `data/bot_engine_topology_manifest.json` | [ ] |
+| Sınıf satır tavanı | `class_line_ceiling` (varsayılan 1100) | [ ] |
+| God class işaretli | `god_class=true` (~1000+ LOC) | [ ] |
+| Kurumsal tek-sorumluluk iddiası **yok** | `institutional_single_responsibility_claim_allowed=false` | [ ] |
+| Repo taraması | `python -m super_otonom.bot_engine_audit` → OK | [ ] |
+| Yerel gate | `scripts/fastrun_bot_engine_topology.cmd` PASS | [ ] |
+
+Kısmi delegasyon: `engine_managers`, `pipelines` — tam ayrıştırma değil.
+
 ## §4 — Paket topolojisi / god package (Audit 7)
 
 | Kontrol | Komut / kanıt | RCO |

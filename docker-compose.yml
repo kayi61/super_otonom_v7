@@ -18,6 +18,9 @@
 #
 # Package topology (audit 7): ~100+ düz super_otonom/*.py; yalnizca pipelines/ alt paket.
 # Manifest: data/package_topology_manifest.json — fastrun: scripts/fastrun_package_topology.cmd
+#
+# BotEngine god class (audit 8): ~1000+ LOC tek sinif; LOC manifest + tavan.
+# fastrun: scripts/fastrun_bot_engine_topology.cmd
 
 services:
 

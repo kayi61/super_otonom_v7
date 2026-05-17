@@ -1,7 +1,7 @@
 {
   "audit": 7,
   "schema_version": 1,
-  "flat_production_count": 115,
+  "flat_production_count": 117,
   "flat_test_count": 29,
   "flat_production_ceiling": 120,
   "allowed_subpackages": [
@@ -35,7 +35,9 @@
     "backtester.py",
     "benchmark_katman_a.py",
     "bot_engine.py",
+    "bot_engine_audit.py",
     "bot_engine_capital_patch.py",
+    "bot_engine_topology.py",
     "capital_engine.py",
     "causal_alpha_engine.py",
     "clock_skew.py",
