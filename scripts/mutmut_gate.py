@@ -17,7 +17,7 @@ def _ids(status: str) -> list[str]:
     )
     if proc.returncode != 0:
         return []
-    return [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
+    return proc.stdout.split()
 
 
 def main() -> int:
