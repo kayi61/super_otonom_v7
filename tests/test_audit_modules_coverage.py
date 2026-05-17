@@ -15,6 +15,8 @@ from super_otonom.ha_audit import audit_ha_claims
 from super_otonom.ha_audit import main as ha_main
 from super_otonom.layout_topology import (
     TestLayoutTopology as LayoutTopologySnapshot,
+)
+from super_otonom.layout_topology import (
     compare_layout_to_manifest,
     count_canonical_tests,
     count_wheel_test_modules,
@@ -67,7 +69,9 @@ def test_sharpe_audit_json_fail(
 
 
 def test_sharpe_audit_text_fail(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    (tmp_path / "evil.py").write_text("".join(("252", "*", "24", "*", "12", "\n")), encoding="utf-8")
+    (tmp_path / "evil.py").write_text(
+        "".join(("252", "*", "24", "*", "12", "\n")), encoding="utf-8"
+    )
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
         "super_otonom.sharpe_audit.audit_sharpe_annualization",
@@ -82,12 +86,9 @@ def test_sharpe_audit_text_fail(tmp_path: Path, capsys: pytest.CaptureFixture[st
 
 
 def test_survivorship_forbidden_claim(tmp_path: Path) -> None:
-    (tmp_path / "claim.py").write_text(
-        "institutional universe backtest\n", encoding="utf-8"
-    )
+    (tmp_path / "claim.py").write_text("institutional universe backtest\n", encoding="utf-8")
     issues = audit_survivorship_claims(root=tmp_path)
     assert any("forbidden" in i for i in issues)
-
 
 
 def test_survivorship_edge_and_backtester_checks(tmp_path: Path) -> None:
@@ -335,7 +336,9 @@ def test_test_layout_topology_helpers(tmp_path: Path) -> None:
 
 def test_test_layout_compare_manifest_branches() -> None:
     topo = LayoutTopologySnapshot(in_package_test_modules=["test_a.py"])
-    assert compare_layout_to_manifest(topo, {"institutional_production_test_layout_claim_allowed": True})
+    assert compare_layout_to_manifest(
+        topo, {"institutional_production_test_layout_claim_allowed": True}
+    )
     assert compare_layout_to_manifest(
         topo,
         {
@@ -354,7 +357,9 @@ def test_test_layout_compare_manifest_branches() -> None:
             "in_package_test_ceiling": 35,
         },
     )
-    assert compare_layout_to_manifest(topo, {"institutional_production_test_layout_claim_allowed": False})
+    assert compare_layout_to_manifest(
+        topo, {"institutional_production_test_layout_claim_allowed": False}
+    )
     many = [f"test_{i}.py" for i in range(40)]
     big = LayoutTopologySnapshot(in_package_test_modules=many)
     assert compare_layout_to_manifest(
@@ -430,9 +435,7 @@ def test_test_layout_inspect_wheel_oserror(monkeypatch: pytest.MonkeyPatch) -> N
     assert topo.wheel_test_module_count == -1
 
 
-def test_test_layout_inspect_wheel_success(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_test_layout_inspect_wheel_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     whl = tmp_path / "pkg-1.whl"
     whl.write_bytes(b"PK\x05\x06")
     monkeypatch.setattr(
@@ -557,9 +560,7 @@ def test_clock_skew_wiring_partial(tmp_path: Path) -> None:
     (tmp_path / "docker-compose.yml").write_text("# audit 6\n", encoding="utf-8")
     prom = tmp_path / "docker" / "prometheus"
     prom.mkdir(parents=True)
-    (prom / "alerts.yml").write_text(
-        "bot_clock_skew_abs_ms\nBotClockSkewHigh\n", encoding="utf-8"
-    )
+    (prom / "alerts.yml").write_text("bot_clock_skew_abs_ms\nBotClockSkewHigh\n", encoding="utf-8")
     pkg = tmp_path / "super_otonom"
     pkg.mkdir()
     (pkg / "metrics_exporter.py").write_text(
