@@ -20,7 +20,7 @@ htmlcov/
 
 # Yerel çalıştırma / derleme
 *.egg-info/
-build/pytest-temproot/
+build/
 artifacts/
 logs/
 data/audit/*.jsonl

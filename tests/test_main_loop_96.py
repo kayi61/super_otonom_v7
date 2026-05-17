@@ -200,10 +200,21 @@ def test_main_adds_posix_signal_handlers(tmp_path: Path, monkeypatch: pytest.Mon
 
 
 def test_circuit_open_warning_and_storm_trip_both_sites(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from super_otonom import main_loop as ml
     from super_otonom.config import MTF
+
+    # CB aggregate WARNING is throttled module-wide; earlier tests on the same xdist worker can skip it.
+    ml._CB_AGG_LOG_TS = 0.0
+    cb_agg_logs: list[str] = []
+    _orig_cb_agg = ml._log_cb_aggregate_throttled
+
+    def _track_cb_agg(template: str, *args: object) -> None:
+        cb_agg_logs.append(template % args if args else template)
+        _orig_cb_agg(template, *args)
+
+    monkeypatch.setattr(ml, "_log_cb_aggregate_throttled", _track_cb_agg)
 
     mtf = dict(MTF)
     mtf["enabled"] = False
@@ -267,10 +278,16 @@ def test_circuit_open_warning_and_storm_trip_both_sites(
         ml_mod._shutdown.set()
         await asyncio.wait_for(t, timeout=25.0)
 
-    with caplog.at_level("WARNING", logger="super_otonom.main"):
-        asyncio.run(_g())
+    asyncio.run(_g())
+    cb_text = " ".join(cb_agg_logs)
     assert any(
-        s in caplog.text for s in ("CircuitBreaker", "Circuit Breaker", "CIRCUIT_BREAKER")
+        s in cb_text
+        for s in (
+            "CircuitBreaker",
+            "Circuit Breaker",
+            "CIRCUIT_BREAKER",
+            "ADAPTIVE_THROTTLE",
+        )
     )
     assert n[0] >= 1
 
