@@ -141,7 +141,7 @@ def compare_layout_to_manifest(
     if isinstance(exp_list, list):
         if sorted(exp_list) != topo.in_package_test_modules:
             added = set(topo.in_package_test_modules) - set(exp_list)
-            removed = set(exp_list) - topo.in_package_test_modules
+            removed = set(exp_list) - set(topo.in_package_test_modules)
             if added:
                 issues.append(f"new in-package test modules (update manifest): {sorted(added)}")
             if removed:
