@@ -153,7 +153,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p = argparse.ArgumentParser(description="Binance USDT evren takvimi verisi çek (ccxt).")
     p.add_argument("--symbols", default="", help="Virgülle semboller; boşsa çekirdek+top.")
     p.add_argument("--top-n", type=int, default=8, help="Hacim üst N aktif USDT (symbols boşsa).")
-    p.add_argument("--include-delist", action="store_true", default=True)
     p.add_argument("--no-delist", action="store_true", help="Delist adaylarını atla.")
     p.add_argument("--timeframe", default="1d")
     p.add_argument("--out", default=str(_DEFAULT_OUT))
@@ -169,7 +168,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         ex = _make_exchange()
         top = _top_usdt_symbols(ex, int(args.top_n))
         symbols = list(dict.fromkeys([*_DEFAULT_CORE, *top]))
-    if not args.no_delist and args.include_delist:
+    if not args.no_delist:
         symbols = list(dict.fromkeys([*symbols, *_DELIST_CANDIDATES]))
 
     log.info("Fetching OHLCV windows for %d symbols...", len(symbols))

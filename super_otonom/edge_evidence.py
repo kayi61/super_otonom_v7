@@ -211,7 +211,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         candle_map[sym] = rows
 
     if any(len(c) < MIN_EDGE_CANDLES for c in candle_map.values()):
-        short = {s: len(c) for s, c in candle_map.items() if len(c) < 80}
+        short = {s: len(c) for s, c in candle_map.items() if len(c) < MIN_EDGE_CANDLES}
         print(f"Yetersiz mum: {short}", file=sys.stderr)
         return 1
 

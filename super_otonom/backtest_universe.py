@@ -165,7 +165,7 @@ async def run_universe_backtest_async(
                 symbol=symbol,
                 report=rep,
                 bars_used=len(filtered),
-                schedule_applied=entry is not None,
+                schedule_applied=schedule is not None and entry is not None,
             )
         )
 
