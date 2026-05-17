@@ -13,6 +13,8 @@ on:
       - "super_otonom/pre_trade_gate.py"
       - ".github/workflows/mutation.yml"
       - "pyproject.toml"
+      - "scripts/mutmut_gate.py"
+      - "tests/test_risk_mutation_targets.py"
   pull_request:
     paths:
       - "super_otonom/risk_manager.py"
@@ -21,6 +23,8 @@ on:
       - "super_otonom/pre_trade_gate.py"
       - ".github/workflows/mutation.yml"
       - "pyproject.toml"
+      - "scripts/mutmut_gate.py"
+      - "tests/test_risk_mutation_targets.py"
   workflow_dispatch:
 
 concurrency:
@@ -67,7 +71,7 @@ jobs:
       - name: Coverage bağlamı (mutmut --use-coverage önkoşul)
         run: |
           python -m pytest tests/ -q \
-            --cov=super_otonom/risk_manager \
+            --cov=super_otonom.risk_manager \
             --cov-context=test \
             --cov-report=
       - name: Mutation testi çalıştır
@@ -77,16 +81,7 @@ jobs:
             --use-coverage \
             --runner "python -m pytest tests/ -x -q --tb=no" \
             --CI
-          SCORE=$(mutmut results | grep -oP '\d+\.\d+(?=%)' | tail -1)
-          echo "Mutation score: $SCORE%"
-          python3 -c "
-          import sys
-          score = float('${SCORE}' or '0')
-          if score < 80:
-              print(f'FAIL: mutation score {score:.1f}% < 80%')
-              sys.exit(1)
-          print(f'PASS: mutation score {score:.1f}% >= 80%')
-          "
+          python scripts/mutmut_gate.py --min 80
 
   mutation-capital-engine:
     name: "Mutation — capital_engine.py (eşik: %80)"
@@ -104,7 +99,7 @@ jobs:
       - name: Coverage bağlamı (mutmut --use-coverage önkoşul)
         run: |
           python -m pytest tests/ -q \
-            --cov=super_otonom/capital_engine \
+            --cov=super_otonom.capital_engine \
             --cov-context=test \
             --cov-report=
       - name: Mutation testi çalıştır
@@ -114,16 +109,7 @@ jobs:
             --use-coverage \
             --runner "python -m pytest tests/ -x -q --tb=no" \
             --CI
-          SCORE=$(mutmut results | grep -oP '\d+\.\d+(?=%)' | tail -1)
-          echo "Mutation score: $SCORE%"
-          python3 -c "
-          import sys
-          score = float('${SCORE}' or '0')
-          if score < 80:
-              print(f'FAIL: mutation score {score:.1f}% < 80%')
-              sys.exit(1)
-          print(f'PASS: mutation score {score:.1f}% >= 80%')
-          "
+          python scripts/mutmut_gate.py --min 80
 
   mutation-risk-ontology:
     name: "Mutation — risk_ontology.py (eşik: %80)"
@@ -141,7 +127,7 @@ jobs:
       - name: Coverage bağlamı (mutmut --use-coverage önkoşul)
         run: |
           python -m pytest tests/ -q \
-            --cov=super_otonom/risk_ontology \
+            --cov=super_otonom.risk_ontology \
             --cov-context=test \
             --cov-report=
       - name: Mutation testi çalıştır
@@ -151,16 +137,7 @@ jobs:
             --use-coverage \
             --runner "python -m pytest tests/ -x -q --tb=no" \
             --CI
-          SCORE=$(mutmut results | grep -oP '\d+\.\d+(?=%)' | tail -1)
-          echo "Mutation score: $SCORE%"
-          python3 -c "
-          import sys
-          score = float('${SCORE}' or '0')
-          if score < 80:
-              print(f'FAIL: mutation score {score:.1f}% < 80%')
-              sys.exit(1)
-          print(f'PASS: mutation score {score:.1f}% >= 80%')
-          "
+          python scripts/mutmut_gate.py --min 80
 
   mutation-pre-trade-gate:
     name: "Mutation — pre_trade_gate.py (eşik: %80)"
@@ -178,7 +155,7 @@ jobs:
       - name: Coverage bağlamı (mutmut --use-coverage önkoşul)
         run: |
           python -m pytest tests/ -q \
-            --cov=super_otonom/pre_trade_gate \
+            --cov=super_otonom.pre_trade_gate \
             --cov-context=test \
             --cov-report=
       - name: Mutation testi çalıştır
@@ -188,13 +165,4 @@ jobs:
             --use-coverage \
             --runner "python -m pytest tests/ -x -q --tb=no" \
             --CI
-          SCORE=$(mutmut results | grep -oP '\d+\.\d+(?=%)' | tail -1)
-          echo "Mutation score: $SCORE%"
-          python3 -c "
-          import sys
-          score = float('${SCORE}' or '0')
-          if score < 80:
-              print(f'FAIL: mutation score {score:.1f}% < 80%')
-              sys.exit(1)
-          print(f'PASS: mutation score {score:.1f}% >= 80%')
-          "
+          python scripts/mutmut_gate.py --min 80
