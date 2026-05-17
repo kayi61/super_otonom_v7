@@ -18,6 +18,9 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 powershell -NoProfile -ExecutionPolicy Bypass -File "$root\scripts\fastrun_go_live.ps1"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+powershell -NoProfile -ExecutionPolicy Bypass -File "$root\scripts\fastrun_survivorship.ps1"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 if (-not $SkipVault) {
     if (Get-Command docker -ErrorAction SilentlyContinue) {
         Write-Host ""

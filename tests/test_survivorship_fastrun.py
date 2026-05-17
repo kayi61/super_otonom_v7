@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 from contextlib import redirect_stdout
+from pathlib import Path
 
 import pytest
 from super_otonom.backtest_universe import (
@@ -12,7 +13,10 @@ from super_otonom.backtest_universe import (
     filter_candles_by_schedule,
     parse_symbol_list,
     run_universe_backtest,
+    schedule_symbols_missing,
     survivorship_disclosure,
+    symbol_active_at,
+    symbols_active_at,
 )
 from super_otonom.edge_evidence import main as edge_main
 from super_otonom.survivorship_audit import audit_survivorship_claims
@@ -62,6 +66,59 @@ def test_disclosure_with_schedule_two_symbols() -> None:
     )
     assert d["survivorship_bias_controlled"] is True
     assert d["institutional_universe_claim_allowed"] is True
+
+
+def test_disclosure_not_controlled_when_schedule_incomplete() -> None:
+    d = survivorship_disclosure(
+        symbols=["BTC/USDT", "ETH/USDT"],
+        has_point_in_time_schedule=True,
+        data_source="synthetic",
+        schedule_symbols_missing=["ETH/USDT"],
+    )
+    assert d["survivorship_bias_controlled"] is False
+    assert d["institutional_universe_claim_allowed"] is False
+    assert "schedule_missing_symbols" in d["limitations"]
+
+
+def test_schedule_symbols_missing() -> None:
+    sched = [SymbolScheduleEntry("BTC/USDT")]
+    assert schedule_symbols_missing(["BTC/USDT", "ETH/USDT"], sched) == ["ETH/USDT"]
+
+
+def test_symbols_active_at_delist() -> None:
+    sched = [
+        SymbolScheduleEntry("BTC/USDT", active_from_ms=1000.0, active_until_ms=None),
+        SymbolScheduleEntry("OCEAN/USDT", active_from_ms=1000.0, active_until_ms=2000.0),
+    ]
+    assert symbol_active_at(sched[1], 1500.0) is True
+    assert symbol_active_at(sched[1], 2500.0) is False
+    active = symbols_active_at(["BTC/USDT", "OCEAN/USDT"], sched, 1500.0)
+    assert active == ["BTC/USDT", "OCEAN/USDT"]
+    assert symbols_active_at(["BTC/USDT", "OCEAN/USDT"], sched, 2500.0) == ["BTC/USDT"]
+
+
+def test_edge_evidence_rejects_missing_schedule_symbol(tmp_path: Path) -> None:
+    sched_path = tmp_path / "sched.json"
+    sched_path.write_text(
+        json.dumps([{"symbol": "BTC/USDT", "active_from_ms": 1.0}]),
+        encoding="utf-8",
+    )
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        code = edge_main(
+            [
+                "--source",
+                "synthetic",
+                "--symbols",
+                "BTC/USDT,ETH/USDT",
+                "--universe-schedule",
+                str(sched_path),
+                "--limit",
+                "120",
+                "--no-wfa",
+            ]
+        )
+    assert code == 2
 
 
 def test_filter_candles_by_schedule() -> None:
