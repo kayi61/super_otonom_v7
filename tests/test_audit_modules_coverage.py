@@ -9,10 +9,10 @@ from unittest.mock import patch
 import pytest
 from super_otonom.clock_skew_audit import audit_clock_skew_claims
 from super_otonom.clock_skew_audit import main as clock_main
-from super_otonom.package_topology_audit import audit_package_topology_claims
-from super_otonom.package_topology_audit import main as pkg_topo_main
 from super_otonom.ha_audit import audit_ha_claims
 from super_otonom.ha_audit import main as ha_main
+from super_otonom.package_topology_audit import audit_package_topology_claims
+from super_otonom.package_topology_audit import main as pkg_topo_main
 from super_otonom.sharpe_audit import (
     _REPO_ROOT,
     _scan_file,
