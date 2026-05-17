@@ -27,6 +27,9 @@
 #
 # TWAP/VWAP execution (audit 10): VWAP sinyal (hft_signal_engine); TWAP metadata only;
 # algo child-order yurutme yok — TradeExecutor tek limit/market. fastrun: scripts/fastrun_execution_topology.cmd
+#
+# VaR / CVaR (audit 11): faz-24 portfolio_risk_engine (param/hist/MC/CVaR); canli tick risk_ontology yuzdelik.
+# Rejim/likidite/stres gridi yok. fastrun: scripts/fastrun_var_topology.cmd
 
 services:
 

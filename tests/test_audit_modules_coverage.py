@@ -49,6 +49,13 @@ from super_otonom.sharpe_audit import (
 )
 from super_otonom.survivorship_audit import audit_survivorship_claims
 from super_otonom.survivorship_audit import main as surv_main
+from super_otonom.var_topology import VarTopology as VarTopologySnapshot
+from super_otonom.var_topology import (
+    compare_topology_to_manifest as compare_var_topology_to_manifest,
+)
+from super_otonom.var_topology import main as var_topo_main
+from super_otonom.var_topology import var_disclosure
+from super_otonom.var_topology_audit import main as var_topo_audit_main
 
 pytestmark = pytest.mark.fastrun
 
@@ -614,6 +621,52 @@ def test_execution_topology_cli_json(
         lambda *a, **k: [],
     )
     assert exec_topo_main(["--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["ok"] is True
+
+
+def test_var_topology_audit_cli_json_fail(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "super_otonom.var_topology_audit.audit_var_topology_claims",
+        lambda root=None: ["fake: fail"],
+    )
+    assert var_topo_audit_main(["--json"]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False
+
+
+def test_var_topology_compare_manifest() -> None:
+    topo = VarTopologySnapshot(
+        var_methods_present=["parametric", "historical", "monte_carlo", "cvar"],
+        institutional_gap_hits={"x.py": ["regime_conditional_var"]},
+    )
+    assert compare_var_topology_to_manifest(
+        topo,
+        {"institutional_var_claim_allowed": True},
+    )
+    assert compare_var_topology_to_manifest(
+        topo,
+        {
+            "institutional_var_claim_allowed": False,
+            "institutional_gap_hits_expected_empty": True,
+        },
+    )
+
+
+def test_var_topology_disclosure() -> None:
+    d = var_disclosure()
+    assert d["institutional_var_claim_allowed"] is False
+
+
+def test_var_topology_cli_json(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "super_otonom.var_topology.validate_var_topology_contract",
+        lambda *a, **k: [],
+    )
+    assert var_topo_main(["--json"]) == 0
     assert json.loads(capsys.readouterr().out)["ok"] is True
 
 

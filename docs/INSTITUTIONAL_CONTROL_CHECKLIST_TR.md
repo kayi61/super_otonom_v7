@@ -21,7 +21,21 @@ python scripts/print_resolved_risk.py --summary
 | Kaldıraç tavanı | `max_leverage` | `MAX_LEVERAGE` | [ ] |
 | Sinyal kalite min | `signal_quality_min` | `SIGNAL_QUALITY_MIN` | [ ] |
 
-## §2 — TWAP/VWAP yürütme (Audit 10)
+## §2 — VaR / CVaR (Audit 11)
+
+| Kontrol | Komut / kanıt | RCO |
+|---------|----------------|-----|
+| Faz-24 VaR seti | `portfolio_risk_engine` — param / hist / MC + CVaR | [ ] |
+| Canlı tick VaR | `risk_ontology` PnL yüzdelik (min 100 örnek) | [ ] |
+| Faz-24 canlı tick'te **değil** | `live_tick_uses_portfolio_risk_engine=false` | [ ] |
+| Rejim / likidite / stres gridi **yok** | manifest `institutional_gap_hits` boş | [ ] |
+| Kurumsal VaR motoru iddiası **yok** | `institutional_var_claim_allowed=false` | [ ] |
+| Repo taraması | `python -m super_otonom.var_topology_audit` → OK | [ ] |
+| Yerel gate | `scripts/fastrun_var_topology.cmd` PASS | [ ] |
+
+**Not:** VaR vardır; kurumsal (rejim, likidite, stres grid) düzeyinde **yetersiz** — “hiç yok” değil.
+
+## §3 — TWAP/VWAP yürütme (Audit 10)
 
 | Kontrol | Komut / kanıt | RCO |
 |---------|----------------|-----|
@@ -35,7 +49,7 @@ python scripts/print_resolved_risk.py --summary
 
 **Not:** VWAP sinyal vardır; TWAP/VWAP **emir dilimleme router'ı** yoktur. `smart_order_router` yalnızca venue seçer.
 
-## §3 — Test yerleşimi (Audit 9)
+## §4 — Test yerleşimi (Audit 9)
 
 | Kontrol | Komut / kanıt | RCO |
 |---------|----------------|-----|
@@ -47,7 +61,7 @@ python scripts/print_resolved_risk.py --summary
 
 Yeni `super_otonom/test_*.py`: manifest güncelle + wheel doğrula.
 
-## §4 — BotEngine god class (Audit 8)
+## §5 — BotEngine god class (Audit 8)
 
 | Kontrol | Komut / kanıt | RCO |
 |---------|----------------|-----|
@@ -60,7 +74,7 @@ Yeni `super_otonom/test_*.py`: manifest güncelle + wheel doğrula.
 
 Kısmi delegasyon: `engine_managers`, `pipelines` — tam ayrıştırma değil.
 
-## §5 — Paket topolojisi / god package (Audit 7)
+## §6 — Paket topolojisi / god package (Audit 7)
 
 | Kontrol | Komut / kanıt | RCO |
 |---------|----------------|-----|
@@ -73,7 +87,7 @@ Kısmi delegasyon: `engine_managers`, `pipelines` — tam ayrıştırma değil.
 
 Yeni kök modül: `python -m super_otonom.package_topology --write-manifest` + PR.
 
-## §6 — Saat / clock skew (Audit 6)
+## §7 — Saat / clock skew (Audit 6)
 
 | Kontrol | Komut / kanıt | RCO |
 |---------|----------------|-----|
@@ -85,7 +99,7 @@ Yeni kök modül: `python -m super_otonom.package_topology --write-manifest` + P
 
 Mum sırası: `check_candle_timestamps_monotonic` (backtest evreni uyarısı).
 
-## §7 — Dağıtım / HA (Audit 5)
+## §8 — Dağıtım / HA (Audit 5)
 
 | Kontrol | Komut / kanıt | RCO |
 |---------|----------------|-----|
@@ -96,7 +110,7 @@ Mum sırası: `check_candle_timestamps_monotonic` (backtest evreni uyarısı).
 
 Süreklilik: `restart: unless-stopped` + `docs/DR_BCP.md` yedek — bu **HA değil**, tek host SPOF.
 
-## §8 — Geri test / survivorship (Audit 4)
+## §9 — Geri test / survivorship (Audit 4)
 
 | Kontrol | Komut / kanıt | RCO |
 |---------|----------------|-----|
@@ -107,20 +121,20 @@ Süreklilik: `restart: unless-stopped` + `docs/DR_BCP.md` yedek — bu **HA değ
 
 Takvim verisi OHLCV türetilmiştir; resmi delist tarihi değildir — harici doğrulama gerekir.
 
-## §9 — Takvim (özet)
+## §10 — Takvim (özet)
 
 - [ ] Çeyrek: `docs/AUDIT.md` kontrol listesi
 - [ ] Sürüm öncesi: `fastrun_p09` + CI yeşil
 - [ ] Canlı öncesi: `fastrun_go_live` + `deploy_env_check`
 - [ ] Survivorship: `scripts/fastrun_survivorship.cmd`
 
-## §10 — Kara / beyaz liste
+## §11 — Kara / beyaz liste
 
 - [ ] Canlı API: yalnız Vault KV (`SECRETS_VAULT_ONLY=true`)
 - [ ] `.env` içinde düz metin API anahtarı yok
 - [ ] Testnet anahtarı mainnet ile karışmıyor
 
-## §11 — İmza (solo RCO varsayılan)
+## §12 — İmza (solo RCO varsayılan)
 
 | Rol | Ad | Tarih | İmza |
 |-----|-----|-------|------|

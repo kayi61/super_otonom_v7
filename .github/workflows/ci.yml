@@ -75,6 +75,9 @@ jobs:
       - name: PROMPT-10 TWAP/VWAP execution topology audit
         run: python -m super_otonom.execution_topology_audit
 
+      - name: PROMPT-11 VaR / CVaR topology audit
+        run: python -m super_otonom.var_topology_audit
+
       - name: Pytest fastrun (5000 gate)
         run: python -m pytest tests -m fastrun -q --tb=short
 
