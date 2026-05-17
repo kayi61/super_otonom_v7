@@ -7,6 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from super_otonom.clock_skew_audit import audit_clock_skew_claims
+from super_otonom.clock_skew_audit import main as clock_main
 from super_otonom.ha_audit import audit_ha_claims
 from super_otonom.ha_audit import main as ha_main
 from super_otonom.sharpe_audit import (
@@ -133,3 +135,64 @@ def test_ha_audit_cli_text_fail(
     )
     assert ha_main([]) == 1
     assert "FAIL" in capsys.readouterr().out
+
+
+def test_clock_skew_audit_read_error(tmp_path: Path) -> None:
+    bad = tmp_path / "x.md"
+    bad.write_text("ok\n", encoding="utf-8")
+    with patch.object(Path, "read_text", side_effect=OSError("denied")):
+        issues = audit_clock_skew_claims(root=tmp_path)
+    assert any("read error" in i for i in issues)
+
+
+def test_clock_skew_audit_cli_json_fail(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "super_otonom.clock_skew_audit.audit_clock_skew_claims",
+        lambda root=None: ["fake: forbidden"],
+    )
+    assert clock_main(["--json"]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False
+
+
+def test_clock_skew_audit_cli_text_fail(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "super_otonom.clock_skew_audit.audit_clock_skew_claims",
+        lambda root=None: ["fake: fail"],
+    )
+    assert clock_main([]) == 1
+    assert "FAIL" in capsys.readouterr().out
+
+
+def test_clock_skew_wiring_missing_alert(tmp_path: Path) -> None:
+    from super_otonom.clock_skew import validate_clock_skew_wiring
+
+    (tmp_path / "docker-compose.yml").write_text("# audit 6\n", encoding="utf-8")
+    prom = tmp_path / "docker" / "prometheus"
+    prom.mkdir(parents=True)
+    (prom / "alerts.yml").write_text("bot_clock_skew_abs_ms\n", encoding="utf-8")
+    issues = validate_clock_skew_wiring(tmp_path)
+    assert any("BotClockSkewHigh" in i for i in issues)
+
+
+def test_clock_skew_wiring_partial(tmp_path: Path) -> None:
+    from super_otonom.clock_skew import validate_clock_skew_wiring
+
+    (tmp_path / "docker-compose.yml").write_text("# audit 6\n", encoding="utf-8")
+    prom = tmp_path / "docker" / "prometheus"
+    prom.mkdir(parents=True)
+    (prom / "alerts.yml").write_text(
+        "bot_clock_skew_abs_ms\nBotClockSkewHigh\n", encoding="utf-8"
+    )
+    pkg = tmp_path / "super_otonom"
+    pkg.mkdir()
+    (pkg / "metrics_exporter.py").write_text(
+        "clock_skew_abs_ms clock_skew_exchange_ms host_ntp_synchronized\n",
+        encoding="utf-8",
+    )
+    (pkg / "config.py").write_text("CLOCK_SKEW = {}\n", encoding="utf-8")
+    assert validate_clock_skew_wiring(tmp_path) == []

@@ -616,10 +616,15 @@ class AsyncExchangeHandler:
         if _ex is not None and self.exchange_id == "binance":
             try:
                 await _ex.load_time_difference()
-                log.info(
-                    "Binance load_time_difference | skew_ms=%s",
-                    _ex.options.get("timeDifference"),
-                )
+                skew_ms = _ex.options.get("timeDifference")
+                log.info("Binance load_time_difference | skew_ms=%s", skew_ms)
+                if skew_ms is not None:
+                    try:
+                        from super_otonom.ops_metrics import record_clock_skew
+
+                        record_clock_skew(self.exchange_id, int(skew_ms))
+                    except Exception:
+                        pass
             except Exception as exc:
                 log.warning("Binance load_time_difference atlandi: %s", exc)
 

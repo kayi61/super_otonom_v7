@@ -12,6 +12,9 @@
 #
 # HA (audit 5): tek host, tek bot instance (container_name); active-passive / multi-AZ yok.
 # Kurumsal HA iddiasi yapilmaz — DR/yedek: docs/DR_BCP.md, fastrun: scripts/fastrun_ha.cmd
+#
+# Clock skew (audit 6): bot_clock_skew_* metrik + Prometheus alert; host NTP best-effort sonda.
+# fastrun: scripts/fastrun_clock_skew.cmd
 
 services:
 

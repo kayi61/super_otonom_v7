@@ -29,8 +29,18 @@ def set_dependency_up(name: str, up: bool) -> None:
         _metrics.set_dependency_up(name, up)
 
 
+def record_clock_skew(exchange_id: str, skew_ms: int) -> None:
+    if _metrics is not None:
+        _metrics.record_clock_skew(exchange_id, skew_ms)
+
+
+def record_host_ntp(synced: Optional[bool]) -> None:
+    if _metrics is not None:
+        _metrics.record_host_ntp(synced)
+
+
 def refresh_dependencies() -> None:
-    """Vault + Timescale durumunu Prometheus gauge'lere yazar."""
+    """Vault + Timescale + host NTP sondası → Prometheus gauge."""
     try:
         from super_otonom.config import _vault_bridge
 
@@ -44,3 +54,10 @@ def refresh_dependencies() -> None:
         set_dependency_up("timescale", probe_timescale_available())
     except Exception:
         set_dependency_up("timescale", False)
+
+    try:
+        from super_otonom.clock_skew import probe_host_ntp_sync
+
+        record_host_ntp(probe_host_ntp_sync())
+    except Exception:
+        record_host_ntp(None)
