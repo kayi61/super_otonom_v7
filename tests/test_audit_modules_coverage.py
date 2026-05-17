@@ -7,14 +7,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from super_otonom.sharpe_audit import (
     _REPO_ROOT,
     _scan_file,
-    audit_sharpe_annualization,
+)
+from super_otonom.sharpe_audit import (
     main as sharpe_main,
 )
-from super_otonom.survivorship_audit import audit_survivorship_claims, main as surv_main
+from super_otonom.survivorship_audit import audit_survivorship_claims
+from super_otonom.survivorship_audit import main as surv_main
 
 pytestmark = pytest.mark.fastrun
 

@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from super_otonom.universe_schedule_fetch import (
     _ohlcv_window_ms,
     _top_usdt_symbols,
