@@ -11,6 +11,8 @@ from super_otonom.clock_skew_audit import audit_clock_skew_claims
 from super_otonom.clock_skew_audit import main as clock_main
 from super_otonom.ha_audit import audit_ha_claims
 from super_otonom.ha_audit import main as ha_main
+from super_otonom.package_topology_audit import audit_package_topology_claims
+from super_otonom.package_topology_audit import main as pkg_topo_main
 from super_otonom.sharpe_audit import (
     _REPO_ROOT,
     _scan_file,
@@ -177,6 +179,45 @@ def test_clock_skew_wiring_missing_alert(tmp_path: Path) -> None:
     (prom / "alerts.yml").write_text("bot_clock_skew_abs_ms\n", encoding="utf-8")
     issues = validate_clock_skew_wiring(tmp_path)
     assert any("BotClockSkewHigh" in i for i in issues)
+
+
+def test_package_topology_audit_read_error(tmp_path: Path) -> None:
+    bad = tmp_path / "x.md"
+    bad.write_text("ok\n", encoding="utf-8")
+    with patch.object(Path, "read_text", side_effect=OSError("denied")):
+        issues = audit_package_topology_claims(root=tmp_path)
+    assert any("read error" in i for i in issues)
+
+
+def test_package_topology_audit_cli_json_fail(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "super_otonom.package_topology_audit.audit_package_topology_claims",
+        lambda root=None: ["fake: forbidden"],
+    )
+    assert pkg_topo_main(["--json"]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False
+
+
+def test_package_topology_audit_cli_text_fail(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "super_otonom.package_topology_audit.audit_package_topology_claims",
+        lambda root=None: ["fake: fail"],
+    )
+    assert pkg_topo_main([]) == 1
+    assert "FAIL" in capsys.readouterr().out
+
+
+def test_package_topology_validate_missing_manifest(tmp_path: Path) -> None:
+    from super_otonom.package_topology import validate_package_topology_contract
+
+    (tmp_path / "docker-compose.yml").write_text("# audit 7\n", encoding="utf-8")
+    issues = validate_package_topology_contract(tmp_path)
+    assert any("package_topology_manifest.json" in i for i in issues)
 
 
 def test_clock_skew_wiring_partial(tmp_path: Path) -> None:

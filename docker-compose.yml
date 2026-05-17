@@ -15,6 +15,9 @@
 #
 # Clock skew (audit 6): bot_clock_skew_* metrik + Prometheus alert; host NTP best-effort sonda.
 # fastrun: scripts/fastrun_clock_skew.cmd
+#
+# Package topology (audit 7): ~100+ düz super_otonom/*.py; yalnizca pipelines/ alt paket.
+# Manifest: data/package_topology_manifest.json — fastrun: scripts/fastrun_package_topology.cmd
 
 services:
 

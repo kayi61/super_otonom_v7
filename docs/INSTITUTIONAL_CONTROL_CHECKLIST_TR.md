@@ -21,6 +21,19 @@ python scripts/print_resolved_risk.py --summary
 | Kaldıraç tavanı | `max_leverage` | `MAX_LEVERAGE` | [ ] |
 | Sinyal kalite min | `signal_quality_min` | `SIGNAL_QUALITY_MIN` | [ ] |
 
+## §4 — Paket topolojisi / god package (Audit 7)
+
+| Kontrol | Komut / kanıt | RCO |
+|---------|----------------|-----|
+| Düz modül sayısı manifest ile uyumlu | `data/package_topology_manifest.json` | [ ] |
+| Üretim modül tavanı | `flat_production_ceiling` (varsayılan 120) | [ ] |
+| Yalnızca `pipelines/` alt paket | `allowed_subpackages` | [ ] |
+| Kurumsal modüler sınır iddiası **yok** | `institutional_modular_boundary_claim_allowed=false` | [ ] |
+| Repo taraması | `python -m super_otonom.package_topology_audit` → OK | [ ] |
+| Yerel gate | `scripts/fastrun_package_topology.cmd` PASS | [ ] |
+
+Yeni kök modül: `python -m super_otonom.package_topology --write-manifest` + PR.
+
 ## §5 — Saat / clock skew (Audit 6)
 
 | Kontrol | Komut / kanıt | RCO |

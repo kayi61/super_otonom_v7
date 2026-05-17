@@ -199,6 +199,10 @@ CLOCK_SKEW = {
     "crit_ms": int(os.getenv("CLOCK_SKEW_CRIT_MS", "2000")),
 }
 
+PACKAGE_TOPOLOGY = {
+    "flat_production_ceiling": int(os.getenv("PACKAGE_FLAT_PROD_CEILING", "120")),
+}
+
 WFA = {
     "window_size": int(os.getenv("WFA_WINDOW", "1000")),
     "step_size": int(os.getenv("WFA_STEP", "200")),
