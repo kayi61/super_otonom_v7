@@ -203,6 +203,12 @@ PACKAGE_TOPOLOGY = {
     "flat_production_ceiling": int(os.getenv("PACKAGE_FLAT_PROD_CEILING", "120")),
 }
 
+BOT_ENGINE_TOPOLOGY = {
+    "file_line_ceiling": int(os.getenv("BOT_ENGINE_FILE_LINE_CEILING", "1450")),
+    "class_line_ceiling": int(os.getenv("BOT_ENGINE_CLASS_LINE_CEILING", "1100")),
+    "god_class_min_lines": int(os.getenv("BOT_ENGINE_GOD_CLASS_MIN_LINES", "800")),
+}
+
 WFA = {
     "window_size": int(os.getenv("WFA_WINDOW", "1000")),
     "step_size": int(os.getenv("WFA_STEP", "200")),

@@ -66,6 +66,9 @@ jobs:
       - name: PROMPT-7 Package topology (god package) audit
         run: python -m super_otonom.package_topology_audit
 
+      - name: PROMPT-8 BotEngine god-class topology audit
+        run: python -m super_otonom.bot_engine_audit
+
       - name: Pytest fastrun (5000 gate)
         run: python -m pytest tests -m fastrun -q --tb=short
 

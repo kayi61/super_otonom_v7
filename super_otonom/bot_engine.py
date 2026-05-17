@@ -8,6 +8,10 @@ v8   → tick → process_signal / apply_filters / calculate_position / execute_
          pipelines (risk, signal, execution); state_machine görünümü; AI explain / TRADE_WHY
 A11  → self-feedback: ``_tick_impl`` + donmuş çekirdek + ``tick()`` reentrancy guard
          (`self_feedback_guard`)
+
+Audit 8 (god class): tek ``BotEngine`` sınıfı tick/giriş/çıkış/risk/state taşır;
+``engine_managers`` + ``pipelines`` kısmi delegasyondur — kurumsal tek-sorumluluk iddiası yok.
+Ölçüm: ``python -m super_otonom.bot_engine_topology`` · manifest: data/bot_engine_topology_manifest.json
 """
 
 import asyncio

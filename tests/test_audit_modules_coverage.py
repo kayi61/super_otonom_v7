@@ -7,6 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from super_otonom.bot_engine_audit import audit_bot_engine_claims
+from super_otonom.bot_engine_audit import main as be_topo_main
 from super_otonom.clock_skew_audit import audit_clock_skew_claims
 from super_otonom.clock_skew_audit import main as clock_main
 from super_otonom.ha_audit import audit_ha_claims
@@ -210,6 +212,52 @@ def test_package_topology_audit_cli_text_fail(
     )
     assert pkg_topo_main([]) == 1
     assert "FAIL" in capsys.readouterr().out
+
+
+def test_bot_engine_audit_read_error(tmp_path: Path) -> None:
+    bad = tmp_path / "x.md"
+    bad.write_text("ok\n", encoding="utf-8")
+    with patch.object(Path, "read_text", side_effect=OSError("denied")):
+        issues = audit_bot_engine_claims(root=tmp_path)
+    assert any("read error" in i for i in issues)
+
+
+def test_bot_engine_audit_cli_json_fail(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "super_otonom.bot_engine_audit.audit_bot_engine_claims",
+        lambda root=None: ["fake: forbidden"],
+    )
+    assert be_topo_main(["--json"]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False
+
+
+def test_bot_engine_audit_cli_text_fail(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "super_otonom.bot_engine_audit.audit_bot_engine_claims",
+        lambda root=None: ["fake: fail"],
+    )
+    assert be_topo_main([]) == 1
+    assert "FAIL" in capsys.readouterr().out
+
+
+def test_bot_engine_topology_cli_write_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from super_otonom.bot_engine_topology import main as be_top_main
+
+    eng = tmp_path / "super_otonom" / "bot_engine.py"
+    eng.parent.mkdir(parents=True)
+    eng.write_text("class BotEngine:\n    def tick(self): pass\n", encoding="utf-8")
+    out = tmp_path / "data" / "m.json"
+    monkeypatch.setattr("super_otonom.bot_engine_topology._BOT_ENGINE", eng)
+    monkeypatch.setattr("super_otonom.bot_engine_topology._DEFAULT_MANIFEST", out)
+    assert be_top_main(["--write-manifest"]) == 0
+    assert out.is_file()
 
 
 def test_package_topology_validate_missing_manifest(tmp_path: Path) -> None:
