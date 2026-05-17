@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
-        run: pip install -e ".[dev]" mutmut pytest pytest-xdist
+        run: pip install -e ".[dev]"
       - name: Mutation testi çalıştır
         run: |
           mutmut run \
@@ -52,7 +52,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
-        run: pip install -e ".[dev]" mutmut pytest pytest-xdist
+        run: pip install -e ".[dev]"
       - name: Mutation testi çalıştır
         run: |
           mutmut run \
@@ -79,7 +79,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
-        run: pip install -e ".[dev]" mutmut pytest pytest-xdist
+        run: pip install -e ".[dev]"
       - name: Mutation testi çalıştır
         run: |
           mutmut run \
