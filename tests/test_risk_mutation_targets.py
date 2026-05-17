@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import time
+
 import pytest
 from super_otonom.config import RISK
 from super_otonom.risk.risk_engine import RiskEngine
 from super_otonom.risk_manager import RiskManager
 from super_otonom.risk_ontology import (
-    RiskOntology,
     _SOD_RESET_SECONDS,
     _SOW_RESET_SECONDS,
+    RiskOntology,
 )
 
 pytestmark = pytest.mark.fastrun
