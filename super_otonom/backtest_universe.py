@@ -65,6 +65,36 @@ def schedule_for_symbol(
     return None
 
 
+def schedule_symbols_missing(
+    symbols: Sequence[str],
+    schedule: Optional[Sequence[SymbolScheduleEntry]],
+) -> List[str]:
+    """Takvim dosyasında kaydı olmayan semboller (kurumsal iddia öncesi zorunlu kontrol)."""
+    if not schedule:
+        return []
+    known = {e.symbol for e in schedule}
+    return [s for s in symbols if s not in known]
+
+
+def symbol_active_at(entry: SymbolScheduleEntry, ts_ms: float) -> bool:
+    """Sembol ``ts_ms`` anında borsada işlem görebilir mi (point-in-time üyelik)."""
+    if entry.active_from_ms is not None and ts_ms < entry.active_from_ms:
+        return False
+    if entry.active_until_ms is not None and ts_ms > entry.active_until_ms:
+        return False
+    return True
+
+
+def symbols_active_at(
+    symbols: Sequence[str],
+    schedule: Sequence[SymbolScheduleEntry],
+    as_of_ms: float,
+) -> List[str]:
+    """``as_of_ms`` anında listede olan sembol alt kümesi."""
+    by_sym = {e.symbol: e for e in schedule}
+    return [s for s in symbols if s in by_sym and symbol_active_at(by_sym[s], as_of_ms)]
+
+
 def filter_candles_by_schedule(
     candles: List[Dict[str, Any]],
     entry: Optional[SymbolScheduleEntry],
@@ -90,10 +120,13 @@ def survivorship_disclosure(
     symbols: Sequence[str],
     has_point_in_time_schedule: bool,
     data_source: str,
+    schedule_symbols_missing: Sequence[str] = (),
 ) -> Dict[str, Any]:
     """JSON/rapor için açık sınırlar — varsayılan: kurumsal evren iddiası yok."""
     n = len(symbols)
-    controlled = bool(has_point_in_time_schedule and n >= 1)
+    missing = list(schedule_symbols_missing)
+    schedule_complete = bool(has_point_in_time_schedule and not missing)
+    controlled = bool(schedule_complete and n >= 1)
     institutional = bool(controlled and n >= 2)
     limitations: List[str] = []
     if n < 2:
@@ -101,6 +134,8 @@ def survivorship_disclosure(
     if not has_point_in_time_schedule:
         limitations.append("no_point_in_time_universe_schedule")
         limitations.append("delisted_assets_not_excluded")
+    if missing:
+        limitations.append("schedule_missing_symbols")
     if data_source == "synthetic":
         limitations.append("synthetic_prices_not_exchange_history")
     if data_source == "ccxt":
@@ -109,6 +144,8 @@ def survivorship_disclosure(
     return {
         "survivorship_bias_controlled": controlled,
         "institutional_universe_claim_allowed": institutional,
+        "schedule_complete": schedule_complete,
+        "schedule_symbols_missing": missing,
         "symbol_count": n,
         "symbols": list(symbols),
         "data_source": data_source,
@@ -176,10 +213,12 @@ async def run_universe_backtest_async(
     med_ret = float(statistics.median(rets)) if rets else 0.0
     mean_sh = float(statistics.mean(sharpes)) if sharpes else 0.0
 
+    syms = [r.symbol for r in rows]
     disc = survivorship_disclosure(
-        symbols=[r.symbol for r in rows],
+        symbols=syms,
         has_point_in_time_schedule=bool(schedule),
         data_source=data_source,
+        schedule_symbols_missing=schedule_symbols_missing(syms, schedule),
     )
     return UniverseBacktestResult(
         per_symbol=rows,

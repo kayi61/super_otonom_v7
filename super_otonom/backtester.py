@@ -13,13 +13,16 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from super_otonom.analyzer import MarketAnalyzer
 from super_otonom.bot_engine import BotEngine
 from super_otonom.data_freshness import resolve_periods_per_year
+
+if TYPE_CHECKING:
+    from super_otonom.backtest_universe import SymbolScheduleEntry
 
 log = logging.getLogger("super_otonom.backtester")
 
@@ -113,6 +116,7 @@ async def run_backtest_async(
     exec_slippage_range: Optional[Tuple[float, float]] = None,
     exec_latency_range: Optional[Tuple[float, float]] = None,
     exec_seed: Optional[int] = None,
+    schedule_entry: Optional["SymbolScheduleEntry"] = None,
 ) -> BacktestReport:
     """
     Mum listesi üzerinde sırayla analyze + engine.tick çalıştırır (paper).
@@ -129,6 +133,11 @@ async def run_backtest_async(
     Paper bot gecikmesini taklit etmek için örn. ``(0.05, 0.3)`` geçilebilir.
     """
     _lat_rng = exec_latency_range if exec_latency_range is not None else (0.0, 0.0)
+    if schedule_entry is not None:
+        from super_otonom.backtest_universe import filter_candles_by_schedule
+
+        candles = filter_candles_by_schedule(candles, schedule_entry)
+
     _ppy = resolve_periods_per_year(
         periods_per_year=periods_per_year,
         timeframe=timeframe,

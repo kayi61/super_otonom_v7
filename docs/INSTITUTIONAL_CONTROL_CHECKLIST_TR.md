@@ -21,11 +21,23 @@ python scripts/print_resolved_risk.py --summary
 | Kaldıraç tavanı | `max_leverage` | `MAX_LEVERAGE` | [ ] |
 | Sinyal kalite min | `signal_quality_min` | `SIGNAL_QUALITY_MIN` | [ ] |
 
+## §7 — Geri test / survivorship (Audit 4)
+
+| Kontrol | Komut / kanıt | RCO |
+|---------|----------------|-----|
+| Tek sembol backtest kurumsal evren iddiası **yok** | `backtester.py` docstring; `survivorship_disclosure` | [ ] |
+| Çok sembol + point-in-time takvim | `edge_evidence --symbols ... --universe-schedule data/universe_schedule_binance.json` | [ ] |
+| Delist penceresi (sentetik/ccxt) | `scripts/fastrun_survivorship.cmd` PASS | [ ] |
+| Repo taraması (sahte iddia yok) | `python -m super_otonom.survivorship_audit` → OK | [ ] |
+
+Takvim verisi OHLCV türetilmiştir; resmi delist tarihi değildir — harici doğrulama gerekir.
+
 ## §8 — Takvim (özet)
 
 - [ ] Çeyrek: `docs/AUDIT.md` kontrol listesi
 - [ ] Sürüm öncesi: `fastrun_p09` + CI yeşil
 - [ ] Canlı öncesi: `fastrun_go_live` + `deploy_env_check`
+- [ ] Survivorship: `scripts/fastrun_survivorship.cmd`
 
 ## §9 — Kara / beyaz liste
 

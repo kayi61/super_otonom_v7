@@ -25,7 +25,9 @@ from super_otonom.backtest_universe import (
     parse_symbol_list,
     run_universe_backtest,
     schedule_for_symbol,
+    schedule_symbols_missing,
     survivorship_disclosure,
+    symbols_active_at,
     universe_result_to_dict,
 )
 from super_otonom.backtester import run_backtest
@@ -161,6 +163,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         metavar="PATH",
         help="Point-in-time JSON: [{symbol, active_from_ms?, active_until_ms?}, ...]",
     )
+    p.add_argument(
+        "--as-of-ms",
+        type=float,
+        default=0.0,
+        metavar="MS",
+        help="Point-in-time evren: yalnız bu zamanda listede olan semboller (takvim zorunlu).",
+    )
     p.add_argument("--timeframe", default="5m")
     p.add_argument("--limit", type=int, default=600)
     p.add_argument("--initial-capital", type=float, default=10_000.0)
@@ -186,11 +195,31 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
 
     symbols = parse_symbol_list(args.symbols) if str(args.symbols).strip() else [args.symbol]
-    schedule = (
-        load_schedule_file(args.universe_schedule)
-        if str(args.universe_schedule).strip()
-        else None
-    )
+    schedule_path = str(args.universe_schedule).strip()
+    schedule = load_schedule_file(schedule_path) if schedule_path else None
+
+    if schedule_path and not schedule:
+        print("Takvim dosyası boş veya geçersiz.", file=sys.stderr)
+        return 2
+
+    missing = schedule_symbols_missing(symbols, schedule)
+    if schedule and missing:
+        print(
+            f"Takvimde kayıt yok (kurumsal evren için zorunlu): {missing}",
+            file=sys.stderr,
+        )
+        return 2
+
+    as_of_ms = float(args.as_of_ms or 0.0)
+    if as_of_ms > 0:
+        if not schedule:
+            print("--as-of-ms için --universe-schedule zorunlu.", file=sys.stderr)
+            return 2
+        active = symbols_active_at(symbols, schedule, as_of_ms)
+        if len(active) < 1:
+            print(f"--as-of-ms={as_of_ms}: listede sembol kalmadı.", file=sys.stderr)
+            return 2
+        symbols = active
 
     tf = str(args.timeframe).strip().lower()
     bar_ms = bar_ms_from_timeframe(tf)
@@ -230,6 +259,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         symbols=symbols,
         has_point_in_time_schedule=bool(schedule),
         data_source=args.source,
+        schedule_symbols_missing=missing,
     )
     surv_note = surv["disclaimer_tr"]
 
@@ -282,8 +312,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         sym = symbols[0]
         candles = candle_map[sym]
         bt_kw["symbol"] = sym
+        entry = schedule_for_symbol(schedule, sym) if schedule else None
         hist_full: Dict[str, int] = {}
-        rep_full = run_backtest(candles, final_signal_histo=hist_full, **bt_kw)
+        rep_full = run_backtest(
+            candles, final_signal_histo=hist_full, schedule_entry=entry, **bt_kw
+        )
         total_actions = sum(hist_full.values())
         hold_frac_full = (hist_full.get("HOLD", 0) / total_actions) if total_actions else 0.0
         out["full_sample"] = {

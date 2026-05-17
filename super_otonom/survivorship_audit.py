@@ -53,6 +53,16 @@ def audit_survivorship_claims(*, root: Optional[Path] = None) -> List[str]:
         et = edge.read_text(encoding="utf-8")
         if "survivorship_disclosure" not in et:
             issues.append("edge_evidence.py: must include survivorship_disclosure in output")
+        if "schedule_symbols_missing" not in et:
+            issues.append(
+                "edge_evidence.py: must validate schedule coverage (schedule_symbols_missing)"
+            )
+    bu = base / "super_otonom" / "backtest_universe.py"
+    if bu.is_file():
+        bt_text = bu.read_text(encoding="utf-8")
+        for marker in ("schedule_symbols_missing", "symbol_active_at", "symbols_active_at"):
+            if marker not in bt_text:
+                issues.append(f"backtest_universe.py: missing {marker}")
     bt = base / "super_otonom" / "backtester.py"
     if bt.is_file():
         bt_text = bt.read_text(encoding="utf-8")
