@@ -46,7 +46,7 @@ def test_sharpe_audit_json_fail(
 
 
 def test_sharpe_audit_text_fail(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    (tmp_path / "evil.py").write_text("252*24*12\n", encoding="utf-8")
+    (tmp_path / "evil.py").write_text("".join(("252", "*", "24", "*", "12", "\n")), encoding="utf-8")
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
         "super_otonom.sharpe_audit.audit_sharpe_annualization",

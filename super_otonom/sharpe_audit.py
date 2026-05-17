@@ -21,6 +21,7 @@ _ALLOWLIST_SUBSTR: Tuple[str, ...] = (
     "sharpe_audit.py",
     "test_sharpe_annualize_fastrun.py",
     "test_audit_quick_fastrun.py",
+    "test_audit_modules_coverage.py",
 )
 
 _FORBIDDEN_PATTERNS: Tuple[re.Pattern[str], ...] = (

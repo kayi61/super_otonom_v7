@@ -27,6 +27,7 @@ _ALLOWLIST = (
     "survivorship_audit.py",
     "backtest_universe.py",
     "test_survivorship",
+    "test_audit_modules_coverage.py",
 )
 
 
