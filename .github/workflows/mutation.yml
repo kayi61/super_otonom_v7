@@ -1,3 +1,7 @@
+# Mutation testing (mutmut 2.x) — risk / sermaye / ontology / pre-trade.
+# Tam test kalitesi korunur; mutmut --use-coverage yalnizca mutant satirini calistiran testleri kosar
+# (mutmut resmi onerisi — rastgele test alt kumesi degil).
+# PR'da yalnizca degisen dosya icin job acilir (paths-filter).
 name: Mutation Testing
 
 on:
@@ -7,18 +11,52 @@ on:
       - "super_otonom/capital_engine.py"
       - "super_otonom/risk_ontology.py"
       - "super_otonom/pre_trade_gate.py"
+      - ".github/workflows/mutation.yml"
+      - "pyproject.toml"
   pull_request:
     paths:
       - "super_otonom/risk_manager.py"
       - "super_otonom/capital_engine.py"
       - "super_otonom/risk_ontology.py"
       - "super_otonom/pre_trade_gate.py"
+      - ".github/workflows/mutation.yml"
+      - "pyproject.toml"
   workflow_dispatch:
 
+concurrency:
+  group: mutation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  changes:
+    name: "Mutation — degisen dosyalar"
+    runs-on: ubuntu-latest
+    outputs:
+      risk_manager: ${{ steps.filter.outputs.risk_manager }}
+      capital_engine: ${{ steps.filter.outputs.capital_engine }}
+      risk_ontology: ${{ steps.filter.outputs.risk_ontology }}
+      pre_trade_gate: ${{ steps.filter.outputs.pre_trade_gate }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            risk_manager:
+              - 'super_otonom/risk_manager.py'
+            capital_engine:
+              - 'super_otonom/capital_engine.py'
+            risk_ontology:
+              - 'super_otonom/risk_ontology.py'
+            pre_trade_gate:
+              - 'super_otonom/pre_trade_gate.py'
+
   mutation-risk-manager:
     name: "Mutation — risk_manager.py (eşik: %80)"
+    needs: changes
+    if: needs.changes.outputs.risk_manager == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -26,10 +64,17 @@ jobs:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
         run: pip install -e ".[dev]"
+      - name: Coverage bağlamı (mutmut --use-coverage önkoşul)
+        run: |
+          python -m pytest tests/ -q \
+            --cov=super_otonom/risk_manager \
+            --cov-context=test \
+            --cov-report=
       - name: Mutation testi çalıştır
         run: |
           mutmut run \
             --paths-to-mutate super_otonom/risk_manager.py \
+            --use-coverage \
             --runner "python -m pytest tests/ -x -q --tb=no" \
             --CI
           SCORE=$(mutmut results | grep -oP '\d+\.\d+(?=%)' | tail -1)
@@ -45,7 +90,10 @@ jobs:
 
   mutation-capital-engine:
     name: "Mutation — capital_engine.py (eşik: %80)"
+    needs: changes
+    if: needs.changes.outputs.capital_engine == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -53,10 +101,17 @@ jobs:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
         run: pip install -e ".[dev]"
+      - name: Coverage bağlamı (mutmut --use-coverage önkoşul)
+        run: |
+          python -m pytest tests/ -q \
+            --cov=super_otonom/capital_engine \
+            --cov-context=test \
+            --cov-report=
       - name: Mutation testi çalıştır
         run: |
           mutmut run \
             --paths-to-mutate super_otonom/capital_engine.py \
+            --use-coverage \
             --runner "python -m pytest tests/ -x -q --tb=no" \
             --CI
           SCORE=$(mutmut results | grep -oP '\d+\.\d+(?=%)' | tail -1)
@@ -72,7 +127,10 @@ jobs:
 
   mutation-risk-ontology:
     name: "Mutation — risk_ontology.py (eşik: %80)"
+    needs: changes
+    if: needs.changes.outputs.risk_ontology == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -80,10 +138,54 @@ jobs:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
         run: pip install -e ".[dev]"
+      - name: Coverage bağlamı (mutmut --use-coverage önkoşul)
+        run: |
+          python -m pytest tests/ -q \
+            --cov=super_otonom/risk_ontology \
+            --cov-context=test \
+            --cov-report=
       - name: Mutation testi çalıştır
         run: |
           mutmut run \
             --paths-to-mutate super_otonom/risk_ontology.py \
+            --use-coverage \
+            --runner "python -m pytest tests/ -x -q --tb=no" \
+            --CI
+          SCORE=$(mutmut results | grep -oP '\d+\.\d+(?=%)' | tail -1)
+          echo "Mutation score: $SCORE%"
+          python3 -c "
+          import sys
+          score = float('${SCORE}' or '0')
+          if score < 80:
+              print(f'FAIL: mutation score {score:.1f}% < 80%')
+              sys.exit(1)
+          print(f'PASS: mutation score {score:.1f}% >= 80%')
+          "
+
+  mutation-pre-trade-gate:
+    name: "Mutation — pre_trade_gate.py (eşik: %80)"
+    needs: changes
+    if: needs.changes.outputs.pre_trade_gate == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Bağımlılıkları yükle
+        run: pip install -e ".[dev]"
+      - name: Coverage bağlamı (mutmut --use-coverage önkoşul)
+        run: |
+          python -m pytest tests/ -q \
+            --cov=super_otonom/pre_trade_gate \
+            --cov-context=test \
+            --cov-report=
+      - name: Mutation testi çalıştır
+        run: |
+          mutmut run \
+            --paths-to-mutate super_otonom/pre_trade_gate.py \
+            --use-coverage \
             --runner "python -m pytest tests/ -x -q --tb=no" \
             --CI
           SCORE=$(mutmut results | grep -oP '\d+\.\d+(?=%)' | tail -1)
