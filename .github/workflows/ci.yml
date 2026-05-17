@@ -72,6 +72,9 @@ jobs:
       - name: PROMPT-9 Test layout (in-package tests excluded from wheel)
         run: python -m super_otonom.layout_topology_audit --verify-wheel
 
+      - name: PROMPT-10 TWAP/VWAP execution topology audit
+        run: python -m super_otonom.execution_topology_audit
+
       - name: Pytest fastrun (5000 gate)
         run: python -m pytest tests -m fastrun -q --tb=short
 

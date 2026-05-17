@@ -1,0 +1,32 @@
+{
+  "audit": 10,
+  "schema_version": 1,
+  "vwap_signal_present": true,
+  "vwap_signal_modules": [
+    "hft_signal_engine.py"
+  ],
+  "twap_metadata_modules": [
+    "autonomous_decision_core.py",
+    "mm_whale_consensus_controller.py",
+    "pipelines/execution_pipeline.py",
+    "regime_adaptive_execution_engine.py"
+  ],
+  "venue_routing_modules": [
+    "smart_order_router.py"
+  ],
+  "order_placement_modules": [
+    "engine_managers.py",
+    "exchange_async.py",
+    "order_engine.py"
+  ],
+  "twap_fingerprint_detection_modules": [
+    "src/phases/phase_54/institutional_fingerprint_engine.py"
+  ],
+  "algo_implementation_hits": {},
+  "algo_implementation_hits_expected_empty": true,
+  "execution_profile_wired_to_trade_executor": false,
+  "trade_executor_single_shot_limit": true,
+  "preferred_venue_wired_to_exchange": false,
+  "institutional_twap_vwap_execution_claim_allowed": false,
+  "disclaimer_tr": "VWAP yalnizca hft_signal_engine icinde sinyal/analitik metrik olarak vardir; TWAP/VWAP emir dilimleme (child order, zamanlama, VWAP benchmark yurutme) implemente edilmemistir. execution_profile ve preferred_order_type metadata etiketidir; TradeExecutor tek limit/market emri gonderir. Kurumsal algo yurutme iddiasi bu topoloji ile uyumlu degildir."
+}

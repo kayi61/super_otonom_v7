@@ -21,7 +21,21 @@ python scripts/print_resolved_risk.py --summary
 | Kaldıraç tavanı | `max_leverage` | `MAX_LEVERAGE` | [ ] |
 | Sinyal kalite min | `signal_quality_min` | `SIGNAL_QUALITY_MIN` | [ ] |
 
-## §2 — Test yerleşimi (Audit 9)
+## §2 — TWAP/VWAP yürütme (Audit 10)
+
+| Kontrol | Komut / kanıt | RCO |
+|---------|----------------|-----|
+| VWAP sinyal (yürütme değil) | `hft_signal_engine.py` — `vwap_deviation_*` | [ ] |
+| TWAP metadata (algo değil) | `execution_profile` / `preferred_order_type` faz 75–80 | [ ] |
+| Algo child-order yürütme **yok** | `algo_implementation_hits` manifest'te boş | [ ] |
+| `execution_profile` TradeExecutor'a bağlı değil | manifest `execution_profile_wired_to_trade_executor=false` | [ ] |
+| Kurumsal TWAP/VWAP algo iddiası **yok** | `institutional_twap_vwap_execution_claim_allowed=false` | [ ] |
+| Repo taraması | `python -m super_otonom.execution_topology_audit` → OK | [ ] |
+| Yerel gate | `scripts/fastrun_execution_topology.cmd` PASS | [ ] |
+
+**Not:** VWAP sinyal vardır; TWAP/VWAP **emir dilimleme router'ı** yoktur. `smart_order_router` yalnızca venue seçer.
+
+## §3 — Test yerleşimi (Audit 9)
 
 | Kontrol | Komut / kanıt | RCO |
 |---------|----------------|-----|
@@ -33,7 +47,7 @@ python scripts/print_resolved_risk.py --summary
 
 Yeni `super_otonom/test_*.py`: manifest güncelle + wheel doğrula.
 
-## §3 — BotEngine god class (Audit 8)
+## §4 — BotEngine god class (Audit 8)
 
 | Kontrol | Komut / kanıt | RCO |
 |---------|----------------|-----|
@@ -46,12 +60,12 @@ Yeni `super_otonom/test_*.py`: manifest güncelle + wheel doğrula.
 
 Kısmi delegasyon: `engine_managers`, `pipelines` — tam ayrıştırma değil.
 
-## §4 — Paket topolojisi / god package (Audit 7)
+## §5 — Paket topolojisi / god package (Audit 7)
 
 | Kontrol | Komut / kanıt | RCO |
 |---------|----------------|-----|
 | Düz modül sayısı manifest ile uyumlu | `data/package_topology_manifest.json` | [ ] |
-| Üretim modül tavanı | `flat_production_ceiling` (varsayılan 120) | [ ] |
+| Üretim modül tavanı | `flat_production_ceiling` (varsayılan 125) | [ ] |
 | Yalnızca `pipelines/` alt paket | `allowed_subpackages` | [ ] |
 | Kurumsal modüler sınır iddiası **yok** | `institutional_modular_boundary_claim_allowed=false` | [ ] |
 | Repo taraması | `python -m super_otonom.package_topology_audit` → OK | [ ] |
@@ -59,7 +73,7 @@ Kısmi delegasyon: `engine_managers`, `pipelines` — tam ayrıştırma değil.
 
 Yeni kök modül: `python -m super_otonom.package_topology --write-manifest` + PR.
 
-## §5 — Saat / clock skew (Audit 6)
+## §6 — Saat / clock skew (Audit 6)
 
 | Kontrol | Komut / kanıt | RCO |
 |---------|----------------|-----|
@@ -71,7 +85,7 @@ Yeni kök modül: `python -m super_otonom.package_topology --write-manifest` + P
 
 Mum sırası: `check_candle_timestamps_monotonic` (backtest evreni uyarısı).
 
-## §6 — Dağıtım / HA (Audit 5)
+## §7 — Dağıtım / HA (Audit 5)
 
 | Kontrol | Komut / kanıt | RCO |
 |---------|----------------|-----|
@@ -82,7 +96,7 @@ Mum sırası: `check_candle_timestamps_monotonic` (backtest evreni uyarısı).
 
 Süreklilik: `restart: unless-stopped` + `docs/DR_BCP.md` yedek — bu **HA değil**, tek host SPOF.
 
-## §7 — Geri test / survivorship (Audit 4)
+## §8 — Geri test / survivorship (Audit 4)
 
 | Kontrol | Komut / kanıt | RCO |
 |---------|----------------|-----|
@@ -93,20 +107,20 @@ Süreklilik: `restart: unless-stopped` + `docs/DR_BCP.md` yedek — bu **HA değ
 
 Takvim verisi OHLCV türetilmiştir; resmi delist tarihi değildir — harici doğrulama gerekir.
 
-## §8 — Takvim (özet)
+## §9 — Takvim (özet)
 
 - [ ] Çeyrek: `docs/AUDIT.md` kontrol listesi
 - [ ] Sürüm öncesi: `fastrun_p09` + CI yeşil
 - [ ] Canlı öncesi: `fastrun_go_live` + `deploy_env_check`
 - [ ] Survivorship: `scripts/fastrun_survivorship.cmd`
 
-## §9 — Kara / beyaz liste
+## §10 — Kara / beyaz liste
 
 - [ ] Canlı API: yalnız Vault KV (`SECRETS_VAULT_ONLY=true`)
 - [ ] `.env` içinde düz metin API anahtarı yok
 - [ ] Testnet anahtarı mainnet ile karışmıyor
 
-## §10 — İmza (solo RCO varsayılan)
+## §11 — İmza (solo RCO varsayılan)
 
 | Rol | Ad | Tarih | İmza |
 |-----|-----|-------|------|
