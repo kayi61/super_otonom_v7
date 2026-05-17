@@ -29,12 +29,26 @@ def gate_check() -> _GateCheck:
     return _GateCheck()
 
 
-# Windows: pytest atexit may raise PermissionError on stat(pytest-current) under
-# %TEMP% or ~/.cache (AV / OneDrive / junction). Use repo-local temproot unless
-# the caller already set PYTEST_DEBUG_TEMPROOT.
+# Windows: pytest atexit may raise PermissionError on stat(pytest-current)
+# (AV / OneDrive / kilitli junction). Temproot repoda degil — %TEMP% altinda.
 if sys.platform == "win32":
-    _repo_root = Path(__file__).resolve().parents[1]
-    _temproot = _repo_root / "build" / "pytest-temproot"
+    import tempfile
+
+    import _pytest.pathlib as _pytest_pathlib
+
+    _orig_cleanup_numbered_dir = _pytest_pathlib.cleanup_numbered_dir
+
+    def _safe_cleanup_numbered_dir(root, prefix, keep, consider_lock_dead_if_created_before):
+        try:
+            _orig_cleanup_numbered_dir(
+                root, prefix, keep, consider_lock_dead_if_created_before
+            )
+        except PermissionError:
+            pass
+
+    _pytest_pathlib.cleanup_numbered_dir = _safe_cleanup_numbered_dir
+
+    _temproot = Path(tempfile.gettempdir()) / "super_otonom_pytest"
     try:
         _temproot.mkdir(parents=True, exist_ok=True)
     except OSError:

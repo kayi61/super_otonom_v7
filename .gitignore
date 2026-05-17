@@ -10,6 +10,7 @@ __pycache__/
 venv/
 .ruff_cache/
 .pytest_cache/
+.pytest_basetemp/
 .coverage
 htmlcov/
 
@@ -22,6 +23,7 @@ htmlcov/
 build/pytest-temproot/
 artifacts/
 logs/
+data/audit/*.jsonl
 data/backup/
 data/bot_state.json
 data/local/vault_init.json

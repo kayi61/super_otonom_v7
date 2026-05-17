@@ -1,0 +1,12 @@
+[
+  {
+    "symbol": "BTC/USDT",
+    "active_from_ms": 1609459200000,
+    "active_until_ms": null
+  },
+  {
+    "symbol": "ETH/USDT",
+    "active_from_ms": 1609459200000,
+    "active_until_ms": null
+  }
+]
