@@ -24,10 +24,16 @@ _ALLOW_FILES = frozenset(
 _PATTERNS = (
     re.compile(r"np\.percentile\s*\([^)]*pnl", re.I),
     re.compile(r"np\.percentile\s*\([^)]*var", re.I),
+    re.compile(r"np\.percentile\s*\([^)]*return", re.I),
+    re.compile(r"np\.quantile\s*\([^)]*pnl", re.I),
+    re.compile(r"np\.quantile\s*\([^)]*return", re.I),
     re.compile(r"def\s+var_parametric\s*\(", re.I),
     re.compile(r"def\s+var_historical\s*\(", re.I),
     re.compile(r"def\s+var_monte_carlo\s*\(", re.I),
     re.compile(r"def\s+cvar_expected_shortfall\s*\(", re.I),
+    re.compile(r"def\s+cornish_fisher_var\s*\(", re.I),
+    re.compile(r"def\s+pot_var", re.I),
+    re.compile(r"def\s+fhs_var", re.I),
 )
 
 
