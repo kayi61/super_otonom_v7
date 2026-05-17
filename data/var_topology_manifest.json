@@ -1,0 +1,25 @@
+{
+  "audit": 11,
+  "schema_version": 1,
+  "portfolio_risk_module": "portfolio_risk_engine.py",
+  "var_methods_present": [
+    "parametric",
+    "historical",
+    "monte_carlo",
+    "cvar"
+  ],
+  "phase24_var_suite_present": true,
+  "live_var_modules": [
+    "risk_manager.py",
+    "risk_ontology.py"
+  ],
+  "live_tick_var_source": "risk_ontology_percentile_pnl",
+  "live_tick_uses_portfolio_risk_engine": false,
+  "regime_conditional_var_present": false,
+  "liquidity_adjusted_var_present": false,
+  "institutional_stress_grid_present": false,
+  "stress_heuristic_in_portfolio_risk": true,
+  "institutional_gap_hits_expected_empty": true,
+  "institutional_var_claim_allowed": false,
+  "disclaimer_tr": "portfolio_risk_engine faz-24 icin parametrik/tarihsel/MC VaR ve CVaR sunar; canli tick risk_ontology uzerinden tek tarihsel yuzdelik VaR kullanir. Rejim kosullu VaR, likidite ayari ve kurumsal stres gridi yoktur — stres yalnizca sezgisel flash/bear heuristik veya ozel stress_scenarios dict. Kurumsal risk motoru iddiasi bu topoloji ile uyumlu degildir; 'yetersiz' ifadesi 'hic yok' ifadesinden daha dogrudur."
+}

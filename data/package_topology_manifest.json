@@ -1,7 +1,7 @@
 {
   "audit": 7,
   "schema_version": 1,
-  "flat_production_count": 121,
+  "flat_production_count": 123,
   "flat_test_count": 29,
   "flat_production_ceiling": 125,
   "allowed_subpackages": [
@@ -132,6 +132,8 @@
     "unified_alpha_core.py",
     "unified_system_core.py",
     "universe_schedule_fetch.py",
+    "var_topology.py",
+    "var_topology_audit.py",
     "vault_bootstrap_docker.py",
     "vault_bridge.py",
     "vault_rotate.py",
