@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pytest
+from super_otonom.config import RISK
 from super_otonom.risk.config import RiskConfig
 from super_otonom.risk.risk_engine import RiskEngine, RiskMetrics
 from super_otonom.risk_manager import RiskManager
 from super_otonom.risk_ontology import RiskOntology
+
+_FIXTURE = Path(__file__).parent / "fixtures" / "unified_returns_golden.json"
 
 pytestmark = pytest.mark.fastrun
 
@@ -39,6 +45,43 @@ def test_risk_manager_calculate_var_with_ontology() -> None:
     rm = RiskManager(initial_capital=10_000.0)
     rm._onto = onto
     assert rm.calculate_var() == onto._calc_var()
+
+
+def test_risk_manager_calculate_var_without_ontology() -> None:
+    """Regression: standalone RM uses RiskEngine, not inline percentile."""
+    rm = RiskManager(initial_capital=10_000.0)
+    for x in range(1, 121):
+        rm.record_pnl(float(-12 + (x % 9)))
+    conf = float(RISK["var_confidence"])
+    expected = RiskEngine().compute_from_pnl_history(
+        rm._pnl_history, confidence=conf, min_obs=100
+    )
+    assert rm.calculate_var() == expected
+
+
+# ── Golden fixture (deterministic) ───────────────────────────────────────────
+
+def test_engine_matches_golden_fixture() -> None:
+    data = json.loads(_FIXTURE.read_text(encoding="utf-8"))
+    m = RiskEngine().compute(data["returns"])
+    tol = 1e-6
+    assert abs(m.var_95_1d - data["var_95_1d"]) < tol
+    assert abs(m.var_99_1d - data["var_99_1d"]) < tol
+    assert abs(m.var_975_1d - data["var_975_1d"]) < tol
+    assert abs(m.cvar_95_1d - data["cvar_95_1d"]) < tol
+    assert abs(m.cvar_975_1d - data["cvar_975_1d"]) < tol
+    assert abs(m.cvar_99_1d - data["cvar_99_1d"]) < tol
+    assert abs(m.model_dispersion_pct - data["model_dispersion_pct"]) < tol
+    assert abs(m.var_historical_95 - data["var_historical_95"]) < tol
+
+
+def test_risk_metrics_vr01_placeholder_fields() -> None:
+    m = RiskMetrics()
+    assert m.stressed_var == 0.0
+    assert m.lvar == 0.0
+    assert m.component_var_per_position == {}
+    assert m.marginal_var_per_position == {}
+    assert m.pnl_var_95 == 0.0
 
 
 # ── Three-model suite (95%) ──────────────────────────────────────────────────
@@ -134,6 +177,19 @@ def test_compute_from_pnl_below_min_obs() -> None:
     assert engine.compute_from_pnl_history(list(range(50)), confidence=0.95, min_obs=100) == 0.0
 
 
+def test_ontology_calc_var_min_obs_gate() -> None:
+    onto = RiskOntology(nav=10_000.0)
+    onto._pnl_history = [float(i) for i in range(99)]
+    assert onto._calc_var() == 0.0
+
+
+def test_risk_manager_var_min_obs_without_onto() -> None:
+    rm = RiskManager(initial_capital=10_000.0)
+    for i in range(99):
+        rm.record_pnl(float(i))
+    assert rm.calculate_var() == 0.0
+
+
 # ── Var max properties ───────────────────────────────────────────────────────
 
 def test_var_max_properties() -> None:
@@ -159,6 +215,19 @@ def test_portfolio_wrappers_delegate() -> None:
     assert var_historical(ret) > 0
     assert var_monte_carlo(ret) > 0
     assert cvar_expected_shortfall(ret) >= var_historical(ret)
+
+
+def test_portfolio_phase24_uses_risk_engine() -> None:
+    from super_otonom.portfolio_risk_engine import run_portfolio_risk_phase
+
+    ret = [-0.02, 0.01, -0.03, 0.005, -0.01, 0.02, -0.015] * 8
+    m = RiskEngine().compute(ret)
+    portfolio = {"weights": {"BTC": 0.6, "ETH": 0.4}, "portfolio_returns": ret}
+    out = run_portfolio_risk_phase("BTC", portfolio, attach_to_analysis=False)
+    pr = out["portfolio_risk"]
+    assert pr["var_max"] == m.var_for_limits_95
+    assert pr["var_historical"] == m.var_historical_95
+    assert pr["cvar"] == m.cvar_95_1d
 
 
 # ── Audit script runs clean ─────────────────────────────────────────────────

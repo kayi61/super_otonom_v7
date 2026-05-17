@@ -16,10 +16,11 @@ def test_calculate_var_insufficient_history() -> None:
 def test_calculate_var_with_history() -> None:
     rm = RiskManager(10_000.0)
     rng = np.random.default_rng(0)
-    for _ in range(25):
+    for _ in range(120):
         rm.record_pnl(float(rng.normal(0, 10)))
     v = rm.calculate_var()
     assert isinstance(v, float)
+    assert v != 0.0
 
 
 def test_trailing_stop_triggers() -> None:

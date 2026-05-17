@@ -84,13 +84,18 @@ class RiskEngine:
     def compute(
         self,
         returns_history: np.ndarray | Sequence[float],
-        *,
         positions: Optional[Mapping[str, float]] = None,
         prices: Optional[Mapping[str, float]] = None,
+        config: Optional[RiskConfig] = None,
     ) -> RiskMetrics:
+        """
+        Unified VaR/CVaR suite from return history.
+
+        ``positions`` / ``prices`` reserved for VR-09 decomposition; ignored in VR-01.
+        """
         _ = positions, prices
         ret = [float(x) for x in np.asarray(returns_history, dtype=float).ravel().tolist()]
-        cfg = self.config
+        cfg = config if config is not None else self.config
 
         if len(ret) < 5:
             return RiskMetrics()

@@ -25,10 +25,9 @@ Girdi `portfolio_data` (esnek dict):
 from __future__ import annotations
 
 import math
-import random
 import statistics
 import time
-from typing import Any, Dict, List, Literal, Optional, Sequence
+from typing import Any, Dict, List, Literal, Optional
 
 from super_otonom.standard_phase_output import attach_phase_alias
 
@@ -274,10 +273,13 @@ def analyze_portfolio_risk(
     hhi = herfindahl_index(weights)
 
     if len(ret) >= 5:
-        vp = var_parametric(ret)
-        vh = var_historical(ret)
-        vm = var_monte_carlo(ret)
-        cv = cvar_expected_shortfall(ret)
+        from super_otonom.risk.risk_engine import RiskEngine
+
+        m = RiskEngine().compute(ret)
+        vp = m.var_parametric_95
+        vh = m.var_historical_95
+        vm = m.var_monte_carlo_95
+        cv = m.cvar_95_1d
     else:
         vp = 0.09 + 0.06 * hhi
         vh = 0.085 + 0.07 * hhi

@@ -13,8 +13,6 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-import numpy as np
-
 from super_otonom.config import RISK
 
 if TYPE_CHECKING:

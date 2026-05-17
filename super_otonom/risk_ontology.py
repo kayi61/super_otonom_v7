@@ -36,8 +36,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-import numpy as np
-
 log = logging.getLogger("super_otonom.risk_ontology")
 
 _SOD_RESET_SECONDS = 86400  # 24 saat
