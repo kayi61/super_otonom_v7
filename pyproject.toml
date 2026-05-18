@@ -121,4 +121,5 @@ paths_to_mutate = [
 ]
 disable_mutation_types = ["string"]
 tests_dir = "tests/"
-runner = "python -m pytest tests/ -x -q --tb=no"
+# Yerel: python scripts/mutmut_risk_targets.py risk_ontology ile dosya listesini alin.
+runner = "python -m pytest tests/test_risk_ontology_mutation.py tests/test_risk_mutation_targets.py tests/risk/test_risk_engine_unified.py -x -q --tb=no"
