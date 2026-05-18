@@ -38,6 +38,12 @@ def main() -> int:
         )
         return 1
 
+    if len(killed) == 0 and len(survived) > 10:
+        print(
+            "FAIL: killed=0 — pytest-xdist (-n) mutmut ile uyumsuz olabilir; "
+            "runner seri pytest kullanmali"
+        )
+
     rate = 100.0 * len(killed) / tested
     print(
         f"Mutation kill rate: {rate:.1f}% "

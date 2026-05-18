@@ -121,4 +121,4 @@ paths_to_mutate = [
 ]
 disable_mutation_types = ["string"]
 tests_dir = "tests/"
-runner = "python -m pytest tests/ -x -q --tb=no -n 2"
+runner = "python -m pytest tests/ -x -q --tb=no"
