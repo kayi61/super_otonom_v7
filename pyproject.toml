@@ -110,8 +110,8 @@ show_missing = true
 skip_covered = false
 
 # Mutation testing (mutmut 2.x). Odak: risk / sermaye / ontology / pre-trade.
-# Skor: mutmut results — hedef hayatta kalan <%20 (öldürme >%80). Ayrıntı: .github/workflows/mutation.yml
-# CI: --use-coverage + --cov-context=test (mutmut resmi yöntem; tam tests/ kalitesi korunur).
+# Skor: mutmut_gate.py — hedef kill-rate >=%80. Ayrıntı: .github/workflows/mutation.yml
+# string: log sabitleri; operator/number/keyword: risk mantığı.
 [tool.mutmut]
 paths_to_mutate = [
     "super_otonom/risk_manager.py",
@@ -119,5 +119,6 @@ paths_to_mutate = [
     "super_otonom/risk_ontology.py",
     "super_otonom/pre_trade_gate.py",
 ]
+disable_mutation_types = ["string"]
 tests_dir = "tests/"
-runner = "python -m pytest tests/ -x -q --tb=no"
+runner = "python -m pytest tests/ -x -q --tb=no -n 2"

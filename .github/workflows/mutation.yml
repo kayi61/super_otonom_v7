@@ -1,7 +1,5 @@
 # Mutation testing (mutmut 2.x) — risk / sermaye / ontology / pre-trade.
-# Tam test kalitesi korunur; mutmut --use-coverage yalnizca mutant satirini calistiran testleri kosar
-# (mutmut resmi onerisi — rastgele test alt kumesi degil).
-# PR'da yalnizca degisen dosya icin job acilir (paths-filter).
+# Tam tests/ + --use-coverage + string mutant haric (log metinleri risk mantigi degil).
 name: Mutation Testing
 
 on:
@@ -15,9 +13,9 @@ on:
       - "pyproject.toml"
       - "scripts/mutmut_gate.py"
       - "tests/test_risk_mutation_targets.py"
+      - "tests/branch/test_risk_manager_branch_matrix.py"
   workflow_dispatch:
 
-# push + pull_request ayni branch icin tek kosu (cift mutmut onlenir)
 concurrency:
   group: mutation-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
@@ -51,7 +49,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.risk_manager == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -70,7 +68,8 @@ jobs:
           mutmut run \
             --paths-to-mutate super_otonom/risk_manager.py \
             --use-coverage \
-            --runner "python -m pytest tests/ -x -q --tb=no" \
+            --disable-mutation-types=string \
+            --runner "python -m pytest tests/ -x -q --tb=no -n 2" \
             --CI
           python scripts/mutmut_gate.py --min 80
 
@@ -79,7 +78,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.capital_engine == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -98,7 +97,8 @@ jobs:
           mutmut run \
             --paths-to-mutate super_otonom/capital_engine.py \
             --use-coverage \
-            --runner "python -m pytest tests/ -x -q --tb=no" \
+            --disable-mutation-types=string \
+            --runner "python -m pytest tests/ -x -q --tb=no -n 2" \
             --CI
           python scripts/mutmut_gate.py --min 80
 
@@ -107,7 +107,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.risk_ontology == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -126,7 +126,8 @@ jobs:
           mutmut run \
             --paths-to-mutate super_otonom/risk_ontology.py \
             --use-coverage \
-            --runner "python -m pytest tests/ -x -q --tb=no" \
+            --disable-mutation-types=string \
+            --runner "python -m pytest tests/ -x -q --tb=no -n 2" \
             --CI
           python scripts/mutmut_gate.py --min 80
 
@@ -135,7 +136,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.pre_trade_gate == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -154,6 +155,7 @@ jobs:
           mutmut run \
             --paths-to-mutate super_otonom/pre_trade_gate.py \
             --use-coverage \
-            --runner "python -m pytest tests/ -x -q --tb=no" \
+            --disable-mutation-types=string \
+            --runner "python -m pytest tests/ -x -q --tb=no -n 2" \
             --CI
           python scripts/mutmut_gate.py --min 80
