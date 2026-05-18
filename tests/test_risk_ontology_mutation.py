@@ -8,11 +8,11 @@ from unittest.mock import patch
 import pytest
 
 from super_otonom.risk.risk_engine import RiskEngine
-from super_otonom.risk_ontology import (
-    _SOD_RESET_SECONDS,
-    _SOW_RESET_SECONDS,
-    RiskOntology,
-)
+from super_otonom.risk_ontology import RiskOntology
+
+# Mutant sabitleri oldurur: testler modul importu degil literal kullanir.
+_DAY_SEC = 86_400
+_WEEK_SEC = 604_800
 
 pytestmark = pytest.mark.fastrun
 
@@ -25,12 +25,28 @@ def _pnl_series(onto: RiskOntology, n: int, delta: float = -1.0) -> None:
 # ── __post_init__ / varsayılanlar ─────────────────────────────────────────────
 
 
+def test_module_reset_constants_literals() -> None:
+    from super_otonom import risk_ontology as ro
+
+    assert ro._SOD_RESET_SECONDS == _DAY_SEC
+    assert ro._SOW_RESET_SECONDS == _WEEK_SEC
+
+
 def test_dataclass_field_defaults() -> None:
     onto = RiskOntology()
     assert onto.initial_nav == 10_000.0
     assert onto.dynamic_daily_limit == 0.03
     assert onto.var_1d == 0.0
     assert onto.gross_exp == 0.0
+    assert onto.net_exp == 0.0
+    assert onto.exp_pct == 0.0
+    assert onto.intraday_dd_pct == 0.0
+    assert onto.daily_loss_pct == 0.0
+    assert onto.weekly_loss_pct == 0.0
+    assert onto.nav == 10_000.0
+    assert onto.sod_nav == 10_000.0
+    assert onto.sow_nav == 10_000.0
+    assert onto.peak_nav == 10_000.0
 
 
 def test_post_init_zero_nav_uses_initial() -> None:
@@ -45,6 +61,16 @@ def test_post_init_preserves_explicit_nav() -> None:
     onto = RiskOntology(initial_nav=10_000.0, nav=12_345.0)
     assert onto.nav == 12_345.0
     assert onto.sod_nav == 10_000.0
+
+
+def test_post_init_keeps_tiny_nonzero_nav() -> None:
+    onto = RiskOntology(initial_nav=10_000.0, nav=1.5e-9)
+    assert onto.nav == pytest.approx(1.5e-9)
+
+
+def test_post_init_keeps_tiny_nonzero_sod_nav() -> None:
+    onto = RiskOntology(initial_nav=10_000.0, sod_nav=1e-9)
+    assert onto.sod_nav == pytest.approx(1e-9)
 
 
 # ── update: peak / loss yüzdeleri ─────────────────────────────────────────────
@@ -134,6 +160,13 @@ def test_exposure_pct_zero_when_nav_zero() -> None:
     assert onto.exp_pct == 0.0
 
 
+def test_exposure_pct_when_nav_fractional() -> None:
+    onto = RiskOntology(initial_nav=10_000.0)
+    onto.nav = 0.5
+    onto._update_exposure({"A": {"qty": 1.0, "entry": 100.0}})
+    assert onto.exp_pct == pytest.approx(200.0)
+
+
 def test_exposure_short_path_values() -> None:
     onto = RiskOntology(initial_nav=20_000.0)
     onto.update(
@@ -163,6 +196,14 @@ def test_vol_recorded_when_positive() -> None:
     onto.update(nav=10_000.0, current_vol=0.015)
     assert len(onto._vol_history) == 1
     assert onto._vol_history[0] == pytest.approx(0.015)
+
+
+def test_vol_history_keeps_200_without_premature_trim() -> None:
+    onto = RiskOntology(initial_nav=10_000.0)
+    for i in range(200):
+        onto.update(nav=10_000.0, current_vol=0.01 + i * 1e-6)
+    assert len(onto._vol_history) == 200
+    assert onto._vol_history[0] == pytest.approx(0.01)
 
 
 def test_vol_history_trim_at_201st_entry() -> None:
@@ -241,7 +282,7 @@ def test_day_reset_not_before_interval(monkeypatch: pytest.MonkeyPatch) -> None:
     onto = RiskOntology(initial_nav=10_000.0)
     onto.sod_nav = 10_000.0
     onto._day_start = t0
-    monkeypatch.setattr(time, "time", lambda: t0 + _SOD_RESET_SECONDS - 1.0)
+    monkeypatch.setattr(time, "time", lambda: t0 + _DAY_SEC - 1.0)
     onto._maybe_reset_day()
     assert onto.sod_nav == 10_000.0
 
@@ -252,7 +293,7 @@ def test_day_reset_at_exact_interval(monkeypatch: pytest.MonkeyPatch) -> None:
     onto.nav = 9_200.0
     onto.sod_nav = 10_000.0
     onto._day_start = t0
-    monkeypatch.setattr(time, "time", lambda: t0 + _SOD_RESET_SECONDS)
+    monkeypatch.setattr(time, "time", lambda: t0 + _DAY_SEC)
     onto._maybe_reset_day()
     assert onto.sod_nav == pytest.approx(9_200.0)
 
@@ -263,7 +304,7 @@ def test_week_reset_at_exact_interval(monkeypatch: pytest.MonkeyPatch) -> None:
     onto.nav = 9_700.0
     onto.sow_nav = 10_000.0
     onto._week_start = t0
-    monkeypatch.setattr(time, "time", lambda: t0 + _SOW_RESET_SECONDS)
+    monkeypatch.setattr(time, "time", lambda: t0 + _WEEK_SEC)
     onto._maybe_reset_week()
     assert onto.sow_nav == pytest.approx(9_700.0)
 
@@ -273,7 +314,7 @@ def test_update_applies_nav_before_day_reset(monkeypatch: pytest.MonkeyPatch) ->
     t_now = 200_000.0
     onto = RiskOntology(initial_nav=10_000.0)
     onto.nav = 9_000.0
-    onto._day_start = t_now - _SOD_RESET_SECONDS - 1.0
+    onto._day_start = t_now - _DAY_SEC - 1.0
     monkeypatch.setattr(time, "time", lambda: t_now)
     onto.update(nav=10_800.0)
     assert onto.sod_nav == pytest.approx(10_800.0)
@@ -282,7 +323,7 @@ def test_update_applies_nav_before_day_reset(monkeypatch: pytest.MonkeyPatch) ->
 def test_update_resets_day_start_timestamp(monkeypatch: pytest.MonkeyPatch) -> None:
     t_now = 100_000.0
     onto = RiskOntology(initial_nav=10_000.0)
-    onto._day_start = t_now - _SOD_RESET_SECONDS - 1.0
+    onto._day_start = t_now - _DAY_SEC - 1.0
     monkeypatch.setattr(time, "time", lambda: t_now)
     onto.update(nav=10_200.0)
     assert onto._day_start == pytest.approx(t_now)
@@ -403,6 +444,24 @@ def test_from_dict_defaults_and_lists() -> None:
     assert onto._vol_history == []
 
 
+def test_update_debug_log_metric_scaling(caplog: pytest.LogCaptureFixture) -> None:
+    onto = RiskOntology(initial_nav=10_000.0)
+    onto.update(nav=11_000.0)
+    with caplog.at_level("DEBUG", logger="super_otonom.risk_ontology"):
+        onto.update(
+            nav=9_900.0,
+            positions={"A": {"qty": 1.0, "entry": 500.0}},
+            current_vol=0.02,
+            realized_pnl_delta=-1.0,
+        )
+    lines = [r.message for r in caplog.records if "RiskOntology |" in r.message]
+    assert lines
+    msg = lines[-1]
+    assert "dd=10.00%" in msg
+    assert "daily_loss=1.00%" in msg
+    assert "exp=5.1%" in msg
+
+
 def test_from_dict_restores_all_fields() -> None:
     data = {
         "initial_nav": 5_000.0,
@@ -422,6 +481,14 @@ def test_from_dict_restores_all_fields() -> None:
     assert onto._day_start == 333.0
     assert onto._pnl_history == [1.0, -2.0]
     assert onto._vol_history == [0.02]
+
+
+def test_from_dict_missing_keys_use_defaults() -> None:
+    onto = RiskOntology.from_dict({"initial_nav": 8_000.0, "nav": 8_100.0})
+    assert onto.sod_nav == pytest.approx(8_000.0)
+    assert onto.sow_nav == pytest.approx(8_000.0)
+    assert onto.peak_nav == pytest.approx(8_000.0)
+    assert isinstance(onto.sow_nav, float)
 
 
 def test_from_dict_logs_info(caplog: pytest.LogCaptureFixture) -> None:
