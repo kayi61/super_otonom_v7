@@ -6,7 +6,6 @@ import time
 from unittest.mock import patch
 
 import pytest
-
 from super_otonom.risk.risk_engine import RiskEngine
 from super_otonom.risk_ontology import RiskOntology
 

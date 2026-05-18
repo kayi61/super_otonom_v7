@@ -13,6 +13,7 @@ TARGETS: dict[str, list[str]] = {
         "tests/risk/test_risk_engine_unified.py",
     ],
     "risk_manager": [
+        "tests/test_risk_manager_mutation.py",
         "tests/test_risk_mutation_targets.py",
         "tests/branch/test_risk_manager_branch_matrix.py",
         "tests/risk/test_risk_engine_unified.py",

@@ -16,6 +16,7 @@ on:
       - "scripts/mutmut_risk_targets.py"
       - "tests/test_risk_mutation_targets.py"
       - "tests/test_risk_ontology_mutation.py"
+      - "tests/test_risk_manager_mutation.py"
       - "tests/branch/test_risk_manager_branch_matrix.py"
   workflow_dispatch:
 
@@ -41,6 +42,7 @@ jobs:
             risk_manager:
               - 'super_otonom/risk_manager.py'
               - 'scripts/mutmut_risk_targets.py'
+              - 'tests/test_risk_manager_mutation.py'
               - 'tests/test_risk_mutation_targets.py'
               - 'tests/branch/test_risk_manager_branch_matrix.py'
             capital_engine:
