@@ -22,7 +22,15 @@ def _pnl_series(onto: RiskOntology, n: int, delta: float = -1.0) -> None:
         onto.update(nav=10_000.0, realized_pnl_delta=delta)
 
 
-# ── __post_init__ ─────────────────────────────────────────────────────────────
+# ── __post_init__ / varsayılanlar ─────────────────────────────────────────────
+
+
+def test_dataclass_field_defaults() -> None:
+    onto = RiskOntology()
+    assert onto.initial_nav == 10_000.0
+    assert onto.dynamic_daily_limit == 0.03
+    assert onto.var_1d == 0.0
+    assert onto.gross_exp == 0.0
 
 
 def test_post_init_zero_nav_uses_initial() -> None:
@@ -260,6 +268,17 @@ def test_week_reset_at_exact_interval(monkeypatch: pytest.MonkeyPatch) -> None:
     assert onto.sow_nav == pytest.approx(9_700.0)
 
 
+def test_update_applies_nav_before_day_reset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """FIX-5: sod_nav sifirlamada guncel nav kullanilir (bir onceki tick degil)."""
+    t_now = 200_000.0
+    onto = RiskOntology(initial_nav=10_000.0)
+    onto.nav = 9_000.0
+    onto._day_start = t_now - _SOD_RESET_SECONDS - 1.0
+    monkeypatch.setattr(time, "time", lambda: t_now)
+    onto.update(nav=10_800.0)
+    assert onto.sod_nav == pytest.approx(10_800.0)
+
+
 def test_update_resets_day_start_timestamp(monkeypatch: pytest.MonkeyPatch) -> None:
     t_now = 100_000.0
     onto = RiskOntology(initial_nav=10_000.0)
@@ -416,6 +435,13 @@ def test_update_nav_coerced_to_float() -> None:
     onto.update(nav=10_001)  # int
     assert isinstance(onto.nav, float)
     assert onto.nav == 10_001.0
+
+
+def test_daily_weekly_loss_formulas_via_update() -> None:
+    onto = RiskOntology(initial_nav=10_000.0)
+    onto.update(nav=9_000.0)
+    assert onto.daily_loss_pct == pytest.approx(0.1)
+    assert onto.weekly_loss_pct == pytest.approx(0.1)
 
 
 def test_calc_var_integration_matches_engine() -> None:
