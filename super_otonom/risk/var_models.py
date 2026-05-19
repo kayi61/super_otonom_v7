@@ -1,4 +1,4 @@
-"""VaR models — historical, parametric (Gaussian + Student-t), Monte Carlo (VR-02)."""
+"""VaR models — historical, parametric, Monte Carlo, Cornish-Fisher (VR-02/03)."""
 
 from __future__ import annotations
 
@@ -142,6 +142,66 @@ def monte_carlo_var(
     # VaR = negative percentile at (1-confidence)
     sim_arr = np.array(sim, dtype=np.float64)
     loss = float(-np.percentile(sim_arr, (1.0 - confidence) * 100.0))
+    if horizon_days > 1:
+        loss *= math.sqrt(float(horizon_days))
+    return max(0.0, min(0.95, loss))
+
+
+# ── Cornish-Fisher VaR (VR-03) ──────────────────────────────────────────────
+
+# Minimum observations for reliable skewness/kurtosis estimation
+_CF_MIN_OBS = 20
+
+
+def cornish_fisher_var(
+    returns: Sequence[float],
+    confidence: float = 0.95,
+    *,
+    horizon_days: int = 1,
+) -> float:
+    """Cornish-Fisher expansion VaR — adjusts Gaussian quantile for skew & kurtosis.
+
+    Uses the 4th-order Cornish-Fisher expansion:
+
+        z_cf = z + (z**2-1)*S/6 + (z**3-3z)*K/24 - (2z**3-5z)*S**2/36
+
+    where *z* = normal PPF, *S* = sample skewness, *K* = excess kurtosis (Fisher).
+    For symmetric normal data (S=0, K=0) this reduces to plain Gaussian VaR.
+    For negatively skewed / leptokurtic crypto returns it produces a **larger**
+    VaR than the Gaussian, capturing tail asymmetry without a full distribution fit.
+    """
+    ret = [float(x) for x in returns]
+    if len(ret) < _CF_MIN_OBS:
+        return _DEFAULT_SHORT_FALLBACK
+
+    arr = np.array(ret, dtype=np.float64)
+    mu = float(np.mean(arr))
+    sig = float(np.std(arr, ddof=1))
+    if sig < _EPS:
+        return 0.0
+
+    # Sample skewness and excess kurtosis (Fisher definition, bias=True for MLE)
+    s = float(sp_stats.skew(arr, bias=True))
+    k = float(sp_stats.kurtosis(arr, fisher=True, bias=True))
+
+    # Gaussian quantile (right-tail, positive value for conf > 0.5)
+    z = float(sp_stats.norm.ppf(confidence))
+
+    # Cornish-Fisher adjusted quantile
+    z_cf = (
+        z
+        + (z**2 - 1.0) * s / 6.0
+        + (z**3 - 3.0 * z) * k / 24.0
+        - (2.0 * z**3 - 5.0 * z) * s**2 / 36.0
+    )
+
+    # Guard: CF expansion can become non-monotone for extreme moments.
+    # If adjusted quantile is below the Gaussian (shouldn't decrease for
+    # leptokurtic data) or is negative, fall back to Gaussian z.
+    if z_cf < z:
+        z_cf = z
+
+    loss = -(mu - z_cf * sig)
     if horizon_days > 1:
         loss *= math.sqrt(float(horizon_days))
     return max(0.0, min(0.95, loss))

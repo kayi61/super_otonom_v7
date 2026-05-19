@@ -3,12 +3,18 @@
 from super_otonom.risk.config import RiskConfig
 from super_otonom.risk.cvar_models import historical_cvar
 from super_otonom.risk.risk_engine import RiskEngine, RiskMetrics
-from super_otonom.risk.var_models import historical_var, monte_carlo_var, parametric_var
+from super_otonom.risk.var_models import (
+    cornish_fisher_var,
+    historical_var,
+    monte_carlo_var,
+    parametric_var,
+)
 
 __all__ = [
     "RiskConfig",
     "RiskEngine",
     "RiskMetrics",
+    "cornish_fisher_var",
     "historical_var",
     "parametric_var",
     "monte_carlo_var",

@@ -1,4 +1,4 @@
-"""Unified risk engine — single VaR/CVaR source (VR-01/02)."""
+"""Unified risk engine — single VaR/CVaR source (VR-01/02/03)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,12 @@ import numpy as np
 
 from super_otonom.risk.config import RiskConfig
 from super_otonom.risk.cvar_models import historical_cvar
-from super_otonom.risk.var_models import historical_var, monte_carlo_var, parametric_var
+from super_otonom.risk.var_models import (
+    cornish_fisher_var,
+    historical_var,
+    monte_carlo_var,
+    parametric_var,
+)
 
 
 @dataclass(frozen=True)
@@ -133,6 +138,10 @@ class RiskEngine:
         # ── 97.5% (Basel FRTB horizon) ───────────────────────────────────────
         vh975 = historical_var(ret, 0.975, horizon_days=1)
 
+        # ── Cornish-Fisher VaR (VR-03) ──────────────────────────────────────
+        cf95 = cornish_fisher_var(ret, 0.95, horizon_days=1)
+        cf99 = cornish_fisher_var(ret, 0.99, horizon_days=1)
+
         # ── CVaR ─────────────────────────────────────────────────────────────
         cv95 = historical_cvar(ret, 0.95)
         cv975 = historical_cvar(ret, cfg.cvar_primary_conf)
@@ -158,6 +167,8 @@ class RiskEngine:
             var_parametric_99=vp99,
             var_monte_carlo_99=vm99,
             var_for_limits_99=vlim99,
+            var_cornish_fisher_95=cf95,
+            var_cornish_fisher_99=cf99,
             model_dispersion_pct=max(0.0, dispersion),
         )
 

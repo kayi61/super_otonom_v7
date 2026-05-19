@@ -131,5 +131,7 @@
   "var_historical_95": 0.03086571,
   "var_parametric_95": 0.03171249,
   "var_monte_carlo_95": 0.03082969,
-  "var_for_limits_95": 0.03171249
+  "var_for_limits_95": 0.03171249,
+  "var_cornish_fisher_95": 0.03287527,
+  "var_cornish_fisher_99": 0.04621364
 }
