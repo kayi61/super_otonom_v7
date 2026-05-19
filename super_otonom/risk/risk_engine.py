@@ -1,4 +1,4 @@
-"""Unified risk engine — single VaR/CVaR source (VR-01/02/03)."""
+"""Unified risk engine — single VaR/CVaR source (VR-01/02/03/04)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Dict, Mapping, Optional, Sequence
 import numpy as np
 
 from super_otonom.risk.config import RiskConfig
-from super_otonom.risk.cvar_models import historical_cvar
+from super_otonom.risk.cvar_models import historical_cvar, mc_cvar, parametric_cvar
 from super_otonom.risk.var_models import (
     cornish_fisher_var,
     historical_var,
@@ -26,10 +26,20 @@ class RiskMetrics:
     var_99_1d: float = 0.0
     var_975_1d: float = 0.0
 
-    # ── CVaR / Expected Shortfall ────────────────────────────────────────────
+    # ── CVaR / Expected Shortfall (max of 3 methods) ──────────────────────
     cvar_95_1d: float = 0.0
     cvar_975_1d: float = 0.0
     cvar_99_1d: float = 0.0
+
+    # ── Per-method CVaR breakdown (95%) ─────────────────────────────────────
+    cvar_historical_95: float = 0.0
+    cvar_parametric_95: float = 0.0
+    cvar_monte_carlo_95: float = 0.0
+
+    # ── Per-method CVaR breakdown (99%) ─────────────────────────────────────
+    cvar_historical_99: float = 0.0
+    cvar_parametric_99: float = 0.0
+    cvar_monte_carlo_99: float = 0.0
 
     # ── Per-model breakdown (95%) ────────────────────────────────────────────
     var_historical_95: float = 0.0
@@ -142,10 +152,41 @@ class RiskEngine:
         cf95 = cornish_fisher_var(ret, 0.95, horizon_days=1)
         cf99 = cornish_fisher_var(ret, 0.99, horizon_days=1)
 
-        # ── CVaR ─────────────────────────────────────────────────────────────
-        cv95 = historical_cvar(ret, 0.95)
-        cv975 = historical_cvar(ret, cfg.cvar_primary_conf)
-        cv99 = historical_cvar(ret, cfg.cvar_secondary_conf)
+        # ── CVaR / Expected Shortfall (VR-04: 3 methods) ─────────────────────
+        # 95% suite
+        cvh95 = historical_cvar(ret, 0.95)
+        cvp95 = parametric_cvar(
+            ret, 0.95, dist=cfg.parametric_dist, df=cfg.student_t_df,
+        )
+        cvm95 = mc_cvar(
+            ret, 0.95, draws=cfg.monte_carlo_draws, seed=cfg.monte_carlo_seed,
+        )
+        cv95 = max(cvh95, cvp95, cvm95)
+
+        # 99% suite
+        cvh99 = historical_cvar(ret, cfg.cvar_secondary_conf)
+        cvp99 = parametric_cvar(
+            ret, cfg.cvar_secondary_conf,
+            dist=cfg.parametric_dist, df=cfg.student_t_df,
+        )
+        cvm99 = mc_cvar(
+            ret, cfg.cvar_secondary_conf,
+            draws=cfg.monte_carlo_draws, seed=cfg.monte_carlo_seed,
+        )
+        cv99 = max(cvh99, cvp99, cvm99)
+
+        # 97.5% Basel FRTB
+        cv975 = max(
+            historical_cvar(ret, cfg.cvar_primary_conf),
+            parametric_cvar(
+                ret, cfg.cvar_primary_conf,
+                dist=cfg.parametric_dist, df=cfg.student_t_df,
+            ),
+            mc_cvar(
+                ret, cfg.cvar_primary_conf,
+                draws=cfg.monte_carlo_draws, seed=cfg.monte_carlo_seed,
+            ),
+        )
 
         # ── Dispersion ───────────────────────────────────────────────────────
         disp95 = _dispersion(vars95)
@@ -159,6 +200,12 @@ class RiskEngine:
             cvar_95_1d=cv95,
             cvar_975_1d=cv975,
             cvar_99_1d=cv99,
+            cvar_historical_95=cvh95,
+            cvar_parametric_95=cvp95,
+            cvar_monte_carlo_95=cvm95,
+            cvar_historical_99=cvh99,
+            cvar_parametric_99=cvp99,
+            cvar_monte_carlo_99=cvm99,
             var_historical_95=vh95,
             var_parametric_95=vp95,
             var_monte_carlo_95=vm95,
