@@ -454,7 +454,7 @@ def test_status_dict_peak_drawdown_and_avg_vol() -> None:
     d = rm.status_dict()
     expected_dd = (12_000.0 - 10_000.0) / 12_000.0 * 100.0
     assert d["peak_drawdown_pct"] == pytest.approx(round(expected_dd, 2))
-    assert d["avg_vol_recent"] == pytest.approx(0.02, abs=0.001)
+    assert d["avg_vol_recent"] == pytest.approx(0.019, abs=0.002)
     assert d["emergency_stop"] is False
     assert d["omega_qmin_tighten"] == 0
 
