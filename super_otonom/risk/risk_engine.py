@@ -1,4 +1,4 @@
-"""Unified risk engine — single VaR/CVaR source (VR-01)."""
+"""Unified risk engine — single VaR/CVaR source (VR-01/02)."""
 
 from __future__ import annotations
 
@@ -102,7 +102,12 @@ class RiskEngine:
 
         # ── 95% suite ────────────────────────────────────────────────────────
         vh95 = historical_var(ret, 0.95, horizon_days=1)
-        vp95 = parametric_var(ret, 0.95, horizon_days=1, z=cfg.parametric_z_95)
+        vp95 = parametric_var(
+            ret, 0.95, horizon_days=1,
+            z=cfg.parametric_z_95,
+            dist=cfg.parametric_dist,
+            df=cfg.student_t_df,
+        )
         vm95 = monte_carlo_var(
             ret, 0.95, horizon_days=1,
             draws=cfg.monte_carlo_draws, seed=cfg.monte_carlo_seed,
@@ -112,7 +117,12 @@ class RiskEngine:
 
         # ── 99% suite ────────────────────────────────────────────────────────
         vh99 = historical_var(ret, 0.99, horizon_days=1)
-        vp99 = parametric_var(ret, 0.99, horizon_days=1, z=cfg.parametric_z_99)
+        vp99 = parametric_var(
+            ret, 0.99, horizon_days=1,
+            z=cfg.parametric_z_99,
+            dist=cfg.parametric_dist,
+            df=cfg.student_t_df,
+        )
         vm99 = monte_carlo_var(
             ret, 0.99, horizon_days=1,
             draws=cfg.monte_carlo_draws, seed=cfg.monte_carlo_seed,

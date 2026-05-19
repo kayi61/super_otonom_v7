@@ -1,8 +1,9 @@
-"""Risk engine configuration (VR-01 / VR-05)."""
+"""Risk engine configuration (VR-01 / VR-02 / VR-05)."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 
 @dataclass(frozen=True)
@@ -20,3 +21,6 @@ class RiskConfig:
     parametric_z_95: float = 1.645
     parametric_z_975: float = 1.96
     parametric_z_99: float = 2.326
+    # VR-02: Student-t parametric VaR (fat-tail default for crypto)
+    parametric_dist: Literal["normal", "student_t"] = "student_t"
+    student_t_df: float | None = None  # None → MLE estimation
