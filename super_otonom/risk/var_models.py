@@ -1,17 +1,28 @@
-"""VaR models — historical, parametric, Monte Carlo (VR-01/02)."""
+"""VaR models — historical, parametric (Gaussian + Student-t), Monte Carlo (VR-02)."""
 
 from __future__ import annotations
 
 import math
 import random
 import statistics
-from typing import List, Sequence
+from typing import Literal, Sequence
+
+import numpy as np
+from scipy import stats as sp_stats
 
 _EPS = 1e-12
 _DEFAULT_SHORT_FALLBACK = 0.09
 
+# Student-t MLE: minimum observations before attempting fit
+_STUDENT_T_MIN_OBS = 15
+# Degrees-of-freedom bounds for Student-t MLE
+_DF_MIN = 2.01
+_DF_MAX = 200.0
+_DF_FALLBACK = 5.0  # crypto fat-tail default when MLE fails or n < threshold
+
 
 def _percentile_loss(sorted_returns: Sequence[float], tail_pct: float) -> float:
+    """Return positive VaR loss at the given left-tail percentile."""
     if not sorted_returns:
         return 0.10
     xs = sorted(float(x) for x in sorted_returns)
@@ -20,13 +31,16 @@ def _percentile_loss(sorted_returns: Sequence[float], tail_pct: float) -> float:
     return max(0.0, float(-q))
 
 
+# ── Historical VaR ──────────────────────────────────────────────────────────
+
+
 def historical_var(
     returns: Sequence[float],
     confidence: float = 0.95,
     *,
     horizon_days: int = 1,
 ) -> float:
-    """Historical VaR as positive loss fraction; horizon via sqrt(T)."""
+    """Historical VaR as positive loss fraction; horizon scaled via sqrt(T)."""
     ret = [float(x) for x in returns]
     if len(ret) < 3:
         return _DEFAULT_SHORT_FALLBACK
@@ -37,25 +51,70 @@ def historical_var(
     return max(0.0, min(0.95, loss))
 
 
+# ── Parametric VaR (Gaussian + Student-t) ────────────────────────────────────
+
+
+def _fit_student_t_df(returns: Sequence[float]) -> float:
+    """Estimate Student-t degrees of freedom via MLE; clamp to [_DF_MIN, _DF_MAX]."""
+    if len(returns) < _STUDENT_T_MIN_OBS:
+        return _DF_FALLBACK
+    try:
+        arr = np.array(returns, dtype=np.float64)
+        df, _loc, _scale = sp_stats.t.fit(arr, method="mle")
+        return float(max(_DF_MIN, min(_DF_MAX, df)))
+    except Exception:  # noqa: BLE001 — MLE can diverge on degenerate data
+        return _DF_FALLBACK
+
+
 def parametric_var(
     returns: Sequence[float],
     confidence: float = 0.95,
     *,
     horizon_days: int = 1,
     z: float | None = None,
+    dist: Literal["normal", "student_t"] = "student_t",
+    df: float | None = None,
 ) -> float:
-    """Gaussian parametric VaR (student-t in VR-02)."""
+    """Parametric VaR — Gaussian or Student-t (default: student_t for crypto fat-tails).
+
+    Parameters
+    ----------
+    dist : "normal" | "student_t"
+        Distribution family. ``student_t`` (default) captures heavy tails.
+    df : float | None
+        Student-t degrees of freedom. ``None`` → estimate via MLE.
+    z : float | None
+        Z-score override (Gaussian mode). Ignored when *dist* = ``student_t``.
+    """
     ret = [float(x) for x in returns]
     if len(ret) < 3:
         return _DEFAULT_SHORT_FALLBACK
+
     mu = float(statistics.mean(ret))
     sig = float(statistics.stdev(ret)) if len(ret) > 1 else 0.02
-    if z is None:
-        z = 1.645 if confidence >= 0.94 else 1.28
-    loss = -(mu - z * sig)
+
+    if dist == "student_t":
+        # Student-t quantile: heavier tail → larger multiplier than Gaussian z
+        # t_ppf(0.05, df=3) ≈ -2.35 vs normal ppf(0.05) = -1.645
+        _df = df if df is not None else _fit_student_t_df(ret)
+        # Left-tail quantile (negative value)
+        q = float(sp_stats.t.ppf(1.0 - confidence, _df))
+        # VaR = -(mu + q * sigma)  — standard quant-finance convention
+        # No scale adjustment: sample sigma used directly; the heavier tail
+        # quantile (|q| > |z|) is what captures fat-tail risk.
+        loss = -(mu + q * sig)
+    else:
+        # Gaussian parametric VaR (legacy)
+        if z is None:
+            z = 1.645 if confidence >= 0.94 else 1.28
+        loss = -(mu - z * sig)
+
     if horizon_days > 1:
         loss *= math.sqrt(float(horizon_days))
     return max(0.0, min(0.95, loss))
+
+
+# ── Monte Carlo VaR ─────────────────────────────────────────────────────────
 
 
 def monte_carlo_var(
@@ -66,17 +125,23 @@ def monte_carlo_var(
     draws: int = 600,
     seed: int = 42,
 ) -> float:
-    """Bootstrap mean-return simulation (deterministic seed)."""
+    """Bootstrap single-return simulation with deterministic seed.
+
+    VR-02 FIX: Previous implementation computed mean-of-means
+    (``sum(sample)/n``) — this converges to the sample mean by CLT
+    and is **NOT** a VaR estimate.  Correct approach: each draw is
+    a single bootstrapped return; VaR is the percentile of draws.
+    """
     ret = [float(x) for x in returns]
     if len(ret) < 3:
         return 0.085
     rnd = random.Random(seed)
     n = len(ret)
-    sim: List[float] = []
-    for _ in range(draws):
-        sample = [ret[rnd.randrange(n)] for _ in range(n)]
-        sim.append(sum(sample) / n)
-    loss = historical_var(sim, confidence, horizon_days=1)
+    # Each draw: single bootstrapped return (NOT mean of n samples)
+    sim = [ret[rnd.randrange(n)] for _ in range(draws)]
+    # VaR = negative percentile at (1-confidence)
+    sim_arr = np.array(sim, dtype=np.float64)
+    loss = float(-np.percentile(sim_arr, (1.0 - confidence) * 100.0))
     if horizon_days > 1:
         loss *= math.sqrt(float(horizon_days))
     return max(0.0, min(0.95, loss))
