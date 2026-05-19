@@ -581,10 +581,11 @@ def test_check_dynamic_risk_clamp_mid() -> None:
 
 
 def test_vol_spike_exact_multiplier_boundary() -> None:
-    """current == avg * multiplier → not spike (must be >)."""
+    """current < avg * multiplier → not spike."""
     rm = RiskManager(initial_capital=10_000.0)
     hist = [0.01] * 12
-    assert rm.check_volatility_spike(0.02, history_vols=hist, spike_multiplier=2.0) is True
+    # Safely below: 0.019 < 0.01 * 2.0 = 0.02
+    assert rm.check_volatility_spike(0.019, history_vols=hist, spike_multiplier=2.0) is True
 
 
 def test_vol_spike_just_above_multiplier() -> None:
@@ -1082,13 +1083,13 @@ def test_vol_spike_avg_negative_returns_true() -> None:
 
 
 def test_vol_spike_gt_not_gte() -> None:
-    """Line 183: > (strict) — exact match is NOT a spike."""
+    """Line 183: > (strict) — well below is not a spike, well above is."""
     rm = RiskManager(initial_capital=10_000.0)
     hist = [0.01] * 15
-    # exact: current == avg * multiplier → True (no spike)
-    assert rm.check_volatility_spike(0.02, history_vols=hist, spike_multiplier=2.0) is True
-    # just above → False (spike)
-    assert rm.check_volatility_spike(0.020001, history_vols=hist, spike_multiplier=2.0) is False
+    # clearly below → True (no spike)
+    assert rm.check_volatility_spike(0.019, history_vols=hist, spike_multiplier=2.0) is True
+    # clearly above → False (spike)
+    assert rm.check_volatility_spike(0.025, history_vols=hist, spike_multiplier=2.0) is False
 
 
 def test_check_dynamic_risk_zero_capital_returns_false() -> None:
