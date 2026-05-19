@@ -67,7 +67,9 @@ jobs:
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
-        run: pip install -e ".[dev]"
+        run: |
+          pip install "mutmut>=2.4,<3"
+          pip install -e ".[dev]"
       - name: Hedef test listesi
         id: targets
         run: echo "paths=$(python scripts/mutmut_risk_targets.py risk_manager)" >> "$GITHUB_OUTPUT"
@@ -99,7 +101,9 @@ jobs:
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
-        run: pip install -e ".[dev]"
+        run: |
+          pip install "mutmut>=2.4,<3"
+          pip install -e ".[dev]"
       - name: Hedef test listesi
         id: targets
         run: echo "paths=$(python scripts/mutmut_risk_targets.py capital_engine)" >> "$GITHUB_OUTPUT"
@@ -131,7 +135,9 @@ jobs:
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
-        run: pip install -e ".[dev]"
+        run: |
+          pip install "mutmut>=2.4,<3"
+          pip install -e ".[dev]"
       - name: Hedef test listesi
         id: targets
         run: echo "paths=$(python scripts/mutmut_risk_targets.py risk_ontology)" >> "$GITHUB_OUTPUT"
@@ -163,7 +169,9 @@ jobs:
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
-        run: pip install -e ".[dev]"
+        run: |
+          pip install "mutmut>=2.4,<3"
+          pip install -e ".[dev]"
       - name: Hedef test listesi
         id: targets
         run: echo "paths=$(python scripts/mutmut_risk_targets.py pre_trade_gate)" >> "$GITHUB_OUTPUT"

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import subprocess
-import sys
 
 
 def _ids(status: str) -> list[str]:
