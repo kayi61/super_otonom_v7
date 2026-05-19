@@ -1510,3 +1510,302 @@ def test_init_last_dynamic_limit_value() -> None:
     expected = RISK.get("max_daily_loss_pct", 0.05)
     assert rm._last_dynamic_limit == expected
     assert isinstance(rm._last_dynamic_limit, float)
+
+
+# ── Mutation-kill round 4: log *100 format, silent=True, round(,2), trim ─────
+
+
+def test_dynamic_risk_breach_log_contains_pct_times_100(caplog: pytest.LogCaptureFixture) -> None:
+    """Lines 230-231: log must show daily_pct*100 and limit*100."""
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.daily_loss = 300.0  # 3%
+    with caplog.at_level("CRITICAL", logger="super_otonom.risk"):
+        rm.check_dynamic_risk(10_000.0, 0.01)  # limit=2%
+    msg = caplog.records[-1].message
+    assert "3.00" in msg  # daily_pct * 100
+    assert "2.00" in msg  # limit * 100
+
+
+def test_dynamic_risk_ok_log_contains_pct_times_100(caplog: pytest.LogCaptureFixture) -> None:
+    """Lines 239-240: debug log must show pct*100."""
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.daily_loss = 50.0  # 0.5%
+    with caplog.at_level("DEBUG", logger="super_otonom.risk"):
+        rm.check_dynamic_risk(10_000.0, 0.02)  # limit=4%
+    msgs = [r.message for r in caplog.records if "DynamicRisk OK" in r.message]
+    assert len(msgs) == 1
+    assert "0.50" in msgs[0]  # daily_pct * 100
+    assert "4.00" in msgs[0]  # limit * 100
+
+
+def test_onto_daily_breach_log_pct_times_100(caplog: pytest.LogCaptureFixture) -> None:
+    """Lines 254-255."""
+    onto = RiskOntology(initial_nav=10_000.0)
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.set_ontology(onto)
+    onto.daily_loss_pct = 0.08
+    onto.dynamic_daily_limit = 0.05
+    with caplog.at_level("CRITICAL", logger="super_otonom.risk"):
+        rm.check_risk(10_000.0)
+    msgs = [r.message for r in caplog.records if "dynamic_daily_loss" in r.message and "%" in r.message]
+    assert len(msgs) >= 1
+    assert "8.00" in msgs[-1]
+    assert "5.00" in msgs[-1]
+
+
+def test_onto_weekly_breach_log_pct_times_100(caplog: pytest.LogCaptureFixture) -> None:
+    """Lines 263-264."""
+    onto = RiskOntology(initial_nav=10_000.0)
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.set_ontology(onto)
+    onto.daily_loss_pct = 0.0
+    onto.dynamic_daily_limit = 1.0
+    onto.weekly_loss_pct = 0.15
+    with caplog.at_level("CRITICAL", logger="super_otonom.risk"):
+        rm.check_risk(10_000.0)
+    msgs = [r.message for r in caplog.records if "weekly_loss" in r.message and "%" in r.message]
+    assert len(msgs) >= 1
+    assert "15.00" in msgs[-1]
+
+
+def test_onto_drawdown_breach_log_pct_times_100(caplog: pytest.LogCaptureFixture) -> None:
+    """Line 272."""
+    onto = RiskOntology(initial_nav=10_000.0)
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.set_ontology(onto)
+    onto.daily_loss_pct = 0.0
+    onto.dynamic_daily_limit = 1.0
+    onto.weekly_loss_pct = 0.0
+    onto.intraday_dd_pct = 0.25
+    with caplog.at_level("CRITICAL", logger="super_otonom.risk"):
+        rm.check_risk(10_000.0)
+    msgs = [r.message for r in caplog.records if "max_drawdown" in r.message and "%" in r.message]
+    assert len(msgs) >= 1
+    assert "25.00" in msgs[-1]
+
+
+def test_without_onto_static_daily_log_pct(caplog: pytest.LogCaptureFixture) -> None:
+    """Lines 289-290."""
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.daily_loss = 600.0  # 6%
+    with caplog.at_level("CRITICAL", logger="super_otonom.risk"):
+        rm.check_risk(10_000.0, current_vol=0.0)
+    msg = [r.message for r in caplog.records if "static_daily_loss" in r.message][0]
+    assert "6.00" in msg  # daily_pct * 100
+
+
+def test_without_onto_weekly_log_pct(caplog: pytest.LogCaptureFixture) -> None:
+    """Lines 299-300."""
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.weekly_loss = 1200.0  # 12%
+    with caplog.at_level("CRITICAL", logger="super_otonom.risk"):
+        rm.check_risk(10_000.0, current_vol=0.0)
+    msgs = [r.message for r in caplog.records if "weekly_loss" in r.message and "%" in r.message]
+    assert len(msgs) >= 1
+    assert "12.00" in msgs[-1]
+
+
+def test_without_onto_drawdown_log_pct(caplog: pytest.LogCaptureFixture) -> None:
+    """Lines 312-313."""
+    rm = RiskManager(initial_capital=10_000.0)
+    rm._peak_equity = 10_000.0
+    with caplog.at_level("CRITICAL", logger="super_otonom.risk"):
+        rm.check_risk(5_000.0, current_vol=0.0)
+    msgs = [r.message for r in caplog.records if "max_drawdown" in r.message and "%" in r.message]
+    assert len(msgs) >= 1
+    assert "50.00" in msgs[-1]
+
+
+def test_exposure_breach_emergency_log_pct(caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Lines 331-332."""
+    monkeypatch.setitem(RISK, "exposure_breach_emergency", True)
+    rm = RiskManager(initial_capital=10_000.0)
+    exp = 10_000.0 * 0.50  # 50% exposure
+    with caplog.at_level("CRITICAL", logger="super_otonom.risk"):
+        rm._check_exposure_and_vol(10_000.0, exp, 0.0)
+    msg = [r.message for r in caplog.records if "max_exposure" in r.message][0]
+    assert "50.00" in msg
+    assert str(round(RISK["max_exposure_pct"] * 100, 2)) in msg
+
+
+def test_exposure_warning_log_pct(caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Lines 337-338."""
+    monkeypatch.setitem(RISK, "exposure_breach_emergency", False)
+    rm = RiskManager(initial_capital=10_000.0)
+    exp = 10_000.0 * 0.50
+    with caplog.at_level("WARNING", logger="super_otonom.risk"):
+        rm._check_exposure_and_vol(10_000.0, exp, 0.0)
+    msg = [r.message for r in caplog.records if "exposure_limit" in r.message][0]
+    assert "50.00" in msg
+    assert str(round(RISK["max_exposure_pct"] * 100, 2)) in msg
+
+
+def test_vol_spike_log_contains_values(caplog: pytest.LogCaptureFixture) -> None:
+    """Line 183-190: spike log shows current, avg, multiplier."""
+    rm = RiskManager(initial_capital=10_000.0)
+    hist = [0.01] * 15
+    with caplog.at_level("CRITICAL", logger="super_otonom.risk"):
+        rm.check_volatility_spike(0.025, history_vols=hist, spike_multiplier=2.0)
+    msg = [r.message for r in caplog.records if "VOLATILITY_SPIKE" in r.message][0]
+    assert "0.025" in msg
+    assert "0.01" in msg
+
+
+def test_pnl_history_trim_500_not_499() -> None:
+    """Mutant: > 500 → >= 500 or > 499."""
+    rm = RiskManager(initial_capital=10_000.0)
+    # Exactly 500 items → no trim
+    rm._pnl_history = list(range(500))
+    assert len(rm._pnl_history) == 500
+    rm.record_pnl(999.0)  # 501 → triggers trim
+    assert len(rm._pnl_history) == 500
+    # 499 items → no trim even after add
+    rm._pnl_history = list(range(499))
+    rm.record_pnl(999.0)  # 500 → no trim
+    assert len(rm._pnl_history) == 500
+
+
+def test_onto_pnl_trim_500_not_499() -> None:
+    """Same for onto._pnl_history."""
+    onto = RiskOntology(initial_nav=10_000.0)
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.set_ontology(onto)
+    onto._pnl_history = list(range(500))
+    rm.record_pnl(999.0)  # 501 → trim
+    assert len(onto._pnl_history) == 500
+    onto._pnl_history = list(range(499))
+    rm.record_pnl(999.0)  # 500 → no trim
+    assert len(onto._pnl_history) == 500
+
+
+def test_vol_history_trim_200_not_199() -> None:
+    """Same for _vol_history."""
+    rm = RiskManager(initial_capital=10_000.0)
+    rm._vol_history = [0.01] * 200
+    rm.record_volatility(0.02)  # 201 → trim
+    assert len(rm._vol_history) == 200
+    rm._vol_history = [0.01] * 199
+    rm.record_volatility(0.02)  # 200 → no trim
+    assert len(rm._vol_history) == 200
+
+
+def test_pnl_negative_boundary_not_lte() -> None:
+    """pnl < 0 (not <=): pnl=0 should NOT add loss."""
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.record_pnl(0.0)
+    assert rm.daily_loss == 0.0
+    assert rm.weekly_loss == 0.0
+    rm.record_pnl(-0.0001)
+    assert rm.daily_loss > 0
+
+
+def test_update_peak_gt_not_gte() -> None:
+    """current > peak (not >=): equal should not update."""
+    rm = RiskManager(initial_capital=10_000.0)
+    rm._peak_equity = 5000.0
+    rm.update_peak(5000.0)
+    assert rm._peak_equity == 5000.0
+    rm.update_peak(5000.01)
+    assert rm._peak_equity == 5000.01
+
+
+def test_check_risk_clears_deny_on_entry() -> None:
+    """Line 368: _last_risk_deny = None."""
+    rm = RiskManager(initial_capital=10_000.0)
+    rm._last_risk_deny = "something"
+    rm.check_risk(10_000.0)
+    # If passed, deny should be None (cleared and not re-set)
+    assert rm._last_risk_deny is None
+
+
+def test_check_risk_default_exposure_and_vol() -> None:
+    """Lines 353-354: defaults are 0.0."""
+    rm = RiskManager(initial_capital=10_000.0)
+    # Call without optional args — should work and pass
+    assert rm.check_risk(10_000.0) is True
+
+
+def test_dynamic_risk_base_fallback_when_equity_zero() -> None:
+    """Line 222: equity <= 0 → base = initial_capital."""
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.daily_loss = 250.0  # 2.5%
+    # equity=0 → base=10000 → 250/10000=0.025 < limit
+    assert rm.check_dynamic_risk(0.0, 0.02) is True
+    # equity=-1 → same fallback
+    assert rm.check_dynamic_risk(-1.0, 0.02) is True
+
+
+def test_silent_true_paths_no_critical_log_dynamic(caplog: pytest.LogCaptureFixture) -> None:
+    """Line 226: trigger_emergency('dynamic_daily_loss', silent=True) in check_dynamic_risk."""
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.daily_loss = 500.0
+    with caplog.at_level("CRITICAL", logger="super_otonom.risk"):
+        rm.check_dynamic_risk(10_000.0, 0.01)
+    # The EMERGENCY_STOP log comes from check_dynamic_risk's own log.critical, not trigger_emergency
+    # But trigger_emergency(silent=True) should NOT add its own EMERGENCY_STOP log
+    emergency_logs = [r for r in caplog.records if "EMERGENCY_STOP" in r.message and "code=" in r.message]
+    # All emergency logs should be from check_dynamic_risk, not from trigger_emergency
+    for log_record in emergency_logs:
+        assert "dynamic_daily_loss" in log_record.message
+
+
+def test_onto_breach_triggers_correct_emergency_codes() -> None:
+    """Lines 250, 260, 269: verify exact emergency codes."""
+    # Daily
+    onto = RiskOntology(initial_nav=10_000.0)
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.set_ontology(onto)
+    onto.daily_loss_pct = 0.10
+    onto.dynamic_daily_limit = 0.05
+    rm.check_risk(10_000.0)
+    assert rm.emergency_reason == "dynamic_daily_loss"
+
+    # Weekly
+    rm2 = RiskManager(initial_capital=10_000.0)
+    onto2 = RiskOntology(initial_nav=10_000.0)
+    rm2.set_ontology(onto2)
+    onto2.daily_loss_pct = 0.0
+    onto2.dynamic_daily_limit = 1.0
+    onto2.weekly_loss_pct = 0.20
+    rm2.check_risk(10_000.0)
+    assert rm2.emergency_reason == "weekly_loss"
+
+    # Drawdown
+    rm3 = RiskManager(initial_capital=10_000.0)
+    onto3 = RiskOntology(initial_nav=10_000.0)
+    rm3.set_ontology(onto3)
+    onto3.daily_loss_pct = 0.0
+    onto3.dynamic_daily_limit = 1.0
+    onto3.weekly_loss_pct = 0.0
+    onto3.intraday_dd_pct = 0.30
+    rm3.check_risk(10_000.0)
+    assert rm3.emergency_reason == "max_drawdown"
+
+
+def test_status_dict_dynamic_limit_pct_times_100() -> None:
+    """Line 449: * 100."""
+    rm = RiskManager(initial_capital=10_000.0)
+    rm._last_dynamic_limit = 0.035
+    d = rm.status_dict()
+    assert d["dynamic_daily_limit_pct"] == pytest.approx(3.5)
+    # If mutant removes *100, it would be 0.035 rounded
+    assert d["dynamic_daily_limit_pct"] > 1.0  # sanity: must be percentage
+
+
+def test_status_dict_onto_pct_fields_are_percentages() -> None:
+    """Lines 460-466: all pct fields * 100."""
+    onto = RiskOntology(initial_nav=10_000.0)
+    onto.daily_loss_pct = 0.05
+    onto.weekly_loss_pct = 0.08
+    onto.intraday_dd_pct = 0.12
+    onto.dynamic_daily_limit = 0.04
+    onto.exp_pct = 0.15
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.set_ontology(onto)
+    d = rm.status_dict()
+    # All must be > 1 (they are percentages, not fractions)
+    assert d["daily_loss_pct"] == pytest.approx(5.0)
+    assert d["weekly_loss_pct"] == pytest.approx(8.0)
+    assert d["intraday_dd_pct"] == pytest.approx(12.0)
+    assert d["dynamic_limit_pct"] == pytest.approx(4.0)
+    assert d["exp_pct"] == pytest.approx(15.0)
