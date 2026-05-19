@@ -13,8 +13,6 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-import numpy as np
-
 from super_otonom.config import RISK
 
 if TYPE_CHECKING:
@@ -408,11 +406,14 @@ class RiskManager:
         """
         if self._onto is not None:
             return self._onto._calc_var()
-        # FIX: min_history 20 → 100 (istatistiksel anlam için)
-        if len(self._pnl_history) < 100:
-            return 0.0
-        conf = RISK["var_confidence"]
-        return round(float(np.percentile(self._pnl_history, (1 - conf) * 100)), 2)
+        from super_otonom.risk.risk_engine import RiskEngine
+
+        conf = float(RISK["var_confidence"])
+        return RiskEngine().compute_from_pnl_history(
+            self._pnl_history,
+            confidence=conf,
+            min_obs=100,
+        )
 
     def should_trailing_stop(self, entry: float, current: float, peak: float) -> bool:
         if peak <= entry:

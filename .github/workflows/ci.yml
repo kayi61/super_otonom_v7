@@ -78,6 +78,9 @@ jobs:
       - name: PROMPT-11 VaR / CVaR topology audit
         run: python -m super_otonom.var_topology_audit
 
+      - name: VR-01 VaR single source audit
+        run: python scripts/audit_var_source.py
+
       - name: Pytest fastrun (5000 gate)
         run: python -m pytest tests -m fastrun -q --tb=short
 

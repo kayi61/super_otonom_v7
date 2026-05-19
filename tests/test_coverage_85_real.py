@@ -79,7 +79,7 @@ def test_pre_var_and_cvar_paths() -> None:
     assert var_parametric([0.01, -0.01, 0.02, -0.02, 0.005], 0.95) > 0.0
     assert var_parametric([0.01, -0.01, 0.005], confidence=0.90) >= 0.0
 
-    assert var_historical([], 0.95) == 0.10
+    assert var_historical([], 0.95) == 0.09
     h = var_historical([-0.1, -0.05, 0.0, 0.05, 0.1])
     assert h >= 0.0
 

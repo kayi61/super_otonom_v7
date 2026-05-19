@@ -27,7 +27,7 @@ dependencies = [
 dev = [
     "pre-commit>=3.5.0",
     "hypothesis>=6.100",
-    "mutmut>=2.4.0,<4",
+    "mutmut>=2.4.0,<3",
     "pip-audit>=2.7.0",
     "pytest>=8.0",
     "pytest-asyncio>=1.0",
@@ -47,7 +47,7 @@ build_py = "_setup_build.BuildPyExcludeInPackageTests"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["super_otonom", "super_otonom.pipelines"]
+include = ["super_otonom", "super_otonom.pipelines", "super_otonom.risk"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -110,7 +110,8 @@ show_missing = true
 skip_covered = false
 
 # Mutation testing (mutmut 2.x). Odak: risk / sermaye / ontology / pre-trade.
-# Skor: mutmut results — hedef hayatta kalan <%20 (öldürme >%80). Ayrıntı: .github/workflows/mutation.yml
+# Skor: mutmut_gate.py — hedef kill-rate >=%80. Ayrıntı: .github/workflows/mutation.yml
+# string: log sabitleri; operator/number/keyword: risk mantığı.
 [tool.mutmut]
 paths_to_mutate = [
     "super_otonom/risk_manager.py",
@@ -118,5 +119,7 @@ paths_to_mutate = [
     "super_otonom/risk_ontology.py",
     "super_otonom/pre_trade_gate.py",
 ]
+disable_mutation_types = ["string"]
 tests_dir = "tests/"
-runner = "python -m pytest -x -q --tb=no"
+# Yerel: python scripts/mutmut_risk_targets.py risk_ontology ile dosya listesini alin.
+runner = "python -m pytest tests/test_risk_ontology_mutation.py tests/test_risk_mutation_targets.py tests/risk/test_risk_engine_unified.py -x -q --tb=no"

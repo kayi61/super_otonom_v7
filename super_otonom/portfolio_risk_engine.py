@@ -25,10 +25,9 @@ Girdi `portfolio_data` (esnek dict):
 from __future__ import annotations
 
 import math
-import random
 import statistics
 import time
-from typing import Any, Dict, List, Literal, Optional, Sequence
+from typing import Any, Dict, List, Literal, Optional
 
 from super_otonom.standard_phase_output import attach_phase_alias
 
@@ -134,55 +133,34 @@ def herfindahl_index(weights: Dict[str, float]) -> float:
     return float(sum(w * w for w in weights.values()))
 
 
-def _percentile_loss(sorted_returns: Sequence[float], tail_pct: float) -> float:
-    """Tarihsel VaR’ın pozitif kayıp karşılığı (ör. tail_pct=0.05 → %95 VaR)."""
-    if not sorted_returns:
-        return 0.10
-    xs = sorted(sorted_returns)
-    k = max(0, min(len(xs) - 1, int(math.floor((tail_pct) * (len(xs) - 1)))))
-    q = xs[k]
-    return max(0.0, float(-q))
-
-
 def var_parametric(returns: List[float], confidence: float = 0.95) -> float:
-    """Normal varsayımıyla günlük VaR (pozitif kesir)."""
-    if len(returns) < 3:
-        return 0.09
-    mu = float(statistics.mean(returns))
-    sig = float(statistics.stdev(returns)) if len(returns) > 1 else 0.02
-    z = 1.645 if confidence >= 0.94 else 1.28
-    loss = -(mu - z * sig)
-    return max(0.0, min(0.95, loss))
+    from super_otonom.risk.var_models import parametric_var
+
+    return parametric_var(returns, confidence, horizon_days=1)
 
 
 def var_historical(returns: List[float], confidence: float = 0.95) -> float:
-    tail = 1.0 - confidence
-    return _percentile_loss(returns, tail)
+    from super_otonom.risk.var_models import historical_var
+
+    return historical_var(returns, confidence, horizon_days=1)
 
 
 def var_monte_carlo(returns: List[float], confidence: float = 0.95, *, draws: int = 600) -> float:
-    """Bootstrap ile yeniden örnekleme; deterministik tohum."""
-    if len(returns) < 3:
-        return 0.085
-    rnd = random.Random(_MC_SEED)
-    sim: List[float] = []
-    n = len(returns)
-    for _ in range(draws):
-        sample = [returns[rnd.randrange(n)] for _ in range(n)]
-        sim.append(sum(sample) / n)
-    return var_historical(sim, confidence)
+    from super_otonom.risk.var_models import monte_carlo_var
+
+    return monte_carlo_var(
+        returns,
+        confidence,
+        horizon_days=1,
+        draws=draws,
+        seed=_MC_SEED,
+    )
 
 
 def cvar_expected_shortfall(returns: List[float], confidence: float = 0.95) -> float:
-    """CVaR / ES: en kötü (1−α) dilimin ortalama kaybı (pozitif kesir)."""
-    if len(returns) < 3:
-        return 0.12
-    xs = sorted(returns)
-    n = len(xs)
-    tail_n = max(1, int(math.ceil((1.0 - confidence) * n)))
-    worst = xs[:tail_n]
-    mean_tail = statistics.mean(worst)
-    return max(0.0, float(-mean_tail))
+    from super_otonom.risk.cvar_models import historical_cvar
+
+    return historical_cvar(returns, confidence)
 
 
 def _avg_pairwise_correlation(d: Dict[str, Any]) -> float:
@@ -295,10 +273,13 @@ def analyze_portfolio_risk(
     hhi = herfindahl_index(weights)
 
     if len(ret) >= 5:
-        vp = var_parametric(ret)
-        vh = var_historical(ret)
-        vm = var_monte_carlo(ret)
-        cv = cvar_expected_shortfall(ret)
+        from super_otonom.risk.risk_engine import RiskEngine
+
+        m = RiskEngine().compute(ret)
+        vp = m.var_parametric_95
+        vh = m.var_historical_95
+        vm = m.var_monte_carlo_95
+        cv = m.cvar_95_1d
     else:
         vp = 0.09 + 0.06 * hhi
         vh = 0.085 + 0.07 * hhi

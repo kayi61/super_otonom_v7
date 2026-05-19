@@ -36,8 +36,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-import numpy as np
-
 log = logging.getLogger("super_otonom.risk_ontology")
 
 _SOD_RESET_SECONDS = 86400  # 24 saat
@@ -191,10 +189,13 @@ class RiskOntology:
             log.info("RiskOntology: hafta sıfırlandı | sow_nav=%.2f", self.sow_nav)
 
     def _calc_var(self, confidence: float = 0.95) -> float:
-        # FIX-4: 20 örnek istatistiksel olarak anlamsız — minimum 100
-        if len(self._pnl_history) < 100:
-            return 0.0
-        return round(float(np.percentile(self._pnl_history, (1 - confidence) * 100)), 2)
+        from super_otonom.risk.risk_engine import RiskEngine
+
+        return RiskEngine().compute_from_pnl_history(
+            self._pnl_history,
+            confidence=confidence,
+            min_obs=100,
+        )
 
     # ── Risk kontrol sorguları ─────────────────────────────────────────────────
 
