@@ -342,3 +342,134 @@ def test_record_pnl_syncs_onto_var() -> None:
         rm.record_pnl(-1.0)
         mock_var.assert_called()
         assert onto.var_1d == 55.0
+
+
+def test_initial_capital_stored() -> None:
+    rm = RiskManager(initial_capital=12_345.0)
+    assert rm.initial_capital == 12_345.0
+
+
+def test_set_ontology_links() -> None:
+    onto = RiskOntology(initial_nav=10_000.0)
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.set_ontology(onto)
+    assert rm._onto is onto
+
+
+def test_calculate_var_insufficient_history_returns_zero() -> None:
+    rm = RiskManager(initial_capital=10_000.0)
+    assert rm.calculate_var() == 0.0
+
+
+def test_check_risk_invalid_capital_deny() -> None:
+    rm = RiskManager(initial_capital=0.0)
+    assert rm.check_risk(10_000.0) is False
+    assert rm.get_last_deny() == "invalid_capital"
+
+
+def test_check_risk_dynamic_daily_via_vol_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(RiskManager, "_maybe_reset", lambda self: None)
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.daily_loss = 400.0
+    assert rm.check_risk(9_600.0, 0.0, current_vol=0.01) is False
+    assert rm.get_last_deny() == "dynamic_daily_loss"
+
+
+def test_check_risk_static_daily_zero_vol(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(RiskManager, "_maybe_reset", lambda self: None)
+    rm = RiskManager(initial_capital=10_000.0)
+    cap = RISK["max_daily_loss_pct"]
+    rm.daily_loss = cap * 10_000.0 * 1.1
+    assert rm.check_risk(10_000.0, 0.0, current_vol=0.0) is False
+    assert rm.get_last_deny() == "static_daily_loss"
+
+
+def test_check_risk_max_drawdown_without_onto(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(RiskManager, "_maybe_reset", lambda self: None)
+    rm = RiskManager(initial_capital=10_000.0)
+    rm._peak_equity = 10_000.0
+    assert rm.check_risk(7_990.0, 0.0, current_vol=0.01) is False
+    assert rm.get_last_deny() == "max_drawdown"
+
+
+def test_check_risk_exposure_emergency_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(RISK, "exposure_breach_emergency", True)
+    monkeypatch.setattr(RiskManager, "_maybe_reset", lambda self: None)
+    rm = RiskManager(initial_capital=10_000.0)
+    rm._peak_equity = 10_000.0
+    assert rm.check_risk(10_000.0, open_exposure=3_500.0, current_vol=0.01) is False
+    assert rm.emergency_stop is True
+    assert rm.get_last_deny() == "max_exposure"
+
+
+def test_check_risk_exposure_warning_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(RISK, "exposure_breach_emergency", False)
+    monkeypatch.setattr(RiskManager, "_maybe_reset", lambda self: None)
+    rm = RiskManager(initial_capital=10_000.0)
+    rm._peak_equity = 10_000.0
+    assert rm.check_risk(10_000.0, open_exposure=3_500.0, current_vol=0.01) is False
+    assert rm.emergency_stop is False
+    assert rm.get_last_deny() == "max_exposure"
+
+
+def test_check_risk_volatility_spike_deny(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(RiskManager, "_maybe_reset", lambda self: None)
+    rm = RiskManager(initial_capital=10_000.0)
+    for _ in range(15):
+        rm.record_volatility(0.008)
+    assert rm.check_risk(10_000.0, 0.0, current_vol=0.07) is False
+    assert rm.get_last_deny() == "volatility_spike"
+
+
+def test_check_risk_with_onto_uses_onto_nav_for_exposure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(RISK, "exposure_breach_emergency", False)
+    monkeypatch.setattr(RiskManager, "_maybe_reset", lambda self: None)
+    onto = RiskOntology(initial_nav=10_000.0)
+    onto.nav = 5_000.0
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.set_ontology(onto)
+    onto.dynamic_daily_limit = 1.0
+    onto.daily_loss_pct = 0.0
+    onto.weekly_loss_pct = 0.0
+    onto.intraday_dd_pct = 0.0
+    exp = 5_000.0 * RISK["max_exposure_pct"] * 1.1
+    assert rm.check_risk(10_000.0, open_exposure=exp, current_vol=0.0) is False
+    assert rm.get_last_deny() == "max_exposure"
+
+
+def test_record_pnl_onto_history_trim() -> None:
+    onto = RiskOntology(initial_nav=10_000.0)
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.set_ontology(onto)
+    for i in range(501):
+        rm.record_pnl(float(i))
+    assert len(onto._pnl_history) == 500
+
+
+def test_status_dict_peak_drawdown_and_avg_vol() -> None:
+    rm = RiskManager(initial_capital=10_000.0)
+    rm._peak_equity = 12_000.0
+    for v in [0.01, 0.02, 0.03, 0.01, 0.02, 0.03, 0.01, 0.02, 0.03, 0.01]:
+        rm.record_volatility(v)
+    d = rm.status_dict()
+    expected_dd = (12_000.0 - 10_000.0) / 12_000.0 * 100.0
+    assert d["peak_drawdown_pct"] == pytest.approx(round(expected_dd, 2))
+    assert d["avg_vol_recent"] == pytest.approx(0.02, abs=0.001)
+    assert d["emergency_stop"] is False
+    assert d["omega_qmin_tighten"] == 0
+
+
+def test_trigger_emergency_silent_skips_log(caplog: pytest.LogCaptureFixture) -> None:
+    rm = RiskManager(initial_capital=10_000.0)
+    with caplog.at_level("CRITICAL", logger="super_otonom.risk"):
+        rm.trigger_emergency("silent_code", silent=True)
+    assert not any("EMERGENCY_STOP" in r.message for r in caplog.records)
+    assert rm.emergency_reason == "silent_code"
+
+
+def test_check_dynamic_risk_ok_debug_log(caplog: pytest.LogCaptureFixture) -> None:
+    rm = RiskManager(initial_capital=10_000.0)
+    rm.daily_loss = 10.0
+    with caplog.at_level("DEBUG", logger="super_otonom.risk"):
+        assert rm.check_dynamic_risk(10_000.0, 0.02) is True
+    assert any("DynamicRisk OK" in r.message for r in caplog.records)
