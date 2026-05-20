@@ -118,6 +118,22 @@ def main() -> int:
                     "        veya: powershell -ExecutionPolicy Bypass -File scripts/write_meta_advisory_ack.ps1"
                 )
 
+    # ── VR-05: RiskConfig invariant validation ──────────────────────────────
+    try:
+        from super_otonom.risk.config import RiskConfig
+
+        _rc = RiskConfig()
+        _rc_issues = _rc.validate()
+        if _rc_issues:
+            issues.append(
+                "[HATA] RiskConfig varsayılan değerleri geçersiz — "
+                + "; ".join(_rc_issues)
+            )
+        else:
+            print("deploy_env_check: RiskConfig invariant validation OK.")
+    except Exception as exc:  # noqa: BLE001
+        issues.append(f"[HATA] RiskConfig yüklenemedi: {exc}")
+
     if not issues:
         print(
             "deploy_env_check: A9 / canlı .env — engelleyici sorun yok "
