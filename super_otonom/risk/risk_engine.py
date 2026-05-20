@@ -1,4 +1,4 @@
-"""Unified risk engine — single VaR/CVaR source (VR-01/02/03/04)."""
+"""Unified risk engine — single VaR/CVaR source (VR-01/02/03/04/06)."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import numpy as np
 
 from super_otonom.risk.config import RiskConfig
 from super_otonom.risk.cvar_models import historical_cvar, mc_cvar, parametric_cvar
+from super_otonom.risk.evt import pot_var_cvar
 from super_otonom.risk.var_models import (
     cornish_fisher_var,
     historical_var,
@@ -56,6 +57,10 @@ class RiskMetrics:
     # ── Cornish-Fisher VaR (VR-03 placeholder) ──────────────────────────────
     var_cornish_fisher_95: float = 0.0
     var_cornish_fisher_99: float = 0.0
+
+    # ── EVT Peaks Over Threshold (VR-06) ─────────────────────────────────────
+    var_evt_99: Optional[float] = None
+    cvar_evt_99: Optional[float] = None
 
     # ── Model risk ───────────────────────────────────────────────────────────
     model_dispersion_pct: float = 0.0
@@ -188,6 +193,9 @@ class RiskEngine:
             ),
         )
 
+        # ── EVT Peaks Over Threshold (VR-06) ────────────────────────────────
+        evt_var99, evt_cvar99 = pot_var_cvar(ret, conf=0.99, threshold_quantile=0.95)
+
         # ── Dispersion ───────────────────────────────────────────────────────
         disp95 = _dispersion(vars95)
         disp99 = _dispersion(vars99)
@@ -216,6 +224,8 @@ class RiskEngine:
             var_for_limits_99=vlim99,
             var_cornish_fisher_95=cf95,
             var_cornish_fisher_99=cf99,
+            var_evt_99=evt_var99,
+            cvar_evt_99=evt_cvar99,
             model_dispersion_pct=max(0.0, dispersion),
         )
 

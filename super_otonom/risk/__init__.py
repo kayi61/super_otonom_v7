@@ -2,6 +2,7 @@
 
 from super_otonom.risk.config import RiskConfig
 from super_otonom.risk.cvar_models import historical_cvar, mc_cvar, parametric_cvar
+from super_otonom.risk.evt import pot_var_cvar
 from super_otonom.risk.risk_engine import RiskEngine, RiskMetrics
 from super_otonom.risk.var_models import (
     cornish_fisher_var,
@@ -21,4 +22,5 @@ __all__ = [
     "historical_cvar",
     "parametric_cvar",
     "mc_cvar",
+    "pot_var_cvar",
 ]
