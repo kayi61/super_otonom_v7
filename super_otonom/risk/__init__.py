@@ -20,9 +20,14 @@ from super_otonom.risk.stress_scenarios import (
 )
 from super_otonom.risk.stressed_var import StressedVaR, compute_stressed_var
 from super_otonom.risk.var_backtest import (
+    ChristoffersenResult,
+    ConditionalCoverageResult,
     KupiecResult,
+    christoffersen_cc,
+    christoffersen_ind,
     kupiec_pof,
     run_backtest_suite,
+    run_cc_suite,
 )
 from super_otonom.risk.var_decomposition import (
     component_var,
@@ -72,4 +77,9 @@ __all__ = [
     "KupiecResult",
     "kupiec_pof",
     "run_backtest_suite",
+    "ChristoffersenResult",
+    "ConditionalCoverageResult",
+    "christoffersen_ind",
+    "christoffersen_cc",
+    "run_cc_suite",
 ]

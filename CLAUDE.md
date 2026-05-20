@@ -33,6 +33,7 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-11 | Stressed VaR (Basel 2.5) | ✅ PR Open | #28 |
 | VR-12 | Stress Scenario Library + Reverse Stress Test | ✅ Merged | #29 |
 | VR-13 | Kupiec POF Backtest | ✅ PR Open | — |
+| VR-14 | Christoffersen Independence + CC | ✅ PR Open | — |
 
 ## Project Structure (Risk Engine)
 ```
@@ -48,7 +49,7 @@ super_otonom/risk/
 ├── regime_var.py            # VR-10: RegimeConditionalVaR (deque-backed per-regime buffers)
 ├── stressed_var.py          # VR-11: StressedVaR (Basel 2.5, 5 stress periods, rescaling)
 ├── stress_scenarios.py      # VR-12: StressScenarioLibrary, forward_stress, reverse_stress
-├── var_backtest.py          # VR-13: kupiec_pof (Proportion of Failures backtest)
+├── var_backtest.py          # VR-13/14: kupiec_pof, christoffersen_ind, christoffersen_cc
 └── risk_engine.py           # RiskEngine.compute() → RiskMetrics (~35 fields)
 ```
 
@@ -78,6 +79,7 @@ tests/risk/
 ├── test_stressed_var_vr11.py       # 42 tests — Stressed VaR (Basel 2.5)
 ├── test_stress_scenarios_vr12.py   # 49 tests — Stress Scenario Library + Reverse Stress
 ├── test_var_backtest_vr13.py       # 38 tests — Kupiec POF backtest
+├── test_christoffersen_vr14.py    # 44 tests — Christoffersen Independence + CC
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -85,7 +87,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 477 (all passing)
+**Total risk tests:** 521 (all passing)
 
 ## Technical Details
 
@@ -179,6 +181,22 @@ tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 - Prometheus: `bot_kupiec_pvalue`, `bot_kupiec_exceedances`
 - Alert: `BotKupiecModelInvalid` — p_value < 0.05 for 1h
 - Contains `var_backtest_kupiec = True` sentinel
+
+### Christoffersen Independence + CC (VR-14)
+- **Christoffersen (1998) first-order Markov** independence test
+- Transition matrix: n00, n01, n10, n11 from exceedance series
+- LR_ind = -2 [L_restricted - L_unrestricted] ~ χ²(1)
+- `independent = (p_value_ind > 0.05)`
+- `christoffersen_ind(exceedance_series)` → `ChristoffersenResult`
+- **Conditional Coverage (CC)**: LR_cc = LR_pof + LR_ind ~ χ²(2)
+- `christoffersen_cc(pnl, var, conf)` → `ConditionalCoverageResult`
+- `model_valid = kupiec.model_valid AND independence.independent`
+- `run_cc_suite(pnl, {conf: var})` → multi-confidence CC
+- `generate_backtest_report()` updated: Independence + CC tables when CC results
+- Boundary: pi=0/1 or log(0) → default independent=True (conservative)
+- Prometheus: `bot_christoffersen_ind_pvalue`, `bot_christoffersen_cc_pvalue`
+- Alert: `BotChristoffersenCluster` — ind p_value < 0.05 for 1h
+- Lives in same `var_backtest.py` as VR-13 (shared module)
 
 ### Aggregation
 - `var_for_limits = max(historical, parametric, MC)` (conservative)
@@ -283,6 +301,10 @@ def compute(
 - **Kupiec boundary**: p_obs=0 veya p_obs=1 → LR tanımsız, p_value=1.0 döner (conservative)
 - **Kupiec min obs**: n < 50 → test atlanır, default valid döner
 - **Kupiec VaR sign convention**: predicted_var pozitif (loss fraction), realized_pnl negatif (loss)
+- **Christoffersen boundary**: pi=0/1, pi_01=0/1, pi_11=0/1 → log(0) guard, default independent=True
+- **Christoffersen min obs**: Same as Kupiec — n < 50 → default result returned
+- **CC additivity**: LR_cc = LR_pof + LR_ind, df=2 — her zaman ayrı compute edip topla
+- **Two consecutive exceedances**: 100 obs'de bile 2 ardışık exceedance pi_11=0.5 vs pi_01≈0.01 divergence yaratır — istatistiksel olarak anlamlı kümelenme
 
 ## Dependencies
 - Python 3.12, numpy, scipy>=1.11.0, arch>=7.0.0, pytest, ruff

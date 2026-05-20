@@ -307,7 +307,7 @@ class TestReportGeneration:
         r = kupiec_pof(pnl, var_s, conf=0.99)
         out = generate_backtest_report(r, report_dir=tmp_path)
         content = out.read_text(encoding="utf-8")
-        assert "# Kupiec POF Backtest Report" in content
+        assert "# VaR Backtest Report" in content
         assert "Confidence" in content
         assert "p-value" in content
 

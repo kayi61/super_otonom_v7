@@ -1,27 +1,26 @@
-"""VaR backtesting — Kupiec POF (Proportion of Failures) test (VR-13).
+"""VaR backtesting — Kupiec POF + Christoffersen Independence + CC (VR-13/14).
 
+**VR-13 — Kupiec POF (Proportion of Failures)**
 The Kupiec (1995) likelihood-ratio test checks whether the observed
-number of VaR exceedances (days where loss exceeded predicted VaR) is
-consistent with the model's stated confidence level.
+number of VaR exceedances is consistent with the model's stated
+confidence level.  LR ~ χ²(1).
 
-Under H₀ the exceedance count follows Binomial(n, 1-conf).  The LR
-statistic is χ²(1)-distributed:
+**VR-14 — Christoffersen Independence**
+The Christoffersen (1998) independence test checks whether exceedances
+are serially independent (no clustering).  Uses a first-order Markov
+transition-matrix likelihood ratio.  LR_ind ~ χ²(1).
 
-    LR = -2 [ (n-x)·ln(1-p_exp) + x·ln(p_exp)
-              - (n-x)·ln(1-p_obs)   - x·ln(p_obs) ]
-
-where
-    n = sample size,  x = exceedances,
-    p_exp = 1 - conf,  p_obs = x / n.
-
-``model_valid = (p_value > 0.05)`` — fail to reject H₀ at 5%.
+**VR-14 — Christoffersen Conditional Coverage (CC)**
+Combined test:  LR_cc = LR_pof + LR_ind ~ χ²(2).
+Model valid ⟺ Kupiec OK **and** independence OK.
 
 Prometheus:
-    ``bot_kupiec_pvalue``
-    ``bot_kupiec_exceedances``
+    ``bot_kupiec_pvalue``, ``bot_kupiec_exceedances``
+    ``bot_christoffersen_ind_pvalue``, ``bot_christoffersen_cc_pvalue``
 
-Alert:
-    ``BotKupiecModelInvalid`` — p_value < 0.05 for 1h (nightly job).
+Alerts:
+    ``BotKupiecModelInvalid`` — p_value < 0.05 for 1h.
+    ``BotChristoffersenCluster`` — independence p_value < 0.05 for 1h.
 """
 
 from __future__ import annotations
@@ -179,28 +178,221 @@ def kupiec_pof(
     )
 
 
+# ── Christoffersen Independence (VR-14) ──────────────────────────────────────
+
+@dataclass(frozen=True)
+class ChristoffersenResult:
+    """Christoffersen (1998) independence test output.
+
+    Attributes
+    ----------
+    n00, n01, n10, n11 : int
+        Markov transition counts (from state i to state j).
+    pi_01 : float
+        P(exceed | no exceed yesterday).
+    pi_11 : float
+        P(exceed | exceed yesterday).
+    pi : float
+        Unconditional exceedance probability.
+    lr_ind : float
+        Independence LR statistic ~ chi2(1).
+    p_value_ind : float
+        p-value for independence test.
+    independent : bool
+        True when we fail to reject H0 of independence at alpha=0.05.
+    """
+
+    n00: int = 0
+    n01: int = 0
+    n10: int = 0
+    n11: int = 0
+    pi_01: float = 0.0
+    pi_11: float = 0.0
+    pi: float = 0.0
+    lr_ind: float = 0.0
+    p_value_ind: float = 1.0
+    independent: bool = True
+
+
+@dataclass(frozen=True)
+class ConditionalCoverageResult:
+    """Christoffersen conditional coverage (CC) = Kupiec POF + Independence.
+
+    Attributes
+    ----------
+    kupiec : KupiecResult
+        Proportion-of-failures test.
+    independence : ChristoffersenResult
+        Serial independence test.
+    lr_cc : float
+        Combined LR = LR_pof + LR_ind ~ chi2(2).
+    p_value_cc : float
+        p-value for the combined test.
+    model_valid : bool
+        True iff both kupiec AND independence pass.
+    """
+
+    kupiec: KupiecResult = KupiecResult()  # noqa: RUF009
+    independence: ChristoffersenResult = ChristoffersenResult()  # noqa: RUF009
+    lr_cc: float = 0.0
+    p_value_cc: float = 1.0
+    model_valid: bool = True
+
+
+def _build_exceedance_series(
+    realized_pnl: Sequence[float],
+    predicted_var: Sequence[float] | float,
+) -> List[int]:
+    """Convert PnL + VaR into a binary exceedance indicator series."""
+    n = len(realized_pnl)
+    if isinstance(predicted_var, (int, float)):
+        var_series = [float(predicted_var)] * n
+    else:
+        var_series = [float(v) for v in predicted_var]
+    return [1 if p < -v else 0 for p, v in zip(realized_pnl, var_series)]
+
+
+def christoffersen_ind(
+    exceedance_series: Sequence[int],
+) -> ChristoffersenResult:
+    """Christoffersen (1998) independence test for VaR exceedance clustering.
+
+    Tests whether exceedances follow a first-order Markov chain with
+    equal transition probabilities (i.e., no clustering).
+
+    Parameters
+    ----------
+    exceedance_series:
+        Binary series: 1 = VaR exceeded, 0 = not exceeded.
+
+    Returns
+    -------
+    ChristoffersenResult
+    """
+    exc = list(exceedance_series)
+    n = len(exc)
+
+    if n < KUPIEC_MIN_OBS:
+        return ChristoffersenResult()
+
+    # Transition counts
+    n00 = n01 = n10 = n11 = 0
+    for i in range(1, n):
+        prev, cur = exc[i - 1], exc[i]
+        if prev == 0 and cur == 0:
+            n00 += 1
+        elif prev == 0 and cur == 1:
+            n01 += 1
+        elif prev == 1 and cur == 0:
+            n10 += 1
+        else:
+            n11 += 1
+
+    # Conditional probabilities
+    pi_01 = n01 / (n00 + n01) if (n00 + n01) > 0 else 0.0
+    pi_11 = n11 / (n10 + n11) if (n10 + n11) > 0 else 0.0
+
+    # Unconditional exceedance probability
+    total_exc = n01 + n11
+    total_trans = n00 + n01 + n10 + n11
+    pi = total_exc / total_trans if total_trans > 0 else 0.0
+
+    # Boundary: if pi is 0 or 1, or either row has zero transitions,
+    # LR is undefined — return default (independent)
+    if pi <= 0 or pi >= 1 or (n00 + n01) == 0 or (n10 + n11) == 0:
+        return ChristoffersenResult(
+            n00=n00, n01=n01, n10=n10, n11=n11,
+            pi_01=pi_01, pi_11=pi_11, pi=pi,
+        )
+
+    # Guard against log(0): if pi_01 or pi_11 is exactly 0 or 1
+    if pi_01 <= 0 or pi_01 >= 1 or pi_11 <= 0 or pi_11 >= 1:
+        return ChristoffersenResult(
+            n00=n00, n01=n01, n10=n10, n11=n11,
+            pi_01=pi_01, pi_11=pi_11, pi=pi,
+        )
+
+    # LR independence statistic
+    # L_restricted: unconditional probability for both rows
+    # L_unrestricted: row-specific transition probabilities
+    log_restricted = (
+        (n00 + n10) * np.log(1.0 - pi) + (n01 + n11) * np.log(pi)
+    )
+    log_unrestricted = (
+        n00 * np.log(1.0 - pi_01) + n01 * np.log(pi_01)
+        + n10 * np.log(1.0 - pi_11) + n11 * np.log(pi_11)
+    )
+    lr_ind = max(0.0, float(-2.0 * (log_restricted - log_unrestricted)))
+
+    p_value_ind = float(1.0 - chi2.cdf(lr_ind, df=1))
+
+    return ChristoffersenResult(
+        n00=n00, n01=n01, n10=n10, n11=n11,
+        pi_01=pi_01, pi_11=pi_11, pi=pi,
+        lr_ind=lr_ind,
+        p_value_ind=p_value_ind,
+        independent=p_value_ind > 0.05,
+    )
+
+
+def christoffersen_cc(
+    realized_pnl: Sequence[float],
+    predicted_var: Sequence[float] | float,
+    conf: float = 0.99,
+) -> ConditionalCoverageResult:
+    """Christoffersen conditional coverage = Kupiec POF + Independence.
+
+    LR_cc = LR_pof + LR_ind ~ chi2(2).
+
+    Parameters
+    ----------
+    realized_pnl:
+        Daily realised PnL (losses negative).
+    predicted_var:
+        Predicted VaR (positive loss fraction) or scalar.
+    conf:
+        VaR confidence level.
+
+    Returns
+    -------
+    ConditionalCoverageResult
+    """
+    kup = kupiec_pof(realized_pnl, predicted_var, conf=conf)
+    exc_series = _build_exceedance_series(realized_pnl, predicted_var)
+    ind = christoffersen_ind(exc_series)
+
+    lr_cc = kup.lr_statistic + ind.lr_ind
+    p_value_cc = float(1.0 - chi2.cdf(lr_cc, df=2))
+
+    return ConditionalCoverageResult(
+        kupiec=kup,
+        independence=ind,
+        lr_cc=lr_cc,
+        p_value_cc=p_value_cc,
+        model_valid=kup.model_valid and ind.independent,
+    )
+
+
 # ── Multi-confidence convenience ─────────────────────────────────────────────
 
 def run_backtest_suite(
     realized_pnl: Sequence[float],
     predicted_vars: dict[float, Sequence[float] | float],
 ) -> dict[float, KupiecResult]:
-    """Run Kupiec POF at multiple confidence levels.
-
-    Parameters
-    ----------
-    realized_pnl:
-        Daily realised PnL series.
-    predicted_vars:
-        ``{confidence: predicted_var_series_or_scalar}``.
-
-    Returns
-    -------
-    dict[float, KupiecResult]
-        Keyed by confidence level.
-    """
+    """Run Kupiec POF at multiple confidence levels."""
     return {
         conf: kupiec_pof(realized_pnl, var_pred, conf=conf)
+        for conf, var_pred in predicted_vars.items()
+    }
+
+
+def run_cc_suite(
+    realized_pnl: Sequence[float],
+    predicted_vars: dict[float, Sequence[float] | float],
+) -> dict[float, ConditionalCoverageResult]:
+    """Run full Christoffersen CC test at multiple confidence levels."""
+    return {
+        conf: christoffersen_cc(realized_pnl, var_pred, conf=conf)
         for conf, var_pred in predicted_vars.items()
     }
 
@@ -208,11 +400,17 @@ def run_backtest_suite(
 # ── Report generation ────────────────────────────────────────────────────────
 
 def generate_backtest_report(
-    results: dict[float, KupiecResult] | KupiecResult,
+    results: (
+        dict[float, KupiecResult]
+        | dict[float, ConditionalCoverageResult]
+        | KupiecResult
+        | ConditionalCoverageResult
+    ),
     report_dir: Optional[Path] = None,
 ) -> Path:
     """Write a markdown backtest report to disk.
 
+    Accepts Kupiec-only results or full CC results.
     Output: ``docs/backtest_reports/kupiec_YYYY-MM-DD.md``
     """
     out_dir = report_dir or _REPORT_DIR
@@ -220,11 +418,18 @@ def generate_backtest_report(
     today = date.today().isoformat()
     out_path = out_dir / f"kupiec_{today}.md"
 
+    # Normalise to dict
     if isinstance(results, KupiecResult):
         results = {results.confidence: results}
+    elif isinstance(results, ConditionalCoverageResult):
+        results = {results.kupiec.confidence: results}
+
+    has_cc = any(isinstance(v, ConditionalCoverageResult) for v in results.values())
 
     lines: List[str] = [
-        f"# Kupiec POF Backtest Report — {today}",
+        f"# VaR Backtest Report — {today}",
+        "",
+        "## Kupiec POF (Proportion of Failures)",
         "",
         "| Confidence | Exceedances | Expected | LR Stat | p-value | Valid |",
         "|------------|-------------|----------|---------|---------|-------|",
@@ -233,13 +438,56 @@ def generate_backtest_report(
     all_valid = True
     for conf in sorted(results.keys()):
         r = results[conf]
-        valid_str = "PASS" if r.model_valid else "**FAIL**"
-        if not r.model_valid:
+        kup = r.kupiec if isinstance(r, ConditionalCoverageResult) else r
+        valid_str = "PASS" if kup.model_valid else "**FAIL**"
+        if not kup.model_valid:
             all_valid = False
         lines.append(
-            f"| {conf:.1%} | {r.exceedances} | {r.expected:.1f} "
-            f"| {r.lr_statistic:.4f} | {r.p_value:.4f} | {valid_str} |"
+            f"| {kup.confidence:.1%} | {kup.exceedances} | {kup.expected:.1f} "
+            f"| {kup.lr_statistic:.4f} | {kup.p_value:.4f} | {valid_str} |"
         )
+
+    if has_cc:
+        lines.extend([
+            "",
+            "## Christoffersen Independence",
+            "",
+            "| Confidence | n01 | n11 | pi_01 | pi_11 | LR_ind | p-value | Independent |",
+            "|------------|-----|-----|-------|-------|--------|---------|-------------|",
+        ])
+        for conf in sorted(results.keys()):
+            r = results[conf]
+            if not isinstance(r, ConditionalCoverageResult):
+                continue
+            ind = r.independence
+            ind_str = "PASS" if ind.independent else "**FAIL**"
+            if not ind.independent:
+                all_valid = False
+            kup_conf = r.kupiec.confidence
+            lines.append(
+                f"| {kup_conf:.1%} | {ind.n01} | {ind.n11} "
+                f"| {ind.pi_01:.4f} | {ind.pi_11:.4f} "
+                f"| {ind.lr_ind:.4f} | {ind.p_value_ind:.4f} | {ind_str} |"
+            )
+
+        lines.extend([
+            "",
+            "## Conditional Coverage (Combined)",
+            "",
+            "| Confidence | LR_cc | p-value_cc | Overall |",
+            "|------------|-------|------------|---------|",
+        ])
+        for conf in sorted(results.keys()):
+            r = results[conf]
+            if not isinstance(r, ConditionalCoverageResult):
+                continue
+            ov_str = "PASS" if r.model_valid else "**FAIL**"
+            if not r.model_valid:
+                all_valid = False
+            lines.append(
+                f"| {r.kupiec.confidence:.1%} "
+                f"| {r.lr_cc:.4f} | {r.p_value_cc:.4f} | {ov_str} |"
+            )
 
     lines.extend([
         "",
@@ -248,7 +496,7 @@ def generate_backtest_report(
     ])
 
     out_path.write_text("\n".join(lines), encoding="utf-8")
-    log.info("Kupiec report written: %s", out_path)
+    log.info("Backtest report written: %s", out_path)
     return out_path
 
 

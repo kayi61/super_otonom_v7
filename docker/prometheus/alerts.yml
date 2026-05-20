@@ -89,6 +89,15 @@ groups:
           summary: "Kupiec POF backtest basarisiz — VaR modeli gozden gecirilmeli"
           description: "kupiec_pvalue={{ $value | printf \"%.4f\" }}"
 
+      - alert: BotChristoffersenCluster
+        expr: bot_christoffersen_ind_pvalue < 0.05 and bot_christoffersen_ind_pvalue > 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Christoffersen independence basarisiz — VaR exceedance kumelenmesi tespit edildi"
+          description: "christoffersen_ind_pvalue={{ $value | printf \"%.4f\" }}"
+
       - alert: BotStressLossHigh
         expr: bot_stress_worst_scenario_pnl_pct < -15
         for: 5m
