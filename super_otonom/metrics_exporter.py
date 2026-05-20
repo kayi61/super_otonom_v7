@@ -162,6 +162,30 @@ class MetricsExporter:
                 f"{namespace}_reverse_stress_min_btc_shock_pct"
             )
 
+        # ── VR-13: Kupiec POF backtest ───────────────────────────────────────
+        try:
+            self._gauges["kupiec_pvalue"] = Gauge(
+                f"{namespace}_kupiec_pvalue",
+                "Kupiec POF test p-degeri (>0.05 = model gecerli)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["kupiec_pvalue"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_kupiec_pvalue"
+            )
+        try:
+            self._gauges["kupiec_exceedances"] = Gauge(
+                f"{namespace}_kupiec_exceedances",
+                "VaR exceedance sayisi (Kupiec backtest)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["kupiec_exceedances"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_kupiec_exceedances"
+            )
+
         # ── VR-08: LVaR (sembol bazında) ─────────────────────────────────────
         try:
             self._gauges["var_liquidity_adjusted"] = Gauge(
@@ -406,6 +430,15 @@ class MetricsExporter:
             self._gauges["clock_skew_abs_ms"].set(abs(skew_f))
         except Exception as exc:
             log.debug("MetricsExporter.record_clock_skew hata: %s", exc)
+
+    def record_kupiec(self, p_value: float, exceedances: int) -> None:
+        if not self._enabled:
+            return
+        try:
+            self._gauges["kupiec_pvalue"].set(p_value)
+            self._gauges["kupiec_exceedances"].set(float(exceedances))
+        except Exception as exc:
+            log.debug("MetricsExporter.record_kupiec hata: %s", exc)
 
     def record_stress_grid(
         self, worst_pnl_pct: float, reverse_btc_shock_pct: float,

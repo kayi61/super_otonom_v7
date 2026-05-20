@@ -80,6 +80,15 @@ groups:
           summary: "Borsa-yerel saat farki kritik"
           description: "abs_skew_ms={{ $value | printf \"%.0f\" }} — mum/imza riski"
 
+      - alert: BotKupiecModelInvalid
+        expr: bot_kupiec_pvalue < 0.05 and bot_kupiec_pvalue > 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kupiec POF backtest basarisiz — VaR modeli gozden gecirilmeli"
+          description: "kupiec_pvalue={{ $value | printf \"%.4f\" }}"
+
       - alert: BotStressLossHigh
         expr: bot_stress_worst_scenario_pnl_pct < -15
         for: 5m

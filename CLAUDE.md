@@ -31,8 +31,8 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-09 | Component/Marginal/Incremental VaR decomposition | ✅ Merged | #26 |
 | VR-10 | Regime-Conditional VaR | ✅ Merged | #27 |
 | VR-11 | Stressed VaR (Basel 2.5) | ✅ PR Open | #28 |
-| VR-12 | Stress Scenario Library + Reverse Stress Test | ✅ PR Open | — |
-| VR-13 | VaR horizon scaling (√t rule + Basel 10d) | ⬜ Beklemede | — |
+| VR-12 | Stress Scenario Library + Reverse Stress Test | ✅ Merged | #29 |
+| VR-13 | Kupiec POF Backtest | ✅ PR Open | — |
 
 ## Project Structure (Risk Engine)
 ```
@@ -48,6 +48,7 @@ super_otonom/risk/
 ├── regime_var.py            # VR-10: RegimeConditionalVaR (deque-backed per-regime buffers)
 ├── stressed_var.py          # VR-11: StressedVaR (Basel 2.5, 5 stress periods, rescaling)
 ├── stress_scenarios.py      # VR-12: StressScenarioLibrary, forward_stress, reverse_stress
+├── var_backtest.py          # VR-13: kupiec_pof (Proportion of Failures backtest)
 └── risk_engine.py           # RiskEngine.compute() → RiskMetrics (~35 fields)
 ```
 
@@ -76,6 +77,7 @@ tests/risk/
 ├── test_regime_var_vr10.py         # 40 tests — Regime-conditional VaR
 ├── test_stressed_var_vr11.py       # 42 tests — Stressed VaR (Basel 2.5)
 ├── test_stress_scenarios_vr12.py   # 49 tests — Stress Scenario Library + Reverse Stress
+├── test_var_backtest_vr13.py       # 38 tests — Kupiec POF backtest
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -83,7 +85,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 445 (all passing)
+**Total risk tests:** 477 (all passing)
 
 ## Technical Details
 
@@ -161,6 +163,22 @@ tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 - Prometheus: `bot_stress_worst_scenario_pnl_pct`, `bot_reverse_stress_min_btc_shock_pct`
 - Alert: `BotStressLossHigh` — worst scenario > 15% NAV loss
 - Manifest: `institutional_stress_grid_present=true`
+
+### Kupiec POF Backtest (VR-13)
+- **Kupiec (1995) Proportion of Failures** likelihood-ratio test
+- LR = -2 [(n-x)·ln(1-p_exp) + x·ln(p_exp) - (n-x)·ln(1-p_obs) - x·ln(p_obs)]
+- LR ~ χ²(1), `model_valid = (p_value > 0.05)`
+- `kupiec_pof(realized_pnl, predicted_var, conf)` → `KupiecResult`
+- `run_backtest_suite(pnl, {conf: var_series})` → multi-confidence
+- `generate_backtest_report()` → `docs/backtest_reports/kupiec_YYYY-MM-DD.md`
+- `KUPIEC_MIN_OBS = 50` — skip if insufficient data
+- Boundary: zero or all exceedances → p_value=1.0, model_valid=True
+- Nightly CI: `.github/workflows/nightly-kupiec.yml` (02:00 UTC)
+- CI failure → auto-opens GitHub issue with `risk` label
+- CLI: `python -m super_otonom.risk.var_backtest --json`
+- Prometheus: `bot_kupiec_pvalue`, `bot_kupiec_exceedances`
+- Alert: `BotKupiecModelInvalid` — p_value < 0.05 for 1h
+- Contains `var_backtest_kupiec = True` sentinel
 
 ### Aggregation
 - `var_for_limits = max(historical, parametric, MC)` (conservative)
@@ -262,6 +280,9 @@ def compute(
 - **Stress grid JSON format**: `[{"name":"...", "shocks":{...}, "horizon_h":N}]` — `load_scenarios()` ile yüklenir
 - **Shock resolution**: exact match > uppercase > "alts" (non-major) > "all" — `_MAJOR_ASSETS` = BTC, ETH, BNB, USDT, USDC
 - **Reverse stress linear scaling**: k_needed = target_loss / |base_pnl| — lineer shock modeli, doğrudan çarpan
+- **Kupiec boundary**: p_obs=0 veya p_obs=1 → LR tanımsız, p_value=1.0 döner (conservative)
+- **Kupiec min obs**: n < 50 → test atlanır, default valid döner
+- **Kupiec VaR sign convention**: predicted_var pozitif (loss fraction), realized_pnl negatif (loss)
 
 ## Dependencies
 - Python 3.12, numpy, scipy>=1.11.0, arch>=7.0.0, pytest, ruff

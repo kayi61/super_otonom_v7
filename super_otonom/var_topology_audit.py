@@ -49,6 +49,7 @@ _ALLOWLIST_FILES = (
     "test_regime_var_vr10",
     "test_stressed_var_vr11",
     "test_stress_scenarios_vr12",
+    "test_var_backtest_vr13",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -78,6 +79,8 @@ _ALLOW_SUBSTR = (
     "institutional_stress_grid",
     "stress_scenario",
     "stress_grid",
+    "var_backtest_kupiec",
+    "kupiec",
 )
 
 

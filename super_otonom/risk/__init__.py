@@ -19,6 +19,11 @@ from super_otonom.risk.stress_scenarios import (
     run_stress_grid,
 )
 from super_otonom.risk.stressed_var import StressedVaR, compute_stressed_var
+from super_otonom.risk.var_backtest import (
+    KupiecResult,
+    kupiec_pof,
+    run_backtest_suite,
+)
 from super_otonom.risk.var_decomposition import (
     component_var,
     compute_var_decomposition,
@@ -64,4 +69,7 @@ __all__ = [
     "run_stress_grid",
     "load_scenarios",
     "generate_stress_report",
+    "KupiecResult",
+    "kupiec_pof",
+    "run_backtest_suite",
 ]
