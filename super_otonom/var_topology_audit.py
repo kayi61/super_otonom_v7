@@ -40,10 +40,14 @@ _ALLOWLIST_FILES = (
     "portfolio_risk_engine.py",
     "risk_ontology.py",
     "risk_manager.py",
+    "risk/",
+    "metrics_exporter.py",
     "test_var_topology",
     "test_portfolio_risk_engine",
     "test_audit_modules_coverage",
+    "test_lvar_vr08",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
+    "RISK_METHODOLOGY.md",
 )
 
 _ALLOW_SUBSTR = (

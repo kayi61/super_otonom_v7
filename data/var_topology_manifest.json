@@ -16,7 +16,7 @@
   "live_tick_var_source": "risk_ontology_percentile_pnl",
   "live_tick_uses_portfolio_risk_engine": false,
   "regime_conditional_var_present": false,
-  "liquidity_adjusted_var_present": false,
+  "liquidity_adjusted_var_present": true,
   "institutional_stress_grid_present": false,
   "stress_heuristic_in_portfolio_risk": true,
   "institutional_gap_hits_expected_empty": true,
