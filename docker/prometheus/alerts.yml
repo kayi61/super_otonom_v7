@@ -98,6 +98,24 @@ groups:
           summary: "Christoffersen independence basarisiz — VaR exceedance kumelenmesi tespit edildi"
           description: "christoffersen_ind_pvalue={{ $value | printf \"%.4f\" }}"
 
+      - alert: BotVaRTrafficLightYellow
+        expr: bot_var_traffic_light == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Basel traffic light YELLOW — VaR modeline sermaye ek yuklemesi uygulanmali"
+          description: "exceedances={{ $values.bot_var_traffic_light_exceedances | printf \"%.0f\" }}, capital_addon={{ $values.bot_var_traffic_light_capital_addon | printf \"%.2f\" }}"
+
+      - alert: BotVaRTrafficLightRed
+        expr: bot_var_traffic_light == 2
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Basel traffic light RED — VaR modeli reddedildi, acil gozden gecirme gerekli"
+          description: "exceedances={{ $values.bot_var_traffic_light_exceedances | printf \"%.0f\" }}"
+
       - alert: BotStressLossHigh
         expr: bot_stress_worst_scenario_pnl_pct < -15
         for: 5m

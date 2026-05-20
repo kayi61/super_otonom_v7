@@ -51,6 +51,7 @@ _ALLOWLIST_FILES = (
     "test_stress_scenarios_vr12",
     "test_var_backtest_vr13",
     "test_christoffersen_vr14",
+    "test_basel_traffic_light_vr15",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -86,6 +87,8 @@ _ALLOW_SUBSTR = (
     "christoffersen_cc",
     "christoffersen",
     "conditional_coverage",
+    "basel_traffic_light",
+    "traffic_light",
 )
 
 
