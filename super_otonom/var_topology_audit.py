@@ -52,6 +52,7 @@ _ALLOWLIST_FILES = (
     "test_var_backtest_vr13",
     "test_christoffersen_vr14",
     "test_basel_traffic_light_vr15",
+    "test_pnl_attribution_vr16",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -89,6 +90,9 @@ _ALLOW_SUBSTR = (
     "conditional_coverage",
     "basel_traffic_light",
     "traffic_light",
+    "pnl_attribution",
+    "pnl_drift",
+    "attribute_pnl",
 )
 
 

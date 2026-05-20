@@ -5,6 +5,17 @@ from super_otonom.risk.cvar_models import historical_cvar, mc_cvar, parametric_c
 from super_otonom.risk.evt import pot_var_cvar
 from super_otonom.risk.fhs import fhs_var_cvar
 from super_otonom.risk.lvar import bdss_lvar, compute_lvar, time_to_liquidate_lvar
+from super_otonom.risk.pnl_attribution import (
+    PNL_DRIFT_THRESHOLD,
+    PNL_DRIFT_THRESHOLD_BPS,
+    PnLAttribution,
+    PnLAttributionSeries,
+    SimpleTrade,
+    attribute_pnl,
+    attribute_pnl_series,
+    attribution_to_dict,
+    generate_attribution_report,
+)
 from super_otonom.risk.regime_var import RegimeConditionalVaR
 from super_otonom.risk.risk_engine import RiskEngine, RiskMetrics
 from super_otonom.risk.stress_scenarios import (
@@ -90,4 +101,13 @@ __all__ = [
     "BASEL_WINDOW",
     "basel_traffic_light",
     "basel_traffic_light_from_pnl",
+    "PnLAttribution",
+    "PnLAttributionSeries",
+    "SimpleTrade",
+    "PNL_DRIFT_THRESHOLD",
+    "PNL_DRIFT_THRESHOLD_BPS",
+    "attribute_pnl",
+    "attribute_pnl_series",
+    "attribution_to_dict",
+    "generate_attribution_report",
 ]

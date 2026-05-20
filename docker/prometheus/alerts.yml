@@ -125,6 +125,15 @@ groups:
           summary: "Stres senaryosu kaybi > %15 NAV"
           description: "worst_pnl_pct={{ $value | printf \"%.2f\" }}%"
 
+      - alert: BotPnLDriftHigh
+        expr: bot_pnl_attribution_health == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PnL attribution drift tespit edildi — aciklanamayan PnL > 10 bps"
+          description: "unexplained_pct={{ $values.bot_pnl_unexplained_pct | printf \"%.6f\" }}"
+
       - alert: BotHostNtpNotSynchronized
         expr: bot_host_ntp_synchronized == 0
         for: 10m
