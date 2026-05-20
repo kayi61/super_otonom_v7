@@ -186,6 +186,30 @@ class MetricsExporter:
                 f"{namespace}_kupiec_exceedances"
             )
 
+        # ── VR-14: Christoffersen Independence / CC ─────────────────────────
+        try:
+            self._gauges["christoffersen_ind_pvalue"] = Gauge(
+                f"{namespace}_christoffersen_ind_pvalue",
+                "Christoffersen independence test p-degeri (>0.05 = kumelenme yok)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["christoffersen_ind_pvalue"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_christoffersen_ind_pvalue"
+            )
+        try:
+            self._gauges["christoffersen_cc_pvalue"] = Gauge(
+                f"{namespace}_christoffersen_cc_pvalue",
+                "Christoffersen CC test p-degeri (>0.05 = model gecerli)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["christoffersen_cc_pvalue"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_christoffersen_cc_pvalue"
+            )
+
         # ── VR-08: LVaR (sembol bazında) ─────────────────────────────────────
         try:
             self._gauges["var_liquidity_adjusted"] = Gauge(
@@ -439,6 +463,15 @@ class MetricsExporter:
             self._gauges["kupiec_exceedances"].set(float(exceedances))
         except Exception as exc:
             log.debug("MetricsExporter.record_kupiec hata: %s", exc)
+
+    def record_christoffersen(self, ind_pvalue: float, cc_pvalue: float) -> None:
+        if not self._enabled:
+            return
+        try:
+            self._gauges["christoffersen_ind_pvalue"].set(ind_pvalue)
+            self._gauges["christoffersen_cc_pvalue"].set(cc_pvalue)
+        except Exception as exc:
+            log.debug("MetricsExporter.record_christoffersen hata: %s", exc)
 
     def record_stress_grid(
         self, worst_pnl_pct: float, reverse_btc_shock_pct: float,

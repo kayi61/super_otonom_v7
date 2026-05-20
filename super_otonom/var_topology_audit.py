@@ -50,6 +50,7 @@ _ALLOWLIST_FILES = (
     "test_stressed_var_vr11",
     "test_stress_scenarios_vr12",
     "test_var_backtest_vr13",
+    "test_christoffersen_vr14",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -81,6 +82,10 @@ _ALLOW_SUBSTR = (
     "stress_grid",
     "var_backtest_kupiec",
     "kupiec",
+    "christoffersen_ind",
+    "christoffersen_cc",
+    "christoffersen",
+    "conditional_coverage",
 )
 
 
