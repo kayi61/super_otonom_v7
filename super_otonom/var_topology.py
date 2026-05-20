@@ -194,8 +194,11 @@ def inspect_var_topology(
             _risk_pkg_has(root, "liquidity_adjusted_var")
             or any("liquidity_adjusted" in str(v) for v in gap_hits.values())
         ),
-        institutional_stress_grid_present=any(
-            "stress_grid" in str(v) or "stress_scenario_grid" in str(v) for v in gap_hits.values()
+        institutional_stress_grid_present=(
+            _risk_pkg_has(root, "institutional_stress_grid")
+            or any(
+                "stress_grid" in str(v) or "stress_scenario_grid" in str(v) for v in gap_hits.values()
+            )
         ),
         stress_heuristic_in_portfolio_risk=portfolio_risk_has_stress_heuristic(root),
         stressed_var_engine_present=_risk_pkg_has(root, "stressed_var_engine"),
@@ -225,8 +228,7 @@ def build_manifest_payload(topo: VarTopology) -> Dict[str, Any]:
             "canli tick risk_ontology uzerinden tek tarihsel yuzdelik VaR kullanir. "
             "Rejim kosullu VaR (VR-10) risk paketinde uygulanmistir; "
             "Stressed VaR (VR-11) Basel 2.5 stres-donem olceklemesi risk paketinde uygulanmistir; "
-            "kurumsal stres gridi yoktur — "
-            "stres yalnizca sezgisel flash/bear heuristik veya ozel stress_scenarios dict. "
+            "Stres Senaryo Kutuphanesi (VR-12) 5+ senaryo forward/reverse stress test risk paketinde uygulanmistir; "
             "Kurumsal risk motoru iddiasi bu topoloji ile uyumlu degildir; "
             "'yetersiz' ifadesi 'hic yok' ifadesinden daha dogrudur."
         ),
@@ -323,8 +325,9 @@ def var_disclosure(*, topo: Optional[VarTopology] = None) -> Dict[str, Any]:
     limitations: List[str] = [
         "phase24_var_not_live_tick_default",
         "live_var_historical_percentile_only",
-        "no_institutional_stress_grid",
     ]
+    if not t.institutional_stress_grid_present:
+        limitations.append("no_institutional_stress_grid")
     if not t.regime_conditional_var_present:
         limitations.append("no_regime_conditional_var")
     if not t.liquidity_adjusted_var_present:

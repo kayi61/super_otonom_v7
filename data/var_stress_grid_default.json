@@ -1,0 +1,27 @@
+[
+  {
+    "name": "BTC_crash_30pct",
+    "shocks": {"BTC": -0.30, "ETH": -0.40, "alts": -0.50},
+    "horizon_h": 1
+  },
+  {
+    "name": "USDT_depeg_5pct",
+    "shocks": {"USDT_USD": -0.05},
+    "horizon_h": 24
+  },
+  {
+    "name": "binance_outage_24h",
+    "shocks": {"liquidity": 0.1, "spreads": 5.0},
+    "horizon_h": 24
+  },
+  {
+    "name": "funding_spike",
+    "shocks": {"perp_funding_bps": 300},
+    "horizon_h": 8
+  },
+  {
+    "name": "flash_crash_10pct",
+    "shocks": {"BTC": -0.10, "all": -0.15},
+    "horizon_min": 5
+  }
+]

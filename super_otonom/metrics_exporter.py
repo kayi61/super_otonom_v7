@@ -138,6 +138,30 @@ class MetricsExporter:
                 f"{namespace}_clock_skew_exchange_ms"
             )
 
+        # ── VR-12: Stress scenario grid ──────────────────────────────────────
+        try:
+            self._gauges["stress_worst_scenario_pnl_pct"] = Gauge(
+                f"{namespace}_stress_worst_scenario_pnl_pct",
+                "En kotu stres senaryosu PnL yüzdesi (negatif = kayip)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["stress_worst_scenario_pnl_pct"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_stress_worst_scenario_pnl_pct"
+            )
+        try:
+            self._gauges["reverse_stress_min_btc_shock_pct"] = Gauge(
+                f"{namespace}_reverse_stress_min_btc_shock_pct",
+                "Reverse stress: minimum BTC sok yüzdesi (hedef kayba ulasmak icin)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["reverse_stress_min_btc_shock_pct"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_reverse_stress_min_btc_shock_pct"
+            )
+
         # ── VR-08: LVaR (sembol bazında) ─────────────────────────────────────
         try:
             self._gauges["var_liquidity_adjusted"] = Gauge(
@@ -382,6 +406,17 @@ class MetricsExporter:
             self._gauges["clock_skew_abs_ms"].set(abs(skew_f))
         except Exception as exc:
             log.debug("MetricsExporter.record_clock_skew hata: %s", exc)
+
+    def record_stress_grid(
+        self, worst_pnl_pct: float, reverse_btc_shock_pct: float,
+    ) -> None:
+        if not self._enabled:
+            return
+        try:
+            self._gauges["stress_worst_scenario_pnl_pct"].set(worst_pnl_pct)
+            self._gauges["reverse_stress_min_btc_shock_pct"].set(reverse_btc_shock_pct)
+        except Exception as exc:
+            log.debug("MetricsExporter.record_stress_grid hata: %s", exc)
 
     def record_lvar(self, symbol: str, lvar: float) -> None:
         if not self._enabled:
