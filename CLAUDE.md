@@ -35,6 +35,7 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-13 | Kupiec POF Backtest | ✅ PR Open | — |
 | VR-14 | Christoffersen Independence + CC | ✅ Merged | #31 |
 | VR-15 | Basel Traffic Light Backtest | ✅ PR Open | — |
+| VR-16 | P&L Attribution + Unexplained PnL Drift | ✅ PR Open | — |
 
 ## Project Structure (Risk Engine)
 ```
@@ -51,6 +52,7 @@ super_otonom/risk/
 ├── stressed_var.py          # VR-11: StressedVaR (Basel 2.5, 5 stress periods, rescaling)
 ├── stress_scenarios.py      # VR-12: StressScenarioLibrary, forward_stress, reverse_stress
 ├── var_backtest.py          # VR-13/14/15: kupiec_pof, christoffersen, basel_traffic_light
+├── pnl_attribution.py       # VR-16: attribute_pnl, PnLAttribution, drift detection
 └── risk_engine.py           # RiskEngine.compute() → RiskMetrics (~35 fields)
 ```
 
@@ -82,6 +84,7 @@ tests/risk/
 ├── test_var_backtest_vr13.py       # 38 tests — Kupiec POF backtest
 ├── test_christoffersen_vr14.py    # 44 tests — Christoffersen Independence + CC
 ├── test_basel_traffic_light_vr15.py # 41 tests — Basel Traffic Light
+├── test_pnl_attribution_vr16.py   # 38 tests — P&L Attribution + Drift Detection
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -89,7 +92,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 562 (all passing)
+**Total risk tests:** 600 (all passing)
 
 ## Technical Details
 
@@ -217,6 +220,27 @@ tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 - Short series (< 250 obs): uses all available data, window field reflects actual count
 - Lives in same `var_backtest.py` as VR-13/14 (shared module)
 
+### P&L Attribution + Drift Detection (VR-16)
+- **Decomposition**: actual_pnl = explained + trades + unexplained
+- **Explained**: mark-to-market on opening positions: Σ(p_end - p_start) × qty_start
+- **Trades**: sum of realized PnL from intraday trades (TradeLike.pnl)
+- **Unexplained**: residual = actual - explained - trades (fees, funding, slippage, data lag)
+- **Drift threshold**: |unexplained_pct| > 10 bps of total capital
+- `PNL_DRIFT_THRESHOLD_BPS = 10`, `PNL_DRIFT_THRESHOLD = 0.001`
+- `attribute_pnl(pos_start, pos_end, prices_start, prices_end, trades, capital)` → `PnLAttribution`
+- `attribute_pnl_series(daily_snapshots, capital)` → `PnLAttributionSeries`
+- `generate_attribution_report()` → `docs/pnl_reports/pnl_attribution_YYYY-MM-DD.md`
+- `attribution_to_dict()` → JSON-serializable dict
+- `TradeLike` Protocol (`.pnl` attribute), `SimpleTrade` frozen dataclass helper
+- `PnLAttribution`: explained, trades, unexplained, actual_pnl, unexplained_pct, unexplained_bps, drift_detected, total_capital, n_positions, n_trades
+- `PnLAttributionSeries`: daily list, total_explained/trades/unexplained, max_abs_unexplained_bps, drift_days
+- Series accepts dict trades: `{"pnl": float}` → auto-wrapped in SimpleTrade
+- Contains `pnl_attribution_active = True` sentinel for var_topology detection
+- Prometheus: `bot_pnl_explained_pct`, `bot_pnl_unexplained_pct`, `bot_pnl_attribution_health` (1=healthy, 0=drift)
+- `record_pnl_attribution(explained_pct, unexplained_pct, health)` on MetricsExporter
+- Alert: `BotPnLDriftHigh` — attribution_health == 0 for 15m
+- Standalone module: `super_otonom/risk/pnl_attribution.py` (not in var_backtest.py)
+
 ### Aggregation
 - `var_for_limits = max(historical, parametric, MC)` (conservative)
 - After regime VaR: `vlim = max(vlim, regime_conditional)` (VR-10)
@@ -285,7 +309,7 @@ def compute(
 
 ### var_topology System (Audit 11)
 - `var_topology.py`: scans risk/ package for sentinel markers
-- Sentinels detected: `regime_conditional_var`, `stressed_var_engine`, `liquidity_adjusted_var`
+- Sentinels detected: `regime_conditional_var`, `stressed_var_engine`, `liquidity_adjusted_var`, `pnl_attribution_active`
 - `VarTopology` dataclass: `regime_conditional_var_present`, `stressed_var_engine_present`, `liquidity_adjusted_var_present`, etc.
 - `var_disclosure()`: returns limitations list (items removed when feature is present)
 - `institutional_var_claim_allowed` always `False`
@@ -328,6 +352,10 @@ def compute(
 - **Basel traffic light from_pnl**: Son `window` gözlemi alır, VaR vektörünü de son `window`'dan keser
 - **Graduated add-ons**: Yellow zone'da sabit 0.4 değil, Basel tablosundaki kademeli değerler (0.40-0.85)
 - **Negatif exceedance**: basel_traffic_light(-N) → 0'a clamp, GREEN döner
+- **PnL drift bps math**: extra_cost / total_capital × 10000 = bps. 2.0 / 10000 = 2 bps (NOT 20). Need >1.0 USDT for >10 bps on 10000 capital
+- **PnL attribution double-counting**: End prices are used in BOTH explained and actual NAV calc — adjust end quantity, not end price, to inject unexplained
+- **PnL attribution total_capital**: Must be > 0, raises ValueError otherwise
+- **PnL attribution missing price**: Treated as 0.0 (dict.get default), not error
 
 ## Dependencies
 - Python 3.12, numpy, scipy>=1.11.0, arch>=7.0.0, pytest, ruff

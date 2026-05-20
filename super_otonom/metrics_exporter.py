@@ -245,6 +245,41 @@ class MetricsExporter:
                 f"{namespace}_var_traffic_light_capital_addon"
             )
 
+        # ── VR-16: PnL Attribution ──────────────────────────────────────────
+        try:
+            self._gauges["pnl_explained_pct"] = Gauge(
+                f"{namespace}_pnl_explained_pct",
+                "Aciklanan PnL yuzdesi (mark-to-market / toplam sermaye)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["pnl_explained_pct"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_pnl_explained_pct"
+            )
+        try:
+            self._gauges["pnl_unexplained_pct"] = Gauge(
+                f"{namespace}_pnl_unexplained_pct",
+                "Aciklanamayan PnL yuzdesi (drift gostergesi)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["pnl_unexplained_pct"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_pnl_unexplained_pct"
+            )
+        try:
+            self._gauges["pnl_attribution_health"] = Gauge(
+                f"{namespace}_pnl_attribution_health",
+                "PnL attribution sagligi: 1=saglikli, 0=drift tespit edildi",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["pnl_attribution_health"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_pnl_attribution_health"
+            )
+
         # ── VR-08: LVaR (sembol bazında) ─────────────────────────────────────
         try:
             self._gauges["var_liquidity_adjusted"] = Gauge(
@@ -498,6 +533,21 @@ class MetricsExporter:
             self._gauges["kupiec_exceedances"].set(float(exceedances))
         except Exception as exc:
             log.debug("MetricsExporter.record_kupiec hata: %s", exc)
+
+    def record_pnl_attribution(
+        self,
+        explained_pct: float,
+        unexplained_pct: float,
+        drift_detected: bool,
+    ) -> None:
+        if not self._enabled:
+            return
+        try:
+            self._gauges["pnl_explained_pct"].set(explained_pct)
+            self._gauges["pnl_unexplained_pct"].set(unexplained_pct)
+            self._gauges["pnl_attribution_health"].set(0.0 if drift_detected else 1.0)
+        except Exception as exc:
+            log.debug("MetricsExporter.record_pnl_attribution hata: %s", exc)
 
     def record_traffic_light(
         self, zone: str, exceedances: int, capital_addon: float,
