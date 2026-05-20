@@ -48,6 +48,7 @@ _ALLOWLIST_FILES = (
     "test_lvar_vr08",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
+    "CLAUDE.md",
 )
 
 _ALLOW_SUBSTR = (

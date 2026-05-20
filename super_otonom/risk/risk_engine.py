@@ -1,4 +1,4 @@
-"""Unified risk engine — single VaR/CVaR source (VR-01/02/03/04/06/07/08)."""
+"""Unified risk engine — single VaR/CVaR source (VR-01/02/03/04/06/07/08/09)."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from super_otonom.risk.cvar_models import historical_cvar, mc_cvar, parametric_c
 from super_otonom.risk.evt import pot_var_cvar
 from super_otonom.risk.fhs import fhs_var_cvar
 from super_otonom.risk.lvar import compute_lvar
+from super_otonom.risk.var_decomposition import compute_var_decomposition
 from super_otonom.risk.var_models import (
     cornish_fisher_var,
     historical_var,
@@ -119,6 +120,7 @@ class RiskEngine:
         prices: Optional[Mapping[str, float]] = None,
         config: Optional[RiskConfig] = None,
         *,
+        asset_returns: Optional[Mapping[str, Sequence[float]]] = None,
         spread_history: Optional[Sequence[float]] = None,
         position_notional: float = 0.0,
         position_qty: float = 0.0,
@@ -127,11 +129,13 @@ class RiskEngine:
         """
         Unified VaR/CVaR suite from return history.
 
-        ``positions`` / ``prices`` reserved for VR-09 decomposition; ignored in VR-01.
+        ``positions`` — weight dict {symbol: weight} for VR-09 decomposition.
+        ``asset_returns`` — per-symbol return series for VR-09 decomposition.
+        ``prices`` — reserved for future use.
         ``spread_history`` / ``position_notional`` / ``position_qty`` / ``adv``
         are used for LVaR (VR-08).
         """
-        _ = positions, prices
+        _ = prices
         ret = [float(x) for x in np.asarray(returns_history, dtype=float).ravel().tolist()]
         cfg = config if config is not None else self.config
 
@@ -236,6 +240,14 @@ class RiskEngine:
         disp99 = _dispersion(vars99)
         dispersion = max(disp95, disp99)
 
+        # ── VaR decomposition (VR-09) ───────────────────────────────────────
+        comp_var: Dict[str, float] = {}
+        marg_var: Dict[str, float] = {}
+        if positions and asset_returns:
+            comp_var, marg_var = compute_var_decomposition(
+                asset_returns, positions, vlim95,
+            )
+
         return RiskMetrics(
             var_95_1d=vlim95,
             var_99_1d=vlim99,
@@ -268,6 +280,8 @@ class RiskEngine:
             lvar=lvar_val,
             lvar_data_health=lvar_dh,
             model_dispersion_pct=max(0.0, dispersion),
+            component_var_per_position=comp_var,
+            marginal_var_per_position=marg_var,
         )
 
     # ── Legacy live-tick interface (RiskOntology compat) ─────────────────────
