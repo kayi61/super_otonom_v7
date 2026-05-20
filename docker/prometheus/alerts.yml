@@ -134,6 +134,15 @@ groups:
           summary: "PnL attribution drift tespit edildi — aciklanamayan PnL > 10 bps"
           description: "unexplained_pct={{ $values.bot_pnl_unexplained_pct | printf \"%.6f\" }}"
 
+      - alert: BotPreTradeVarGateReject
+        expr: avg_over_time(bot_pre_trade_var_gate_passed[15m]) < 0.5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pre-trade VaR gate islerin >%50 sini reddediyor"
+          description: "approval_rate={{ $value | printf \"%.2f\" }} (15dk ortalamasi)"
+
       - alert: BotHostNtpNotSynchronized
         expr: bot_host_ntp_synchronized == 0
         for: 10m

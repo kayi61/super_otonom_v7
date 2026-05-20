@@ -36,6 +36,7 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-14 | Christoffersen Independence + CC | ✅ Merged | #31 |
 | VR-15 | Basel Traffic Light Backtest | ✅ PR Open | — |
 | VR-16 | P&L Attribution + Unexplained PnL Drift | ✅ PR Open | — |
+| VR-17 | Pre-trade Marginal VaR Gate | ✅ PR Open | — |
 
 ## Project Structure (Risk Engine)
 ```
@@ -53,6 +54,7 @@ super_otonom/risk/
 ├── stress_scenarios.py      # VR-12: StressScenarioLibrary, forward_stress, reverse_stress
 ├── var_backtest.py          # VR-13/14/15: kupiec_pof, christoffersen, basel_traffic_light
 ├── pnl_attribution.py       # VR-16: attribute_pnl, PnLAttribution, drift detection
+├── pre_trade_var_gate.py    # VR-17: pre_trade_var_check, marginal VaR gate (<30ms)
 └── risk_engine.py           # RiskEngine.compute() → RiskMetrics (~35 fields)
 ```
 
@@ -85,6 +87,7 @@ tests/risk/
 ├── test_christoffersen_vr14.py    # 44 tests — Christoffersen Independence + CC
 ├── test_basel_traffic_light_vr15.py # 41 tests — Basel Traffic Light
 ├── test_pnl_attribution_vr16.py   # 38 tests — P&L Attribution + Drift Detection
+├── test_pre_trade_var_gate_vr17.py # 36 tests — Pre-trade Marginal VaR Gate
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -92,7 +95,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 600 (all passing)
+**Total risk tests:** 636 (all passing)
 
 ## Technical Details
 
@@ -241,6 +244,27 @@ tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 - Alert: `BotPnLDriftHigh` — attribution_health == 0 for 15m
 - Standalone module: `super_otonom/risk/pnl_attribution.py` (not in var_backtest.py)
 
+### Pre-trade Marginal VaR Gate (VR-17)
+- **Two limit checks** before order submission:
+  1. Total VaR: new portfolio VaR₉₉ ≤ `max_var_total_pct` (default 5%)
+  2. Marginal VaR: incremental VaR from trade ≤ `max_marginal_var_per_trade_pct` (default 2%)
+- `pre_trade_var_check(symbol, trade_weight, side, weights, returns, limits)` → `PreTradeVarResult`
+- `pre_trade_var_check_batch(trades, weights, returns, limits)` → cumulative impact check
+- `simulate_trade_weights(weights, symbol, trade_weight, side)` → new portfolio weights
+- `PreTradeVarLimits`: max_var_total_pct, max_marginal_var_per_trade_pct, confidence
+- `PreTradeVarResult`: approved, reason, current_var, new_var, marginal_var, latency_ms
+- `gate_result_to_dict()` → JSON-serializable dict
+- VaR computation: historical percentile on weighted portfolio returns (numpy vectorised)
+- Target latency: **<30ms** (tested on 2-asset and 10-asset portfolios)
+- Insufficient data → conservative pass (can't compute VaR, allows trade)
+- Integration: runs after `gate_buy_size_and_exposure`, before order dispatch
+- Contains `pre_trade_var_gate_active = True` sentinel for var_topology detection
+- `GATE_MIN_OBS = 20`, `GATE_DEFAULT_CONF = 0.99`
+- Prometheus: `bot_pre_trade_var_gate_passed` (1=pass, 0=reject), `bot_pre_trade_var_gate_new_var`, `bot_pre_trade_var_gate_marginal_var`
+- `record_pre_trade_var_gate(approved, new_var, marginal_var)` on MetricsExporter
+- Alert: `BotPreTradeVarGateReject` — approval rate < 50% for 15m
+- Standalone module: `super_otonom/risk/pre_trade_var_gate.py`
+
 ### Aggregation
 - `var_for_limits = max(historical, parametric, MC)` (conservative)
 - After regime VaR: `vlim = max(vlim, regime_conditional)` (VR-10)
@@ -309,7 +333,7 @@ def compute(
 
 ### var_topology System (Audit 11)
 - `var_topology.py`: scans risk/ package for sentinel markers
-- Sentinels detected: `regime_conditional_var`, `stressed_var_engine`, `liquidity_adjusted_var`, `pnl_attribution_active`
+- Sentinels detected: `regime_conditional_var`, `stressed_var_engine`, `liquidity_adjusted_var`, `pnl_attribution_active`, `pre_trade_var_gate_active`
 - `VarTopology` dataclass: `regime_conditional_var_present`, `stressed_var_engine_present`, `liquidity_adjusted_var_present`, etc.
 - `var_disclosure()`: returns limitations list (items removed when feature is present)
 - `institutional_var_claim_allowed` always `False`
@@ -356,6 +380,10 @@ def compute(
 - **PnL attribution double-counting**: End prices are used in BOTH explained and actual NAV calc — adjust end quantity, not end price, to inject unexplained
 - **PnL attribution total_capital**: Must be > 0, raises ValueError otherwise
 - **PnL attribution missing price**: Treated as 0.0 (dict.get default), not error
+- **Pre-trade VaR gate insufficient data**: Symbol with < 20 obs → conservative pass (allows trade), NOT reject
+- **Pre-trade VaR gate total vs marginal**: Total VaR check runs FIRST — tight limits can reject a diversifier even if marginal VaR is negative
+- **Pre-trade VaR gate weight normalization**: Weights are normalised to sum=1 internally for VaR calculation, but stored as-is in portfolio
+- **Pre-trade VaR gate latency**: numpy vectorised path is critical — avoid Python loops over return series
 
 ## Dependencies
 - Python 3.12, numpy, scipy>=1.11.0, arch>=7.0.0, pytest, ruff
