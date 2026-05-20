@@ -33,7 +33,8 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-11 | Stressed VaR (Basel 2.5) | ✅ PR Open | #28 |
 | VR-12 | Stress Scenario Library + Reverse Stress Test | ✅ Merged | #29 |
 | VR-13 | Kupiec POF Backtest | ✅ PR Open | — |
-| VR-14 | Christoffersen Independence + CC | ✅ PR Open | — |
+| VR-14 | Christoffersen Independence + CC | ✅ Merged | #31 |
+| VR-15 | Basel Traffic Light Backtest | ✅ PR Open | — |
 
 ## Project Structure (Risk Engine)
 ```
@@ -49,7 +50,7 @@ super_otonom/risk/
 ├── regime_var.py            # VR-10: RegimeConditionalVaR (deque-backed per-regime buffers)
 ├── stressed_var.py          # VR-11: StressedVaR (Basel 2.5, 5 stress periods, rescaling)
 ├── stress_scenarios.py      # VR-12: StressScenarioLibrary, forward_stress, reverse_stress
-├── var_backtest.py          # VR-13/14: kupiec_pof, christoffersen_ind, christoffersen_cc
+├── var_backtest.py          # VR-13/14/15: kupiec_pof, christoffersen, basel_traffic_light
 └── risk_engine.py           # RiskEngine.compute() → RiskMetrics (~35 fields)
 ```
 
@@ -80,6 +81,7 @@ tests/risk/
 ├── test_stress_scenarios_vr12.py   # 49 tests — Stress Scenario Library + Reverse Stress
 ├── test_var_backtest_vr13.py       # 38 tests — Kupiec POF backtest
 ├── test_christoffersen_vr14.py    # 44 tests — Christoffersen Independence + CC
+├── test_basel_traffic_light_vr15.py # 41 tests — Basel Traffic Light
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -87,7 +89,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 521 (all passing)
+**Total risk tests:** 562 (all passing)
 
 ## Technical Details
 
@@ -198,6 +200,23 @@ tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 - Alert: `BotChristoffersenCluster` — ind p_value < 0.05 for 1h
 - Lives in same `var_backtest.py` as VR-13 (shared module)
 
+### Basel Traffic Light Backtest (VR-15)
+- **Basel Committee** supervisory backtesting framework (January 1996)
+- Rolling 250 trading-day window, 99% VaR, exceedance count → zone
+- GREEN (0-4): model valid, capital add-on = 0.0
+- YELLOW (5-9): graduated add-on: 5→+0.40, 6→+0.50, 7→+0.65, 8→+0.75, 9→+0.85
+- RED (10+): model rejected, capital add-on = 1.0
+- `basel_traffic_light(exceedances, conf, window)` → `TrafficLightResult`
+- `basel_traffic_light_from_pnl(pnl, var, conf, window)` → uses last `window` obs
+- `generate_backtest_report()` now accepts optional `traffic_light=` kwarg
+- `BASEL_WINDOW = 250` constant
+- Prometheus: `bot_var_traffic_light` (0=GREEN, 1=YELLOW, 2=RED), `bot_var_traffic_light_exceedances`, `bot_var_traffic_light_capital_addon`
+- `record_traffic_light(zone, exceedances, capital_addon)` on MetricsExporter
+- Alerts: `BotVaRTrafficLightYellow` (warning, 5m), `BotVaRTrafficLightRed` (critical, 1m)
+- Negative exceedance input clamped to 0 → GREEN
+- Short series (< 250 obs): uses all available data, window field reflects actual count
+- Lives in same `var_backtest.py` as VR-13/14 (shared module)
+
 ### Aggregation
 - `var_for_limits = max(historical, parametric, MC)` (conservative)
 - After regime VaR: `vlim = max(vlim, regime_conditional)` (VR-10)
@@ -305,6 +324,10 @@ def compute(
 - **Christoffersen min obs**: Same as Kupiec — n < 50 → default result returned
 - **CC additivity**: LR_cc = LR_pof + LR_ind, df=2 — her zaman ayrı compute edip topla
 - **Two consecutive exceedances**: 100 obs'de bile 2 ardışık exceedance pi_11=0.5 vs pi_01≈0.01 divergence yaratır — istatistiksel olarak anlamlı kümelenme
+- **Basel traffic light window**: Varsayılan 250 işlem günü, kısa serilerde tüm veri kullanılır (window alanı gerçek sayıyı yansıtır)
+- **Basel traffic light from_pnl**: Son `window` gözlemi alır, VaR vektörünü de son `window`'dan keser
+- **Graduated add-ons**: Yellow zone'da sabit 0.4 değil, Basel tablosundaki kademeli değerler (0.40-0.85)
+- **Negatif exceedance**: basel_traffic_light(-N) → 0'a clamp, GREEN döner
 
 ## Dependencies
 - Python 3.12, numpy, scipy>=1.11.0, arch>=7.0.0, pytest, ruff

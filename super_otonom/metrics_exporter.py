@@ -210,6 +210,41 @@ class MetricsExporter:
                 f"{namespace}_christoffersen_cc_pvalue"
             )
 
+        # ── VR-15: Basel Traffic Light ───────────────────────────────────────
+        try:
+            self._gauges["var_traffic_light"] = Gauge(
+                f"{namespace}_var_traffic_light",
+                "Basel traffic light: 0=GREEN, 1=YELLOW, 2=RED",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["var_traffic_light"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_var_traffic_light"
+            )
+        try:
+            self._gauges["var_traffic_light_exceedances"] = Gauge(
+                f"{namespace}_var_traffic_light_exceedances",
+                "VaR exceedance sayisi (Basel 250-gun penceresi)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["var_traffic_light_exceedances"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_var_traffic_light_exceedances"
+            )
+        try:
+            self._gauges["var_traffic_light_capital_addon"] = Gauge(
+                f"{namespace}_var_traffic_light_capital_addon",
+                "Basel sermaye carpani ek yuklemesi (0.0 - 1.0)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["var_traffic_light_capital_addon"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_var_traffic_light_capital_addon"
+            )
+
         # ── VR-08: LVaR (sembol bazında) ─────────────────────────────────────
         try:
             self._gauges["var_liquidity_adjusted"] = Gauge(
@@ -463,6 +498,19 @@ class MetricsExporter:
             self._gauges["kupiec_exceedances"].set(float(exceedances))
         except Exception as exc:
             log.debug("MetricsExporter.record_kupiec hata: %s", exc)
+
+    def record_traffic_light(
+        self, zone: str, exceedances: int, capital_addon: float,
+    ) -> None:
+        if not self._enabled:
+            return
+        zone_map = {"GREEN": 0.0, "YELLOW": 1.0, "RED": 2.0}
+        try:
+            self._gauges["var_traffic_light"].set(zone_map.get(zone.upper(), -1.0))
+            self._gauges["var_traffic_light_exceedances"].set(float(exceedances))
+            self._gauges["var_traffic_light_capital_addon"].set(capital_addon)
+        except Exception as exc:
+            log.debug("MetricsExporter.record_traffic_light hata: %s", exc)
 
     def record_christoffersen(self, ind_pvalue: float, cc_pvalue: float) -> None:
         if not self._enabled:

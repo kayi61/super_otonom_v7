@@ -1,4 +1,4 @@
-"""VaR backtesting — Kupiec POF + Christoffersen Independence + CC (VR-13/14).
+"""VaR backtesting — Kupiec POF + Christoffersen + Basel Traffic Light (VR-13/14/15).
 
 **VR-13 — Kupiec POF (Proportion of Failures)**
 The Kupiec (1995) likelihood-ratio test checks whether the observed
@@ -14,13 +14,21 @@ transition-matrix likelihood ratio.  LR_ind ~ χ²(1).
 Combined test:  LR_cc = LR_pof + LR_ind ~ χ²(2).
 Model valid ⟺ Kupiec OK **and** independence OK.
 
+**VR-15 — Basel Traffic Light Backtest**
+Basel Committee on Banking Supervision traffic-light approach for the
+internal-models approach (IMA).  Rolling 250 trading-day window, 99% VaR.
+Zones: GREEN (0-4 exc), YELLOW (5-9, graduated capital add-on), RED (10+).
+
 Prometheus:
     ``bot_kupiec_pvalue``, ``bot_kupiec_exceedances``
     ``bot_christoffersen_ind_pvalue``, ``bot_christoffersen_cc_pvalue``
+    ``bot_var_traffic_light``
 
 Alerts:
     ``BotKupiecModelInvalid`` — p_value < 0.05 for 1h.
     ``BotChristoffersenCluster`` — independence p_value < 0.05 for 1h.
+    ``BotVaRTrafficLightYellow`` — yellow zone warning.
+    ``BotVaRTrafficLightRed`` — red zone, immediate model review.
 """
 
 from __future__ import annotations
@@ -397,6 +405,163 @@ def run_cc_suite(
     }
 
 
+# ── Basel Traffic Light (VR-15) ─────────────────────────────────────────────
+
+BASEL_WINDOW = 250
+"""Basel standard rolling window: 250 trading days."""
+
+# Basel Committee graduated capital multiplier add-ons (yellow zone).
+# Source: Basel Committee on Banking Supervision, "Supervisory framework for
+# the use of 'backtesting' in conjunction with the internal models approach
+# to market risk capital requirements", January 1996.
+_YELLOW_ZONE_ADDONS: dict[int, float] = {
+    5: 0.40,
+    6: 0.50,
+    7: 0.65,
+    8: 0.75,
+    9: 0.85,
+}
+
+
+@dataclass(frozen=True)
+class TrafficLightResult:
+    """Basel traffic-light backtest result.
+
+    Attributes
+    ----------
+    zone : str
+        "GREEN", "YELLOW", or "RED".
+    exceedances : int
+        Exceedance count in the 250-day window.
+    capital_addon : float
+        Capital multiplier add-on (0.0 for GREEN, graduated for YELLOW,
+        1.0 for RED).
+    window : int
+        Number of trading days in the evaluation window.
+    confidence : float
+        VaR confidence level used.
+    """
+
+    zone: str = "GREEN"
+    exceedances: int = 0
+    capital_addon: float = 0.0
+    window: int = BASEL_WINDOW
+    confidence: float = 0.99
+
+
+def basel_traffic_light(
+    exceedances_250day: int,
+    conf: float = 0.99,
+    window: int = BASEL_WINDOW,
+) -> TrafficLightResult:
+    """Basel Committee traffic-light zone for VaR model validation.
+
+    Rolling 250 trading-day window evaluation.
+
+    Zones (at 99% VaR):
+        GREEN  — 0-4 exceedances → no capital add-on
+        YELLOW — 5-9 exceedances → graduated add-on (0.40 … 0.85)
+        RED    — 10+             → model rejected, add-on = 1.0
+
+    Parameters
+    ----------
+    exceedances_250day:
+        Number of VaR exceedances in the evaluation window.
+    conf:
+        VaR confidence level (default 0.99 per Basel standard).
+    window:
+        Evaluation window size (default 250 trading days).
+
+    Returns
+    -------
+    TrafficLightResult
+    """
+    exc = max(0, exceedances_250day)
+
+    if exc <= 4:
+        return TrafficLightResult(
+            zone="GREEN",
+            exceedances=exc,
+            capital_addon=0.0,
+            window=window,
+            confidence=conf,
+        )
+    if exc <= 9:
+        addon = _YELLOW_ZONE_ADDONS.get(exc, 0.40)
+        return TrafficLightResult(
+            zone="YELLOW",
+            exceedances=exc,
+            capital_addon=addon,
+            window=window,
+            confidence=conf,
+        )
+    return TrafficLightResult(
+        zone="RED",
+        exceedances=exc,
+        capital_addon=1.0,
+        window=window,
+        confidence=conf,
+    )
+
+
+def basel_traffic_light_from_pnl(
+    realized_pnl: Sequence[float],
+    predicted_var: Sequence[float] | float,
+    conf: float = 0.99,
+    window: int = BASEL_WINDOW,
+) -> TrafficLightResult:
+    """Compute Basel traffic-light from raw PnL and VaR series.
+
+    Uses the **last** ``window`` observations.  If fewer than ``window``
+    observations are available, uses all of them (with a log warning).
+
+    Parameters
+    ----------
+    realized_pnl:
+        Full PnL history (losses negative).
+    predicted_var:
+        Predicted VaR (positive loss fraction) or scalar.
+    conf:
+        VaR confidence level.
+    window:
+        Rolling window size (default 250).
+
+    Returns
+    -------
+    TrafficLightResult
+    """
+    pnl = list(realized_pnl)
+    n = len(pnl)
+
+    if n < window:
+        log.warning(
+            "Basel traffic light: only %d obs available (need %d). "
+            "Using all available data.",
+            n,
+            window,
+        )
+
+    # Take the last `window` observations
+    tail_pnl = pnl[-window:]
+    tail_n = len(tail_pnl)
+
+    if isinstance(predicted_var, (int, float)):
+        tail_var: List[float] = [float(predicted_var)] * tail_n
+    else:
+        var_list = list(predicted_var)
+        tail_var = [float(v) for v in var_list[-window:]]
+
+    if len(tail_var) != tail_n:
+        raise ValueError(
+            f"predicted_var tail length ({len(tail_var)}) != "
+            f"realized_pnl tail length ({tail_n})"
+        )
+
+    exceedances = sum(1 for p, v in zip(tail_pnl, tail_var) if p < -v)
+
+    return basel_traffic_light(exceedances, conf=conf, window=tail_n)
+
+
 # ── Report generation ────────────────────────────────────────────────────────
 
 def generate_backtest_report(
@@ -407,10 +572,12 @@ def generate_backtest_report(
         | ConditionalCoverageResult
     ),
     report_dir: Optional[Path] = None,
+    traffic_light: Optional[TrafficLightResult] = None,
 ) -> Path:
     """Write a markdown backtest report to disk.
 
     Accepts Kupiec-only results or full CC results.
+    Optionally includes Basel traffic-light section.
     Output: ``docs/backtest_reports/kupiec_YYYY-MM-DD.md``
     """
     out_dir = report_dir or _REPORT_DIR
@@ -488,6 +655,22 @@ def generate_backtest_report(
                 f"| {r.kupiec.confidence:.1%} "
                 f"| {r.lr_cc:.4f} | {r.p_value_cc:.4f} | {ov_str} |"
             )
+
+    if traffic_light is not None:
+        tl = traffic_light
+        zone_emoji = {"GREEN": "GREEN", "YELLOW": "YELLOW", "RED": "**RED**"}
+        zone_str = zone_emoji.get(tl.zone, tl.zone)
+        if tl.zone == "RED":
+            all_valid = False
+        lines.extend([
+            "",
+            "## Basel Traffic Light",
+            "",
+            "| Window | Exceedances | Zone | Capital Add-on |",
+            "|--------|-------------|------|----------------|",
+            f"| {tl.window}d | {tl.exceedances} | {zone_str} "
+            f"| +{tl.capital_addon:.2f} |",
+        ])
 
     lines.extend([
         "",
