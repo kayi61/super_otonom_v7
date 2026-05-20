@@ -1,4 +1,4 @@
-"""Unified risk engine — single VaR/CVaR source (VR-01/02/03/04/06)."""
+"""Unified risk engine — single VaR/CVaR source (VR-01/02/03/04/06/07)."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import numpy as np
 from super_otonom.risk.config import RiskConfig
 from super_otonom.risk.cvar_models import historical_cvar, mc_cvar, parametric_cvar
 from super_otonom.risk.evt import pot_var_cvar
+from super_otonom.risk.fhs import fhs_var_cvar
 from super_otonom.risk.var_models import (
     cornish_fisher_var,
     historical_var,
@@ -61,6 +62,12 @@ class RiskMetrics:
     # ── EVT Peaks Over Threshold (VR-06) ─────────────────────────────────────
     var_evt_99: Optional[float] = None
     cvar_evt_99: Optional[float] = None
+
+    # ── Filtered Historical Simulation (VR-07) ──────────────────────────────
+    var_fhs_95: Optional[float] = None
+    var_fhs_99: Optional[float] = None
+    cvar_fhs_95: Optional[float] = None
+    cvar_fhs_99: Optional[float] = None
 
     # ── Model risk ───────────────────────────────────────────────────────────
     model_dispersion_pct: float = 0.0
@@ -196,6 +203,12 @@ class RiskEngine:
         # ── EVT Peaks Over Threshold (VR-06) ────────────────────────────────
         evt_var99, evt_cvar99 = pot_var_cvar(ret, conf=0.99, threshold_quantile=0.95)
 
+        # ── Filtered Historical Simulation (VR-07) ──────────────────────────
+        fhs_v95, fhs_cv95, fhs_v99, fhs_cv99 = None, None, None, None
+        if "fhs" in cfg.use_models:
+            fhs_v95, fhs_cv95 = fhs_var_cvar(ret, conf=0.95, seed=cfg.monte_carlo_seed)
+            fhs_v99, fhs_cv99 = fhs_var_cvar(ret, conf=0.99, seed=cfg.monte_carlo_seed)
+
         # ── Dispersion ───────────────────────────────────────────────────────
         disp95 = _dispersion(vars95)
         disp99 = _dispersion(vars99)
@@ -226,6 +239,10 @@ class RiskEngine:
             var_cornish_fisher_99=cf99,
             var_evt_99=evt_var99,
             cvar_evt_99=evt_cvar99,
+            var_fhs_95=fhs_v95,
+            var_fhs_99=fhs_v99,
+            cvar_fhs_95=fhs_cv95,
+            cvar_fhs_99=fhs_cv99,
             model_dispersion_pct=max(0.0, dispersion),
         )
 
