@@ -54,6 +54,7 @@ _ALLOWLIST_FILES = (
     "test_basel_traffic_light_vr15",
     "test_pnl_attribution_vr16",
     "test_pre_trade_var_gate_vr17",
+    "test_position_sizer_var_vr18",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -97,6 +98,10 @@ _ALLOW_SUBSTR = (
     "pre_trade_var_gate",
     "pre_trade_var_check",
     "marginal_var_gate",
+    "position_sizer_var_cap",
+    "var_cap_result",
+    "var_aware_position_sizer",
+    "size_with_var_cap",
 )
 
 
