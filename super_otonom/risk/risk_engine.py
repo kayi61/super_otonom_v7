@@ -1,4 +1,4 @@
-"""Unified risk engine — single VaR/CVaR source (VR-01/02/03/04/06/07)."""
+"""Unified risk engine — single VaR/CVaR source (VR-01/02/03/04/06/07/08)."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from super_otonom.risk.config import RiskConfig
 from super_otonom.risk.cvar_models import historical_cvar, mc_cvar, parametric_cvar
 from super_otonom.risk.evt import pot_var_cvar
 from super_otonom.risk.fhs import fhs_var_cvar
+from super_otonom.risk.lvar import compute_lvar
 from super_otonom.risk.var_models import (
     cornish_fisher_var,
     historical_var,
@@ -72,9 +73,12 @@ class RiskMetrics:
     # ── Model risk ───────────────────────────────────────────────────────────
     model_dispersion_pct: float = 0.0
 
-    # ── Stress / liquidity (VR-08/11 placeholders) ──────────────────────────
+    # ── Stress (VR-11 placeholder) ──────────────────────────────────────────
     stressed_var: float = 0.0
+
+    # ── Liquidity-adjusted VaR (VR-08) ──────────────────────────────────────
     lvar: float = 0.0
+    lvar_data_health: float = 0.0
 
     # ── Decomposition (VR-09 placeholder) ────────────────────────────────────
     component_var_per_position: Dict[str, float] = field(default_factory=dict)
@@ -114,11 +118,18 @@ class RiskEngine:
         positions: Optional[Mapping[str, float]] = None,
         prices: Optional[Mapping[str, float]] = None,
         config: Optional[RiskConfig] = None,
+        *,
+        spread_history: Optional[Sequence[float]] = None,
+        position_notional: float = 0.0,
+        position_qty: float = 0.0,
+        adv: float = 0.0,
     ) -> RiskMetrics:
         """
         Unified VaR/CVaR suite from return history.
 
         ``positions`` / ``prices`` reserved for VR-09 decomposition; ignored in VR-01.
+        ``spread_history`` / ``position_notional`` / ``position_qty`` / ``adv``
+        are used for LVaR (VR-08).
         """
         _ = positions, prices
         ret = [float(x) for x in np.asarray(returns_history, dtype=float).ravel().tolist()]
@@ -209,6 +220,17 @@ class RiskEngine:
             fhs_v95, fhs_cv95 = fhs_var_cvar(ret, conf=0.95, seed=cfg.monte_carlo_seed)
             fhs_v99, fhs_cv99 = fhs_var_cvar(ret, conf=0.99, seed=cfg.monte_carlo_seed)
 
+        # ── Liquidity-adjusted VaR (VR-08) ──────────────────────────────────
+        lvar_val, lvar_dh = compute_lvar(
+            var_market=vlim95,
+            position_notional=position_notional,
+            spread_history=spread_history,
+            position_qty=position_qty,
+            adv=adv,
+            participation_rate=cfg.lvar_participation_rate,
+            method=cfg.lvar_method,
+        )
+
         # ── Dispersion ───────────────────────────────────────────────────────
         disp95 = _dispersion(vars95)
         disp99 = _dispersion(vars99)
@@ -243,6 +265,8 @@ class RiskEngine:
             var_fhs_99=fhs_v99,
             cvar_fhs_95=fhs_cv95,
             cvar_fhs_99=fhs_cv99,
+            lvar=lvar_val,
+            lvar_data_health=lvar_dh,
             model_dispersion_pct=max(0.0, dispersion),
         )
 

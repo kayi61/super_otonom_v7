@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, get_args
+
+LvarMethod = Literal["bdss", "time_to_liquidate", "max_of_both"]
+_VALID_LVAR_METHODS = get_args(LvarMethod)
 
 
 @dataclass(frozen=True)
@@ -56,6 +59,10 @@ class RiskConfig:
     # ── FHS GARCH(1,1) (VR-07) ────────────────────────────────────────────
     fhs_min_sample: int = 250
 
+    # ── Liquidity-adjusted VaR (VR-08) ─────────────────────────────────────
+    lvar_method: LvarMethod = "bdss"
+    lvar_participation_rate: float = 0.10
+
     # ── Model selection (VR-05) ─────────────────────────────────────────────
     use_models: tuple[str, ...] = (
         "historical",
@@ -97,6 +104,14 @@ class RiskConfig:
         if self.fhs_min_sample < 50:
             issues.append(
                 f"fhs_min_sample={self.fhs_min_sample} too low (min 50)"
+            )
+
+        if self.lvar_method not in _VALID_LVAR_METHODS:
+            issues.append(f"lvar_method={self.lvar_method!r} invalid")
+        if not (0.0 < self.lvar_participation_rate <= 1.0):
+            issues.append(
+                f"lvar_participation_rate={self.lvar_participation_rate} "
+                "outside (0, 1]"
             )
 
         if self.evt_min_sample < 50:

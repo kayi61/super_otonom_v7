@@ -138,6 +138,20 @@ class MetricsExporter:
                 f"{namespace}_clock_skew_exchange_ms"
             )
 
+        # ── VR-08: LVaR (sembol bazında) ─────────────────────────────────────
+        try:
+            self._gauges["var_liquidity_adjusted"] = Gauge(
+                f"{namespace}_var_liquidity_adjusted",
+                "Liquidity-adjusted VaR (BDSS/TTL)",
+                ["symbol"],
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["var_liquidity_adjusted"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_var_liquidity_adjusted"
+            )
+
         # ── Counter'lar ───────────────────────────────────────────────────────
         try:
             self._counters["trades"] = Counter(
@@ -368,6 +382,14 @@ class MetricsExporter:
             self._gauges["clock_skew_abs_ms"].set(abs(skew_f))
         except Exception as exc:
             log.debug("MetricsExporter.record_clock_skew hata: %s", exc)
+
+    def record_lvar(self, symbol: str, lvar: float) -> None:
+        if not self._enabled:
+            return
+        try:
+            self._gauges["var_liquidity_adjusted"].labels(symbol=symbol).set(lvar)
+        except Exception as exc:
+            log.debug("MetricsExporter.record_lvar hata: %s", exc)
 
     def record_host_ntp(self, synced: Optional[bool]) -> None:
         if not self._enabled:

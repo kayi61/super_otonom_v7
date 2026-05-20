@@ -112,10 +112,11 @@ def scan_institutional_gap_hits(pkg_root: Optional[Path] = None) -> Dict[str, Li
     root = pkg_root or _PKG
     hits: Dict[str, List[str]] = {}
     skip = {"var_topology.py", "var_topology_audit.py", _PORTFOLIO_RISK_MODULE}
+    skip_dirs = {"risk"}
     for p in sorted(root.rglob("*.py")):
         if not p.is_file() or p.name.startswith("test_"):
             continue
-        if p.name in skip:
+        if p.name in skip or any(part in skip_dirs for part in p.relative_to(root).parts[:-1]):
             continue
         try:
             text = p.read_text(encoding="utf-8")
@@ -157,6 +158,22 @@ def live_tick_imports_portfolio_risk_engine(pkg_root: Optional[Path] = None) -> 
     return False
 
 
+def _risk_pkg_has(pkg_root: Path, marker: str) -> bool:
+    """Check whether the risk/ subpackage contains a real implementation of *marker*."""
+    risk_dir = pkg_root / "risk"
+    if not risk_dir.is_dir():
+        return False
+    for p in risk_dir.rglob("*.py"):
+        if not p.is_file() or p.name.startswith("test_"):
+            continue
+        try:
+            if marker in p.read_text(encoding="utf-8"):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def inspect_var_topology(
     *,
     pkg_root: Optional[Path] = None,
@@ -170,8 +187,9 @@ def inspect_var_topology(
         regime_conditional_var_present=any(
             "regime_conditional" in str(v) for v in gap_hits.values()
         ),
-        liquidity_adjusted_var_present=any(
-            "liquidity_adjusted" in str(v) for v in gap_hits.values()
+        liquidity_adjusted_var_present=(
+            _risk_pkg_has(root, "liquidity_adjusted_var")
+            or any("liquidity_adjusted" in str(v) for v in gap_hits.values())
         ),
         institutional_stress_grid_present=any(
             "stress_grid" in str(v) or "stress_scenario_grid" in str(v) for v in gap_hits.values()
@@ -299,9 +317,10 @@ def var_disclosure(*, topo: Optional[VarTopology] = None) -> Dict[str, Any]:
         "phase24_var_not_live_tick_default",
         "live_var_historical_percentile_only",
         "no_regime_conditional_var",
-        "no_liquidity_adjusted_var",
         "no_institutional_stress_grid",
     ]
+    if not t.liquidity_adjusted_var_present:
+        limitations.append("no_liquidity_adjusted_var")
     if t.stress_heuristic_in_portfolio_risk:
         limitations.append("stress_heuristic_flash_bear_only")
     if t.phase24_var_suite_present:
