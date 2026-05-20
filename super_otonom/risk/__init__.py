@@ -16,6 +16,14 @@ from super_otonom.risk.pnl_attribution import (
     attribution_to_dict,
     generate_attribution_report,
 )
+from super_otonom.risk.pre_trade_var_gate import (
+    PreTradeVarLimits,
+    PreTradeVarResult,
+    gate_result_to_dict,
+    pre_trade_var_check,
+    pre_trade_var_check_batch,
+    simulate_trade_weights,
+)
 from super_otonom.risk.regime_var import RegimeConditionalVaR
 from super_otonom.risk.risk_engine import RiskEngine, RiskMetrics
 from super_otonom.risk.stress_scenarios import (
@@ -110,4 +118,10 @@ __all__ = [
     "attribute_pnl_series",
     "attribution_to_dict",
     "generate_attribution_report",
+    "PreTradeVarLimits",
+    "PreTradeVarResult",
+    "pre_trade_var_check",
+    "pre_trade_var_check_batch",
+    "simulate_trade_weights",
+    "gate_result_to_dict",
 ]

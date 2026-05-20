@@ -53,6 +53,7 @@ _ALLOWLIST_FILES = (
     "test_christoffersen_vr14",
     "test_basel_traffic_light_vr15",
     "test_pnl_attribution_vr16",
+    "test_pre_trade_var_gate_vr17",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -93,6 +94,9 @@ _ALLOW_SUBSTR = (
     "pnl_attribution",
     "pnl_drift",
     "attribute_pnl",
+    "pre_trade_var_gate",
+    "pre_trade_var_check",
+    "marginal_var_gate",
 )
 
 

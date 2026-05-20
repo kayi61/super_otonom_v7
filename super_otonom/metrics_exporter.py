@@ -280,6 +280,41 @@ class MetricsExporter:
                 f"{namespace}_pnl_attribution_health"
             )
 
+        # ── VR-17: Pre-trade VaR Gate ──────────────────────────────────────
+        try:
+            self._gauges["pre_trade_var_gate_passed"] = Gauge(
+                f"{namespace}_pre_trade_var_gate_passed",
+                "Pre-trade VaR gate: 1=onaylandi, 0=reddedildi",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["pre_trade_var_gate_passed"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_pre_trade_var_gate_passed"
+            )
+        try:
+            self._gauges["pre_trade_var_gate_new_var"] = Gauge(
+                f"{namespace}_pre_trade_var_gate_new_var",
+                "Pre-trade tahmini yeni portfoy VaR (fraksiyon)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["pre_trade_var_gate_new_var"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_pre_trade_var_gate_new_var"
+            )
+        try:
+            self._gauges["pre_trade_var_gate_marginal_var"] = Gauge(
+                f"{namespace}_pre_trade_var_gate_marginal_var",
+                "Pre-trade marjinal VaR katkisi (fraksiyon)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["pre_trade_var_gate_marginal_var"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_pre_trade_var_gate_marginal_var"
+            )
+
         # ── VR-08: LVaR (sembol bazında) ─────────────────────────────────────
         try:
             self._gauges["var_liquidity_adjusted"] = Gauge(
@@ -570,6 +605,21 @@ class MetricsExporter:
             self._gauges["christoffersen_cc_pvalue"].set(cc_pvalue)
         except Exception as exc:
             log.debug("MetricsExporter.record_christoffersen hata: %s", exc)
+
+    def record_pre_trade_var_gate(
+        self,
+        approved: bool,
+        new_var: float,
+        marginal_var: float,
+    ) -> None:
+        if not self._enabled:
+            return
+        try:
+            self._gauges["pre_trade_var_gate_passed"].set(1.0 if approved else 0.0)
+            self._gauges["pre_trade_var_gate_new_var"].set(new_var)
+            self._gauges["pre_trade_var_gate_marginal_var"].set(marginal_var)
+        except Exception as exc:
+            log.debug("MetricsExporter.record_pre_trade_var_gate hata: %s", exc)
 
     def record_stress_grid(
         self, worst_pnl_pct: float, reverse_btc_shock_pct: float,
