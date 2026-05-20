@@ -22,6 +22,7 @@ dependencies = [
     "aiohttp>=3.9.0",
     "psycopg2-binary>=2.9.0",
     "scipy>=1.11.0",
+    "arch>=7.0.0",
 ]
 
 [project.optional-dependencies]

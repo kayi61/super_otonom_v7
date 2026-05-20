@@ -53,12 +53,16 @@ class RiskConfig:
     evt_min_sample: int = 500
     evt_threshold_quantile: float = 0.95
 
+    # ── FHS GARCH(1,1) (VR-07) ────────────────────────────────────────────
+    fhs_min_sample: int = 250
+
     # ── Model selection (VR-05) ─────────────────────────────────────────────
     use_models: tuple[str, ...] = (
         "historical",
         "parametric_t",
         "monte_carlo",
         "cornish_fisher",
+        "fhs",
     )
 
     def validate(self) -> list[str]:
@@ -90,6 +94,11 @@ class RiskConfig:
         if self.parametric_dist not in ("normal", "student_t"):
             issues.append(f"parametric_dist={self.parametric_dist!r} invalid")
 
+        if self.fhs_min_sample < 50:
+            issues.append(
+                f"fhs_min_sample={self.fhs_min_sample} too low (min 50)"
+            )
+
         if self.evt_min_sample < 50:
             issues.append(
                 f"evt_min_sample={self.evt_min_sample} too low (min 50)"
@@ -100,7 +109,7 @@ class RiskConfig:
                 "outside [0.80, 0.99]"
             )
 
-        valid_models = {"historical", "parametric_t", "monte_carlo", "cornish_fisher"}
+        valid_models = {"historical", "parametric_t", "monte_carlo", "cornish_fisher", "fhs"}
         unknown = set(self.use_models) - valid_models
         if unknown:
             issues.append(f"unknown models in use_models: {unknown}")

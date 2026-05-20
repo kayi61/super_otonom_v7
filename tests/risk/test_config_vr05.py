@@ -68,6 +68,7 @@ class TestDefaultConfigValid:
             "parametric_t",
             "monte_carlo",
             "cornish_fisher",
+            "fhs",
         }
 
 
