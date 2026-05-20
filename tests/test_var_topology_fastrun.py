@@ -30,6 +30,7 @@ def test_disclosure_not_institutional() -> None:
     d = var_disclosure()
     assert d["institutional_var_claim_allowed"] is False
     assert "no_regime_conditional_var" not in d["limitations"]
+    assert "no_stressed_var_engine" not in d["limitations"]
     assert "no_institutional_stress_grid" in d["limitations"]
 
 

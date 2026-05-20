@@ -47,6 +47,7 @@ _ALLOWLIST_FILES = (
     "test_audit_modules_coverage",
     "test_lvar_vr08",
     "test_regime_var_vr10",
+    "test_stressed_var_vr11",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -71,6 +72,8 @@ _ALLOW_SUBSTR = (
     "metadata",
     "heuristik",
     "risk_ontology_percentile",
+    "stressed_var_engine",
+    "stressed_var",
 )
 
 

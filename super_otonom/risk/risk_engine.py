@@ -1,4 +1,4 @@
-"""Unified risk engine — single VaR/CVaR source (VR-01 through VR-10)."""
+"""Unified risk engine — single VaR/CVaR source (VR-01 through VR-11)."""
 
 from __future__ import annotations
 
@@ -74,8 +74,10 @@ class RiskMetrics:
     # ── Model risk ───────────────────────────────────────────────────────────
     model_dispersion_pct: float = 0.0
 
-    # ── Stress (VR-11 placeholder) ──────────────────────────────────────────
+    # ── Stressed VaR (VR-11 Basel 2.5) ────────────────────────────────────
     stressed_var: float = 0.0
+    stressed_var_worst_period: str = ""
+    stressed_var_breach: bool = False
 
     # ── Liquidity-adjusted VaR (VR-08) ──────────────────────────────────────
     lvar: float = 0.0
@@ -132,6 +134,7 @@ class RiskEngine:
         adv: float = 0.0,
         current_regime: Optional[str] = None,
         regime_var: Any = None,
+        stress_returns: Optional[Dict[str, Sequence[float]]] = None,
     ) -> RiskMetrics:
         """
         Unified VaR/CVaR suite from return history.
@@ -143,6 +146,7 @@ class RiskEngine:
         are used for LVaR (VR-08).
         ``current_regime`` / ``regime_var`` — VR-10 regime-conditional VaR.
         Limit = max(overall, regime-conditional).
+        ``stress_returns`` — VR-11 stressed VaR (Basel 2.5).
         """
         _ = prices
         ret = [float(x) for x in np.asarray(returns_history, dtype=float).ravel().tolist()]
@@ -257,6 +261,21 @@ class RiskEngine:
             method=cfg.lvar_method,
         )
 
+        # ── Stressed VaR — Basel 2.5 (VR-11) ────────────────────────────────
+        svar_val = 0.0
+        svar_period = ""
+        svar_breach = False
+        if stress_returns:
+            from super_otonom.risk.stressed_var import StressedVaR
+
+            svar_engine = StressedVaR(stress_returns)
+            svar_result = svar_engine.compute(
+                ret, conf=0.99, var_99_for_limit=vlim99,
+            )
+            svar_val = svar_result.stressed_var
+            svar_period = svar_result.worst_period
+            svar_breach = svar_result.breach
+
         # ── Dispersion ───────────────────────────────────────────────────────
         disp95 = _dispersion(vars95)
         disp99 = _dispersion(vars99)
@@ -299,6 +318,9 @@ class RiskEngine:
             var_fhs_99=fhs_v99,
             cvar_fhs_95=fhs_cv95,
             cvar_fhs_99=fhs_cv99,
+            stressed_var=svar_val,
+            stressed_var_worst_period=svar_period,
+            stressed_var_breach=svar_breach,
             lvar=lvar_val,
             lvar_data_health=lvar_dh,
             model_dispersion_pct=max(0.0, dispersion),
