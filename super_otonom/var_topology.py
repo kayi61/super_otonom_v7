@@ -37,6 +37,7 @@ _INSTITUTIONAL_GAP_MARKERS = (
     "stress_grid_var",
     "copula_var",
     "filtered_historical_simulation",
+    "stressed_var_engine",
 )
 
 _LIVE_TICK_PORTFOLIO_RISK_IMPORT_MARKERS = (
@@ -57,6 +58,7 @@ class VarTopology:
     liquidity_adjusted_var_present: bool = False
     institutional_stress_grid_present: bool = False
     stress_heuristic_in_portfolio_risk: bool = False
+    stressed_var_engine_present: bool = False
     institutional_gap_hits: Dict[str, List[str]] = field(default_factory=dict)
 
     @property
@@ -196,6 +198,7 @@ def inspect_var_topology(
             "stress_grid" in str(v) or "stress_scenario_grid" in str(v) for v in gap_hits.values()
         ),
         stress_heuristic_in_portfolio_risk=portfolio_risk_has_stress_heuristic(root),
+        stressed_var_engine_present=_risk_pkg_has(root, "stressed_var_engine"),
         institutional_gap_hits=gap_hits,
     )
 
@@ -214,12 +217,14 @@ def build_manifest_payload(topo: VarTopology) -> Dict[str, Any]:
         "liquidity_adjusted_var_present": topo.liquidity_adjusted_var_present,
         "institutional_stress_grid_present": topo.institutional_stress_grid_present,
         "stress_heuristic_in_portfolio_risk": topo.stress_heuristic_in_portfolio_risk,
+        "stressed_var_engine_present": topo.stressed_var_engine_present,
         "institutional_gap_hits_expected_empty": True,
         "institutional_var_claim_allowed": False,
         "disclaimer_tr": (
             "portfolio_risk_engine faz-24 icin parametrik/tarihsel/MC VaR ve CVaR sunar; "
             "canli tick risk_ontology uzerinden tek tarihsel yuzdelik VaR kullanir. "
             "Rejim kosullu VaR (VR-10) risk paketinde uygulanmistir; "
+            "Stressed VaR (VR-11) Basel 2.5 stres-donem olceklemesi risk paketinde uygulanmistir; "
             "kurumsal stres gridi yoktur — "
             "stres yalnizca sezgisel flash/bear heuristik veya ozel stress_scenarios dict. "
             "Kurumsal risk motoru iddiasi bu topoloji ile uyumlu degildir; "
@@ -326,6 +331,8 @@ def var_disclosure(*, topo: Optional[VarTopology] = None) -> Dict[str, Any]:
         limitations.append("no_liquidity_adjusted_var")
     if t.stress_heuristic_in_portfolio_risk:
         limitations.append("stress_heuristic_flash_bear_only")
+    if not t.stressed_var_engine_present:
+        limitations.append("no_stressed_var_engine")
     if t.phase24_var_suite_present:
         limitations.append("parametric_historical_mc_cvar_in_phase24")
     return {
@@ -337,6 +344,7 @@ def var_disclosure(*, topo: Optional[VarTopology] = None) -> Dict[str, Any]:
             "live_var_modules": t.live_var_modules,
             "live_tick_uses_portfolio_risk_engine": t.live_tick_uses_portfolio_risk_engine,
             "stress_heuristic_in_portfolio_risk": t.stress_heuristic_in_portfolio_risk,
+            "stressed_var_engine_present": t.stressed_var_engine_present,
             "institutional_gap_hits": t.institutional_gap_hits,
         },
         "limitations": limitations,
