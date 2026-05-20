@@ -184,8 +184,9 @@ def inspect_var_topology(
         var_methods_present=scan_var_methods_in_portfolio_risk(root),
         live_var_modules=scan_live_var_modules(root),
         live_tick_uses_portfolio_risk_engine=live_tick_imports_portfolio_risk_engine(root),
-        regime_conditional_var_present=any(
-            "regime_conditional" in str(v) for v in gap_hits.values()
+        regime_conditional_var_present=(
+            _risk_pkg_has(root, "regime_conditional_var")
+            or any("regime_conditional" in str(v) for v in gap_hits.values())
         ),
         liquidity_adjusted_var_present=(
             _risk_pkg_has(root, "liquidity_adjusted_var")
@@ -218,7 +219,8 @@ def build_manifest_payload(topo: VarTopology) -> Dict[str, Any]:
         "disclaimer_tr": (
             "portfolio_risk_engine faz-24 icin parametrik/tarihsel/MC VaR ve CVaR sunar; "
             "canli tick risk_ontology uzerinden tek tarihsel yuzdelik VaR kullanir. "
-            "Rejim kosullu VaR, likidite ayari ve kurumsal stres gridi yoktur — "
+            "Rejim kosullu VaR (VR-10) risk paketinde uygulanmistir; "
+            "kurumsal stres gridi yoktur — "
             "stres yalnizca sezgisel flash/bear heuristik veya ozel stress_scenarios dict. "
             "Kurumsal risk motoru iddiasi bu topoloji ile uyumlu degildir; "
             "'yetersiz' ifadesi 'hic yok' ifadesinden daha dogrudur."
@@ -316,9 +318,10 @@ def var_disclosure(*, topo: Optional[VarTopology] = None) -> Dict[str, Any]:
     limitations: List[str] = [
         "phase24_var_not_live_tick_default",
         "live_var_historical_percentile_only",
-        "no_regime_conditional_var",
         "no_institutional_stress_grid",
     ]
+    if not t.regime_conditional_var_present:
+        limitations.append("no_regime_conditional_var")
     if not t.liquidity_adjusted_var_present:
         limitations.append("no_liquidity_adjusted_var")
     if t.stress_heuristic_in_portfolio_risk:

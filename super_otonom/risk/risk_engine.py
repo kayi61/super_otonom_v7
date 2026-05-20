@@ -1,9 +1,9 @@
-"""Unified risk engine — single VaR/CVaR source (VR-01/02/03/04/06/07/08/09)."""
+"""Unified risk engine — single VaR/CVaR source (VR-01 through VR-10)."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Mapping, Optional, Sequence
+from typing import Any, Dict, Mapping, Optional, Sequence
 
 import numpy as np
 
@@ -81,9 +81,14 @@ class RiskMetrics:
     lvar: float = 0.0
     lvar_data_health: float = 0.0
 
-    # ── Decomposition (VR-09 placeholder) ────────────────────────────────────
+    # ── Decomposition (VR-09) ──────────────────────────────────────────────
     component_var_per_position: Dict[str, float] = field(default_factory=dict)
     marginal_var_per_position: Dict[str, float] = field(default_factory=dict)
+
+    # ── Regime-conditional VaR (VR-10) ──────────────────────────────────────
+    var_regime_conditional_95: Optional[float] = None
+    var_regime_conditional_99: Optional[float] = None
+    current_regime: Optional[str] = None
 
     # ── Legacy compat (live tick PnL-based) ──────────────────────────────────
     pnl_var_95: float = 0.0
@@ -125,6 +130,8 @@ class RiskEngine:
         position_notional: float = 0.0,
         position_qty: float = 0.0,
         adv: float = 0.0,
+        current_regime: Optional[str] = None,
+        regime_var: Any = None,
     ) -> RiskMetrics:
         """
         Unified VaR/CVaR suite from return history.
@@ -134,6 +141,8 @@ class RiskEngine:
         ``prices`` — reserved for future use.
         ``spread_history`` / ``position_notional`` / ``position_qty`` / ``adv``
         are used for LVaR (VR-08).
+        ``current_regime`` / ``regime_var`` — VR-10 regime-conditional VaR.
+        Limit = max(overall, regime-conditional).
         """
         _ = prices
         ret = [float(x) for x in np.asarray(returns_history, dtype=float).ravel().tolist()]
@@ -171,6 +180,19 @@ class RiskEngine:
         )
         vars99 = [vh99, vp99, vm99]
         vlim99 = max(vars99) if cfg.limit_aggregator == "max" else float(np.mean(vars99))
+
+        # ── Regime-conditional VaR (VR-10) ──────────────────────────────────
+        rc_var95: Optional[float] = None
+        rc_var99: Optional[float] = None
+        regime_label: Optional[str] = None
+        if current_regime and regime_var is not None:
+            rc_metrics = regime_var.var_for_current(current_regime, cfg)
+            if rc_metrics is not None:
+                rc_var95 = rc_metrics.var_for_limits_95
+                rc_var99 = rc_metrics.var_for_limits_99
+                regime_label = current_regime
+                vlim95 = max(vlim95, rc_var95)
+                vlim99 = max(vlim99, rc_var99)
 
         # ── 97.5% (Basel FRTB horizon) ───────────────────────────────────────
         vh975 = historical_var(ret, 0.975, horizon_days=1)
@@ -282,6 +304,9 @@ class RiskEngine:
             model_dispersion_pct=max(0.0, dispersion),
             component_var_per_position=comp_var,
             marginal_var_per_position=marg_var,
+            var_regime_conditional_95=rc_var95,
+            var_regime_conditional_99=rc_var99,
+            current_regime=regime_label,
         )
 
     # ── Legacy live-tick interface (RiskOntology compat) ─────────────────────
