@@ -80,6 +80,15 @@ groups:
           summary: "Borsa-yerel saat farki kritik"
           description: "abs_skew_ms={{ $value | printf \"%.0f\" }} — mum/imza riski"
 
+      - alert: BotStressLossHigh
+        expr: bot_stress_worst_scenario_pnl_pct < -15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Stres senaryosu kaybi > %15 NAV"
+          description: "worst_pnl_pct={{ $value | printf \"%.2f\" }}%"
+
       - alert: BotHostNtpNotSynchronized
         expr: bot_host_ntp_synchronized == 0
         for: 10m

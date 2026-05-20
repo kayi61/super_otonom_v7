@@ -48,6 +48,7 @@ _ALLOWLIST_FILES = (
     "test_lvar_vr08",
     "test_regime_var_vr10",
     "test_stressed_var_vr11",
+    "test_stress_scenarios_vr12",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -74,6 +75,9 @@ _ALLOW_SUBSTR = (
     "risk_ontology_percentile",
     "stressed_var_engine",
     "stressed_var",
+    "institutional_stress_grid",
+    "stress_scenario",
+    "stress_grid",
 )
 
 

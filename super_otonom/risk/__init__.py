@@ -7,6 +7,17 @@ from super_otonom.risk.fhs import fhs_var_cvar
 from super_otonom.risk.lvar import bdss_lvar, compute_lvar, time_to_liquidate_lvar
 from super_otonom.risk.regime_var import RegimeConditionalVaR
 from super_otonom.risk.risk_engine import RiskEngine, RiskMetrics
+from super_otonom.risk.stress_scenarios import (
+    ForwardStressResult,
+    ReverseStressResult,
+    StressGridResult,
+    StressScenario,
+    forward_stress,
+    generate_stress_report,
+    load_scenarios,
+    reverse_stress,
+    run_stress_grid,
+)
 from super_otonom.risk.stressed_var import StressedVaR, compute_stressed_var
 from super_otonom.risk.var_decomposition import (
     component_var,
@@ -44,4 +55,13 @@ __all__ = [
     "RegimeConditionalVaR",
     "StressedVaR",
     "compute_stressed_var",
+    "StressScenario",
+    "ForwardStressResult",
+    "StressGridResult",
+    "ReverseStressResult",
+    "forward_stress",
+    "reverse_stress",
+    "run_stress_grid",
+    "load_scenarios",
+    "generate_stress_report",
 ]
