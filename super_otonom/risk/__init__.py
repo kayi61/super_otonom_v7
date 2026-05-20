@@ -5,6 +5,7 @@ from super_otonom.risk.cvar_models import historical_cvar, mc_cvar, parametric_c
 from super_otonom.risk.evt import pot_var_cvar
 from super_otonom.risk.fhs import fhs_var_cvar
 from super_otonom.risk.lvar import bdss_lvar, compute_lvar, time_to_liquidate_lvar
+from super_otonom.risk.regime_var import RegimeConditionalVaR
 from super_otonom.risk.risk_engine import RiskEngine, RiskMetrics
 from super_otonom.risk.var_decomposition import (
     component_var,
@@ -39,4 +40,5 @@ __all__ = [
     "marginal_var",
     "component_var",
     "incremental_var",
+    "RegimeConditionalVaR",
 ]

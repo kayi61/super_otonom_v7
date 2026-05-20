@@ -15,11 +15,11 @@
   ],
   "live_tick_var_source": "risk_ontology_percentile_pnl",
   "live_tick_uses_portfolio_risk_engine": false,
-  "regime_conditional_var_present": false,
+  "regime_conditional_var_present": true,
   "liquidity_adjusted_var_present": true,
   "institutional_stress_grid_present": false,
   "stress_heuristic_in_portfolio_risk": true,
   "institutional_gap_hits_expected_empty": true,
   "institutional_var_claim_allowed": false,
-  "disclaimer_tr": "portfolio_risk_engine faz-24 icin parametrik/tarihsel/MC VaR ve CVaR sunar; canli tick risk_ontology uzerinden tek tarihsel yuzdelik VaR kullanir. Rejim kosullu VaR, likidite ayari ve kurumsal stres gridi yoktur — stres yalnizca sezgisel flash/bear heuristik veya ozel stress_scenarios dict. Kurumsal risk motoru iddiasi bu topoloji ile uyumlu degildir; 'yetersiz' ifadesi 'hic yok' ifadesinden daha dogrudur."
+  "disclaimer_tr": "portfolio_risk_engine faz-24 icin parametrik/tarihsel/MC VaR ve CVaR sunar; canli tick risk_ontology uzerinden tek tarihsel yuzdelik VaR kullanir. Rejim kosullu VaR (VR-10) risk paketinde uygulanmistir; kurumsal stres gridi yoktur — stres yalnizca sezgisel flash/bear heuristik veya ozel stress_scenarios dict. Kurumsal risk motoru iddiasi bu topoloji ile uyumlu degildir; 'yetersiz' ifadesi 'hic yok' ifadesinden daha dogrudur."
 }

@@ -29,7 +29,8 @@ def test_phase24_var_methods_present() -> None:
 def test_disclosure_not_institutional() -> None:
     d = var_disclosure()
     assert d["institutional_var_claim_allowed"] is False
-    assert "no_regime_conditional_var" in d["limitations"]
+    assert "no_regime_conditional_var" not in d["limitations"]
+    assert "no_institutional_stress_grid" in d["limitations"]
 
 
 def test_live_tick_does_not_use_phase24_engine() -> None:
