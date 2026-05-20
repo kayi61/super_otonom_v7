@@ -20,23 +20,24 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 ## VR Progress Tracker
 | VR | Başlık | Durum | PR |
 |----|--------|-------|----|
-| VR-01 | Unified RiskEngine | ✅ Merged | — |
-| VR-02 | VaR Models (Hist/Param/MC) | ✅ Merged | — |
-| VR-03 | Cornish-Fisher VaR | ✅ Merged | — |
-| VR-04 | CVaR / Expected Shortfall | ✅ Merged | — |
-| VR-05 | RiskConfig Basel alignment | ✅ Merged | — |
+| VR-01 | Unified RiskEngine | ✅ Merged | #18 |
+| VR-02 | VaR Models (Hist/Param/MC) | ✅ Merged | #19 |
+| VR-03 | Cornish-Fisher VaR | ✅ Merged | #20 |
+| VR-04 | CVaR / Expected Shortfall | ✅ Merged | #21 |
+| VR-05 | RiskConfig Basel alignment | ✅ Merged | #22 |
 | VR-06 | EVT Peaks Over Threshold | ✅ Merged | #23 |
 | VR-07 | Filtered Historical Sim (FHS) | ✅ Merged | #24 |
 | VR-08 | Liquidity-adjusted VaR (LVaR) | ✅ Merged | #25 |
 | VR-09 | Component/Marginal/Incremental VaR decomposition | ✅ Merged | #26 |
 | VR-10 | Regime-Conditional VaR | ✅ Merged | #27 |
-| VR-11 | Stressed VaR (Basel 2.5) | ✅ PR Open | #28 |
+| VR-11 | Stressed VaR (Basel 2.5) | ✅ Merged | #28 |
 | VR-12 | Stress Scenario Library + Reverse Stress Test | ✅ Merged | #29 |
-| VR-13 | Kupiec POF Backtest | ✅ PR Open | — |
+| VR-13 | Kupiec POF Backtest | ✅ Merged | #30 |
 | VR-14 | Christoffersen Independence + CC | ✅ Merged | #31 |
-| VR-15 | Basel Traffic Light Backtest | ✅ PR Open | — |
-| VR-16 | P&L Attribution + Unexplained PnL Drift | ✅ PR Open | — |
-| VR-17 | Pre-trade Marginal VaR Gate | ✅ PR Open | — |
+| VR-15 | Basel Traffic Light Backtest | ✅ Merged | #32 |
+| VR-16 | P&L Attribution + Unexplained PnL Drift | ✅ Merged | #33 |
+| VR-17 | Pre-trade Marginal VaR Gate | ✅ Merged | #34 |
+| VR-18 | VaR-aware Position Sizing (Kelly + VaR Cap) | ✅ Merged | #35 |
 
 ## Project Structure (Risk Engine)
 ```
@@ -55,6 +56,7 @@ super_otonom/risk/
 ├── var_backtest.py          # VR-13/14/15: kupiec_pof, christoffersen, basel_traffic_light
 ├── pnl_attribution.py       # VR-16: attribute_pnl, PnLAttribution, drift detection
 ├── pre_trade_var_gate.py    # VR-17: pre_trade_var_check, marginal VaR gate (<30ms)
+├── position_sizer_var.py    # VR-18: VarAwarePositionSizer, size_with_var_cap (Kelly + VaR Cap)
 └── risk_engine.py           # RiskEngine.compute() → RiskMetrics (~35 fields)
 ```
 
@@ -83,11 +85,12 @@ tests/risk/
 ├── test_regime_var_vr10.py         # 40 tests — Regime-conditional VaR
 ├── test_stressed_var_vr11.py       # 42 tests — Stressed VaR (Basel 2.5)
 ├── test_stress_scenarios_vr12.py   # 49 tests — Stress Scenario Library + Reverse Stress
-├── test_var_backtest_vr13.py       # 38 tests — Kupiec POF backtest
+├── test_var_backtest_vr13.py       # 32 tests — Kupiec POF backtest
 ├── test_christoffersen_vr14.py    # 44 tests — Christoffersen Independence + CC
 ├── test_basel_traffic_light_vr15.py # 41 tests — Basel Traffic Light
 ├── test_pnl_attribution_vr16.py   # 38 tests — P&L Attribution + Drift Detection
 ├── test_pre_trade_var_gate_vr17.py # 36 tests — Pre-trade Marginal VaR Gate
+├── test_position_sizer_var_vr18.py # 52 tests — VaR-aware Position Sizing (Kelly + VaR Cap)
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -95,7 +98,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 636 (all passing)
+**Total risk tests:** 671 (all passing)
 
 ## Technical Details
 
