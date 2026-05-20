@@ -143,6 +143,15 @@ groups:
           summary: "Pre-trade VaR gate islerin >%50 sini reddediyor"
           description: "approval_rate={{ $value | printf \"%.2f\" }} (15dk ortalamasi)"
 
+      - alert: BotVarCapBindingRate
+        expr: avg_over_time(bot_position_sizer_var_cap_active[15m]) > 0.8
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "VaR cap islerin >%80 inde binding — Kelly büyüklüğü sürekli kırpılıyor"
+          description: "binding_rate={{ $value | printf \"%.2f\" }} (15dk ortalamasi)"
+
       - alert: BotHostNtpNotSynchronized
         expr: bot_host_ntp_synchronized == 0
         for: 10m

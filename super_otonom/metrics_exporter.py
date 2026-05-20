@@ -315,6 +315,30 @@ class MetricsExporter:
                 f"{namespace}_pre_trade_var_gate_marginal_var"
             )
 
+        # ── VR-18: VaR-aware Position Sizer ────────────────────────────────
+        try:
+            self._gauges["position_sizer_var_cap_active"] = Gauge(
+                f"{namespace}_position_sizer_var_cap_active",
+                "VaR cap binding: 1=cap kisitladi, 0=Kelly daha kucuk",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["position_sizer_var_cap_active"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_position_sizer_var_cap_active"
+            )
+        try:
+            self._gauges["position_sizer_var_capped_size"] = Gauge(
+                f"{namespace}_position_sizer_var_capped_size",
+                "VaR cap sonrasi pozisyon boyutu (USDT)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["position_sizer_var_capped_size"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_position_sizer_var_capped_size"
+            )
+
         # ── VR-08: LVaR (sembol bazında) ─────────────────────────────────────
         try:
             self._gauges["var_liquidity_adjusted"] = Gauge(
@@ -639,6 +663,15 @@ class MetricsExporter:
             self._gauges["var_liquidity_adjusted"].labels(symbol=symbol).set(lvar)
         except Exception as exc:
             log.debug("MetricsExporter.record_lvar hata: %s", exc)
+
+    def record_var_cap(self, cap_binding: bool, capped_size: float) -> None:
+        if not self._enabled:
+            return
+        try:
+            self._gauges["position_sizer_var_cap_active"].set(1.0 if cap_binding else 0.0)
+            self._gauges["position_sizer_var_capped_size"].set(capped_size)
+        except Exception as exc:
+            log.debug("MetricsExporter.record_var_cap hata: %s", exc)
 
     def record_host_ntp(self, synced: Optional[bool]) -> None:
         if not self._enabled:

@@ -16,6 +16,13 @@ from super_otonom.risk.pnl_attribution import (
     attribution_to_dict,
     generate_attribution_report,
 )
+from super_otonom.risk.position_sizer_var import (
+    MarginalVarEngine,
+    VarAwarePositionSizer,
+    VarCapResult,
+    size_with_var_cap,
+    var_cap_result_to_dict,
+)
 from super_otonom.risk.pre_trade_var_gate import (
     PreTradeVarLimits,
     PreTradeVarResult,
@@ -124,4 +131,9 @@ __all__ = [
     "pre_trade_var_check_batch",
     "simulate_trade_weights",
     "gate_result_to_dict",
+    "MarginalVarEngine",
+    "VarAwarePositionSizer",
+    "VarCapResult",
+    "size_with_var_cap",
+    "var_cap_result_to_dict",
 ]
