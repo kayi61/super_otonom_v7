@@ -49,6 +49,10 @@ class RiskConfig:
     student_t_df: float | None = None  # None → MLE estimation
     student_t_df_estimator: Literal["mle"] = "mle"
 
+    # ── EVT Peaks Over Threshold (VR-06) ──────────────────────────────────
+    evt_min_sample: int = 500
+    evt_threshold_quantile: float = 0.95
+
     # ── Model selection (VR-05) ─────────────────────────────────────────────
     use_models: tuple[str, ...] = (
         "historical",
@@ -85,6 +89,16 @@ class RiskConfig:
             )
         if self.parametric_dist not in ("normal", "student_t"):
             issues.append(f"parametric_dist={self.parametric_dist!r} invalid")
+
+        if self.evt_min_sample < 50:
+            issues.append(
+                f"evt_min_sample={self.evt_min_sample} too low (min 50)"
+            )
+        if not (0.80 <= self.evt_threshold_quantile <= 0.99):
+            issues.append(
+                f"evt_threshold_quantile={self.evt_threshold_quantile} "
+                "outside [0.80, 0.99]"
+            )
 
         valid_models = {"historical", "parametric_t", "monte_carlo", "cornish_fisher"}
         unknown = set(self.use_models) - valid_models
