@@ -41,6 +41,7 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-19 | Kill-switch — VaR/CVaR Breach Trigger | ✅ Merged | #37 |
 | VR-20 | VaR Limit Hierarchy (Strategy/Portfolio/Firm) | 🔄 PR Open | — |
 | VR-21 | Prometheus VaR/CVaR/Stres Metrikleri — Tam Suite | 🔄 PR Open | — |
+| VR-22 | Günlük Risk Raporu — Otomatik Üretim | 🔄 PR Open | — |
 
 ## Project Structure (Risk Engine)
 ```
@@ -98,6 +99,7 @@ tests/risk/
 ├── test_var_breach_kill_switch_vr19.py # 39 tests — VaR/CVaR Breach Kill-switch
 ├── test_var_limits_hierarchy_vr20.py # 46 tests — VaR Limit Hierarchy
 ├── test_prometheus_var_suite_vr21.py # 52 tests — Prometheus VaR/CVaR Full Suite
+├── test_daily_risk_report_vr22.py  # 52 tests — Daily Risk Report
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -105,7 +107,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 825 (all passing)
+**Total risk tests:** 877 (all passing)
 
 ## Technical Details
 
@@ -330,6 +332,30 @@ tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
   - `BotLVaRLimitBreach` (warning 5min)
 - Contains `_prometheus_var_full_suite = True` sentinel for var_topology detection
 - Lives in `super_otonom/metrics_exporter.py` (extends existing MetricsExporter class)
+
+### Daily Risk Report (VR-22)
+- **10-section automated daily risk report** in Markdown format
+- Output: `docs/risk_reports/risk_YYYY-MM-DD.md` (cron 23:55 UTC)
+- Sections:
+  1. Özet (capital, NAV, exposure, leverage)
+  2. VaR matrisi (7 models × 2 confidence levels)
+  3. CVaR matrisi (6 models × 2 confidence + 97.5% FRTB)
+  4. Stressed VaR (Basel 2.5) with breach status
+  5. Top 10 positions + component VaR
+  6. Stress scenario results (worst 5)
+  7. VaR backtest (Kupiec / Christoffersen CC / Basel traffic light)
+  8. P&L attribution with drift detection
+  9. Limit breach log
+  10. Manual review flags (auto-detected)
+- `generate_report(report_date=)` → Markdown string
+- `generate_report_json(report_date=)` → structured dict
+- CLI: `--date`, `--out`, `--json`, `--stdout`
+- Data sources: `data/capital_journal.jsonl`, `data/realized_pnl.json`, `data/positions.json`, `data/breach_log.jsonl`, `data/pnl_attribution_latest.json`
+- Real RiskEngine integration: runs `RiskEngine.compute()` on loaded returns
+- Backtest integration: Kupiec POF, Christoffersen CC, Basel traffic light (min 50 obs)
+- Bonus: `scripts/risk_report_to_pdf.py` — Markdown → PDF (weasyprint > pdfkit fallback)
+- Contains `daily_risk_report_active = True` sentinel for var_topology detection
+- Scripts: `scripts/generate_daily_risk_report.py`, `scripts/risk_report_to_pdf.py`
 
 ### Aggregation
 - `var_for_limits = max(historical, parametric, MC)` (conservative)

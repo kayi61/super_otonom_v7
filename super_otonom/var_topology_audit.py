@@ -58,6 +58,9 @@ _ALLOWLIST_FILES = (
     "test_var_breach_kill_switch_vr19",
     "test_var_limits_hierarchy_vr20",
     "test_prometheus_var_suite_vr21",
+    "test_daily_risk_report_vr22",
+    "generate_daily_risk_report",
+    "risk_report_to_pdf",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -120,6 +123,9 @@ _ALLOW_SUBSTR = (
     "var_model_dispersion",
     "component_var_pct",
     "stressed_var_pct",
+    "daily_risk_report",
+    "generate_report",
+    "risk_report_to_pdf",
 )
 
 
