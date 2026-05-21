@@ -55,6 +55,7 @@ _ALLOWLIST_FILES = (
     "test_pnl_attribution_vr16",
     "test_pre_trade_var_gate_vr17",
     "test_position_sizer_var_vr18",
+    "test_var_breach_kill_switch_vr19",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -102,6 +103,10 @@ _ALLOW_SUBSTR = (
     "var_cap_result",
     "var_aware_position_sizer",
     "size_with_var_cap",
+    "var_breach_kill_switch",
+    "var_99_breach",
+    "cvar_975_breach",
+    "stressed_var_breach",
 )
 
 

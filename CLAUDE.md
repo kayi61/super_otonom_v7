@@ -38,6 +38,7 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-16 | P&L Attribution + Unexplained PnL Drift | ✅ Merged | #33 |
 | VR-17 | Pre-trade Marginal VaR Gate | ✅ Merged | #34 |
 | VR-18 | VaR-aware Position Sizing (Kelly + VaR Cap) | ✅ Merged | #35 |
+| VR-19 | Kill-switch — VaR/CVaR Breach Trigger | 🔄 PR Open | — |
 
 ## Project Structure (Risk Engine)
 ```
@@ -91,6 +92,7 @@ tests/risk/
 ├── test_pnl_attribution_vr16.py   # 38 tests — P&L Attribution + Drift Detection
 ├── test_pre_trade_var_gate_vr17.py # 36 tests — Pre-trade Marginal VaR Gate
 ├── test_position_sizer_var_vr18.py # 52 tests — VaR-aware Position Sizing (Kelly + VaR Cap)
+├── test_var_breach_kill_switch_vr19.py # 39 tests — VaR/CVaR Breach Kill-switch
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -98,7 +100,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 671 (all passing)
+**Total risk tests:** 727 (all passing)
 
 ## Technical Details
 
@@ -268,6 +270,23 @@ tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 - Alert: `BotPreTradeVarGateReject` — approval rate < 50% for 15m
 - Standalone module: `super_otonom/risk/pre_trade_var_gate.py`
 
+### VaR/CVaR Breach Kill-switch (VR-19)
+- **3 breach triggers** in `check_risk()` chain (step 5, after loss/drawdown, before exposure):
+  1. `var_99_1d > max_var_99_pct` (default 6%) → `emergency_stop`
+  2. `cvar_975_1d > max_cvar_975_pct` (default 10%) → `emergency_stop`
+  3. `stressed_var > 2 × var_99_1d` → `emergency_stop`
+- **Model dispersion warning**: `model_dispersion_pct > 50%` → `log.critical` (no kill)
+- `_check_var_breach()` in `RiskManager` — uses `RiskEngine.compute()` on return history
+- `set_risk_engine(engine)`: BotEngine __init__ sonrası çağrılır
+- `record_return(ret)`: Her tick'te portföy return'ü kaydedilir (deque 500)
+- Skip conditions: engine not set, < 20 returns, compute error → conservative pass
+- Config keys (env override): `MAX_VAR_99_PCT`, `MAX_CVAR_975_PCT`, `MAX_MODEL_DISPERSION_PCT`
+- Contains `var_breach_kill_switch = True` sentinel for var_topology detection
+- Prometheus: `bot_var_breach_kill_switch` (0=normal, 1=var_99, 2=cvar_975, 3=stressed_var), `bot_var_99_current`, `bot_cvar_975_current`, `bot_model_dispersion_current`
+- `record_var_breach(breach_code, var_99, cvar_975, model_dispersion)` on MetricsExporter
+- Alert: `BotVarBreachKillSwitch` — breach_code != 0 for 1m
+- Lives in `super_otonom/risk_manager.py` (extends existing class, not standalone module)
+
 ### Aggregation
 - `var_for_limits = max(historical, parametric, MC)` (conservative)
 - After regime VaR: `vlim = max(vlim, regime_conditional)` (VR-10)
@@ -387,6 +406,12 @@ def compute(
 - **Pre-trade VaR gate total vs marginal**: Total VaR check runs FIRST — tight limits can reject a diversifier even if marginal VaR is negative
 - **Pre-trade VaR gate weight normalization**: Weights are normalised to sum=1 internally for VaR calculation, but stored as-is in portfolio
 - **Pre-trade VaR gate latency**: numpy vectorised path is critical — avoid Python loops over return series
+- **VR-19 kill-switch chain order**: VaR breach step 5'te — loss/drawdown (2-4) sonrası, exposure/vol (6-7) öncesi. Drawdown emergency + VaR breach aynı anda olursa drawdown ilk yakalar
+- **VR-19 skip conditions**: engine=None veya returns<20 → None döner (conservative pass), emergency_stop AÇMAZ
+- **VR-19 breach priority**: var_99 → cvar_975 → stressed_var sırayla kontrol — ilk breach emergency'yi latch eder
+- **VR-19 stressed_var=0**: Stress fixture yoksa stressed_var=0.0 — 0>0 kontrolünden geçmez, breach olmaz
+- **VR-19 model_dispersion**: Log uyarısı, kill YOK — sadece manuel review tetikler
+- **VR-19 config override**: Test'lerde RISK dict'i değiştirirsen try/finally ile geri al — global state
 
 ## Dependencies
 - Python 3.12, numpy, scipy>=1.11.0, arch>=7.0.0, pytest, ruff
