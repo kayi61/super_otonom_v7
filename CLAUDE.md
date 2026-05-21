@@ -40,6 +40,7 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-18 | VaR-aware Position Sizing (Kelly + VaR Cap) | ✅ Merged | #35 |
 | VR-19 | Kill-switch — VaR/CVaR Breach Trigger | ✅ Merged | #37 |
 | VR-20 | VaR Limit Hierarchy (Strategy/Portfolio/Firm) | 🔄 PR Open | — |
+| VR-21 | Prometheus VaR/CVaR/Stres Metrikleri — Tam Suite | 🔄 PR Open | — |
 
 ## Project Structure (Risk Engine)
 ```
@@ -96,6 +97,7 @@ tests/risk/
 ├── test_position_sizer_var_vr18.py # 52 tests — VaR-aware Position Sizing (Kelly + VaR Cap)
 ├── test_var_breach_kill_switch_vr19.py # 39 tests — VaR/CVaR Breach Kill-switch
 ├── test_var_limits_hierarchy_vr20.py # 46 tests — VaR Limit Hierarchy
+├── test_prometheus_var_suite_vr21.py # 52 tests — Prometheus VaR/CVaR Full Suite
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -103,7 +105,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 773 (all passing)
+**Total risk tests:** 825 (all passing)
 
 ## Technical Details
 
@@ -308,6 +310,27 @@ tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 - Standalone module: `super_otonom/risk/var_limits.py`
 - Config file: `config/var_limits.yaml`
 
+### Prometheus VaR/CVaR Full Suite (VR-21)
+- **Multi-labeled gauges**: `bot_var_pct{conf, model, scope}`, `bot_cvar_pct{conf, model, scope}`
+- 15 VaR series: historical/parametric_t/monte_carlo/cornish_fisher/aggregate at 95%/99%, plus evt/fhs/regime
+- 12 CVaR series: historical/parametric/monte_carlo at 95%/99%, plus aggregate 95%/975%/99%, evt/fhs
+- `bot_stressed_var_pct` — Basel 2.5 stressed VaR
+- `bot_component_var_pct{symbol}` — component VaR concentration per position
+- `bot_var_model_dispersion_pct` — model dispersion ratio
+- `bot_var_limit_utilisation{level}` — current / limit ratio (4 levels: var_99, cvar_975, stressed_var, lvar)
+- `record_var_suite(metrics, limits=, component_var=)` — tek çağrıda tüm metrikleri yazar
+- Division guard: var_for_limits_95=0 → component_var_pct=0.0 (ZeroDivisionError koruması)
+- **7 new alert rules** in `docker/prometheus/alerts.yml`:
+  - `BotVaRApproachingLimit` (warning 5min, utilisation > 0.8)
+  - `BotVaRLimitBreach` (critical 1min, utilisation >= 1.0)
+  - `BotCVaRLimitBreach` (critical 1min)
+  - `BotModelDispersionHigh` (warning 15min, > 0.5)
+  - `BotPnLUnexplainedHigh` (warning 15min, > 15 bps)
+  - `BotStressedVaRApproachingLimit` (warning 5min)
+  - `BotLVaRLimitBreach` (warning 5min)
+- Contains `_prometheus_var_full_suite = True` sentinel for var_topology detection
+- Lives in `super_otonom/metrics_exporter.py` (extends existing MetricsExporter class)
+
 ### Aggregation
 - `var_for_limits = max(historical, parametric, MC)` (conservative)
 - After regime VaR: `vlim = max(vlim, regime_conditional)` (VR-10)
@@ -438,6 +461,12 @@ def compute(
 - **VR-20 validate strict >**: strategy_var == portfolio_var invalid — strict less-than gerekli
 - **VR-20 check_limits component**: component_var / var_for_limits_95 oranı — var_total=0 olursa division guard var
 - **VR-20 deploy_env_check**: VaRLimits invariant ihlali deploy'u engeller (exit code 1)
+
+- **VR-21 var_total falsy guard**: `0.0 or 1.0` evaluates to `1.0` — explicit None/zero check gerekli
+- **VR-21 label cardinality**: conf×model×scope label'lar Prometheus'ta high-cardinality oluşturabilir — scope şimdilik sadece "portfolio"
+- **VR-21 limit utilisation zero limit**: limit=0.0 durumunda utilisation=0.0 döner (division guard)
+- **VR-21 record_var_suite idempotent**: Birden fazla çağrı güvenli — her çağrı gauge'ları set() ile üzerine yazar
+- **VR-21 component_var_pct ratio**: abs(cv)/abs(var_total) — raw component değil, toplam VaR'a göre oran
 
 ## Dependencies
 - Python 3.12, numpy, scipy>=1.11.0, arch>=7.0.0, pytest, ruff
