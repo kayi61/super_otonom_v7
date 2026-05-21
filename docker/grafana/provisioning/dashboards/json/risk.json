@@ -1,0 +1,608 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Bot Ops Dashboard",
+      "type": "link",
+      "url": "/d/bot-ops/bot-ops"
+    }
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "VaR / CVaR Timeline",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "VaR timeline — model × confidence overlay. Negatif = kayıp yönü.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisLabel": "VaR (fraction)",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": { "mode": "none" }
+          },
+          "unit": "percentunit"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": ".*aggregate.*" },
+            "properties": [
+              { "id": "custom.lineWidth", "value": 3 },
+              { "id": "custom.fillOpacity", "value": 20 }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        { "expr": "bot_var_pct{conf=~\"$conf\", model=~\"$model\", scope=\"portfolio\"}", "legendFormat": "VaR {{conf}}% {{model}}" },
+        { "expr": "bot_var_99_current", "legendFormat": "VaR 99% (kill-switch)" }
+      ],
+      "title": "1 — Total VaR Timeline",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "CVaR / Expected Shortfall timeline — model × confidence.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "CVaR (fraction)",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "unit": "percentunit"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": ".*aggregate.*" },
+            "properties": [
+              { "id": "custom.lineWidth", "value": 3 },
+              { "id": "custom.fillOpacity", "value": 20 }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 1 },
+      "id": 2,
+      "options": {
+        "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        { "expr": "bot_cvar_pct{conf=~\"$conf\", model=~\"$model\", scope=\"portfolio\"}", "legendFormat": "CVaR {{conf}}% {{model}}" },
+        { "expr": "bot_cvar_975_current", "legendFormat": "CVaR 97.5% (kill-switch)" }
+      ],
+      "title": "2 — CVaR Timeline",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 11 },
+      "id": 101,
+      "title": "Position Risk & Stress",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Component VaR per symbol — pozisyon bazında VaR konsantrasyonu.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 8, "x": 0, "y": 12 },
+      "id": 3,
+      "options": {
+        "displayLabels": ["name", "percent"],
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] },
+        "pieType": "donut",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [
+        { "expr": "bot_component_var_pct{symbol=~\"$symbol\"}", "legendFormat": "{{symbol}}" }
+      ],
+      "title": "3 — Component VaR (Pie)",
+      "type": "piechart"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "VaR 99% vs gerçekleşen PnL overlay — exceedance görselleştirmesi.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "unit": "percentunit"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Realized PnL" },
+            "properties": [
+              { "id": "custom.drawStyle", "value": "bars" },
+              { "id": "custom.fillOpacity", "value": 40 },
+              { "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "VaR 99%" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
+              { "id": "custom.lineWidth", "value": 2 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Neg VaR 99%" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
+              { "id": "custom.lineStyle", "value": { "dash": [10, 10], "fill": "dash" } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 16, "x": 8, "y": 12 },
+      "id": 4,
+      "options": {
+        "legend": { "calcs": ["lastNotNull", "min"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "targets": [
+        { "expr": "bot_var_pct{conf=\"99\", model=\"aggregate\", scope=\"portfolio\"}", "legendFormat": "VaR 99%" },
+        { "expr": "-bot_var_pct{conf=\"99\", model=\"aggregate\", scope=\"portfolio\"}", "legendFormat": "Neg VaR 99%" },
+        { "expr": "bot_pnl_pct", "legendFormat": "Realized PnL" }
+      ],
+      "title": "4 — VaR vs Realized PnL (60d)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "Model Quality & Backtest",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Basel traffic light history — GREEN/YELLOW/RED zone.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "green" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 30,
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 8,
+            "spanNulls": true
+          },
+          "mappings": [
+            { "options": { "0": { "color": "green", "text": "GREEN" } }, "type": "value" },
+            { "options": { "1": { "color": "yellow", "text": "YELLOW" } }, "type": "value" },
+            { "options": { "2": { "color": "red", "text": "RED" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          },
+          "max": 2,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 23 },
+      "id": 5,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [
+        { "expr": "bot_var_traffic_light", "legendFormat": "Traffic Light Zone" },
+        { "expr": "bot_var_traffic_light_exceedances", "legendFormat": "Exceedances" }
+      ],
+      "title": "5 — Traffic Light History",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Model dispersion: max(VaR) / min(VaR) - 1. Yüksek = model uyumsuzluğu.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.3 },
+              { "color": "orange", "value": 0.5 },
+              { "color": "red", "value": 0.8 }
+            ]
+          },
+          "unit": "percentunit",
+          "max": 1.0,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 4, "x": 8, "y": 23 },
+      "id": 6,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "targets": [
+        { "expr": "bot_var_model_dispersion_pct", "legendFormat": "Dispersion" }
+      ],
+      "title": "6 — Model Dispersion",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Stres senaryosu en kötü PnL ve stressed VaR trend.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": -0.10 },
+              { "color": "red", "value": -0.15 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 23 },
+      "id": 7,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        { "expr": "bot_stress_worst_scenario_pnl_pct", "legendFormat": "Worst Scenario PnL" },
+        { "expr": "bot_stressed_var_pct", "legendFormat": "Stressed VaR" },
+        { "expr": "bot_reverse_stress_min_btc_shock_pct", "legendFormat": "Reverse Stress BTC Shock" }
+      ],
+      "title": "7 — Stress Scenario Worst PnL",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Açıklanamayan PnL bar chart — 15 bps üstü drift uyarısı.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.001 },
+              { "color": "red", "value": 0.0015 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 23 },
+      "id": 8,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [
+        { "expr": "bot_pnl_unexplained_pct", "legendFormat": "Unexplained PnL %" },
+        { "expr": "bot_pnl_explained_pct", "legendFormat": "Explained PnL %" }
+      ],
+      "title": "8 — Unexplained PnL (30d)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
+      "id": 103,
+      "title": "Limit Utilization",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Limit utilisation heatmap — her seviye için current / limit oranı. 1.0 = limit, >1.0 = breach.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "#73BF69", "value": 0.5 },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "orange", "value": 0.8 },
+              { "color": "red", "value": 1.0 }
+            ]
+          },
+          "unit": "percentunit",
+          "max": 1.5,
+          "min": 0,
+          "custom": {
+            "fillOpacity": 70,
+            "lineWidth": 0,
+            "drawStyle": "bars"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "id": 9,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull"] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        { "expr": "bot_var_limit_utilisation{level=\"var_99\"}", "legendFormat": "VaR 99%" },
+        { "expr": "bot_var_limit_utilisation{level=\"cvar_975\"}", "legendFormat": "CVaR 97.5%" },
+        { "expr": "bot_var_limit_utilisation{level=\"stressed_var\"}", "legendFormat": "Stressed VaR" },
+        { "expr": "bot_var_limit_utilisation{level=\"lvar\"}", "legendFormat": "LVaR" }
+      ],
+      "title": "9 — Limit Utilization Heatmap",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Kill-switch durumu ve backtest sağlığı.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "color": "green", "text": "Normal" } }, "type": "value" },
+            { "options": { "1": { "color": "red", "text": "VaR Breach" } }, "type": "value" },
+            { "options": { "2": { "color": "red", "text": "CVaR Breach" } }, "type": "value" },
+            { "options": { "3": { "color": "red", "text": "Stressed VaR" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 32 },
+      "id": 10,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        { "expr": "bot_var_breach_kill_switch", "legendFormat": "Kill Switch" }
+      ],
+      "title": "Kill Switch",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.05 },
+              { "color": "green", "value": 0.10 }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 32 },
+      "id": 11,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        { "expr": "bot_kupiec_pvalue", "legendFormat": "Kupiec p-value" }
+      ],
+      "title": "Kupiec p-value",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.05 },
+              { "color": "green", "value": 0.10 }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 32 },
+      "id": 12,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        { "expr": "bot_christoffersen_cc_pvalue", "legendFormat": "CC p-value" }
+      ],
+      "title": "Christoffersen CC",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 36 },
+      "id": 13,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        { "expr": "bot_var_pct{conf=\"99\", model=\"aggregate\", scope=\"portfolio\"}", "legendFormat": "VaR 99%" },
+        { "expr": "bot_cvar_pct{conf=\"975\", model=\"aggregate\", scope=\"portfolio\"}", "legendFormat": "CVaR 97.5%" },
+        { "expr": "bot_stressed_var_pct", "legendFormat": "Stressed VaR" }
+      ],
+      "title": "Summary Stats",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "LVaR per symbol.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 36 },
+      "id": 14,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        { "expr": "bot_var_liquidity_adjusted{symbol=~\"$symbol\"}", "legendFormat": "LVaR {{symbol}}" }
+      ],
+      "title": "LVaR per Symbol",
+      "type": "stat"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["risk", "var", "cvar", "basel", "vr-23"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "definition": "label_values(bot_var_pct, conf)",
+        "includeAll": true,
+        "multi": true,
+        "name": "conf",
+        "options": [],
+        "query": { "qryType": 1, "query": "label_values(bot_var_pct, conf)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "type": "query",
+        "label": "Confidence"
+      },
+      {
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "definition": "label_values(bot_var_pct, model)",
+        "includeAll": true,
+        "multi": true,
+        "name": "model",
+        "options": [],
+        "query": { "qryType": 1, "query": "label_values(bot_var_pct, model)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "type": "query",
+        "label": "Model"
+      },
+      {
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "definition": "label_values(bot_component_var_pct, symbol)",
+        "includeAll": true,
+        "multi": true,
+        "name": "symbol",
+        "options": [],
+        "query": { "qryType": 1, "query": "label_values(bot_component_var_pct, symbol)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "type": "query",
+        "label": "Symbol"
+      },
+      {
+        "current": { "selected": false, "text": "1d", "value": "1d" },
+        "includeAll": false,
+        "multi": false,
+        "name": "horizon",
+        "options": [
+          { "selected": true, "text": "1d", "value": "1d" },
+          { "selected": false, "text": "10d", "value": "10d" }
+        ],
+        "type": "custom",
+        "label": "Horizon"
+      }
+    ]
+  },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {
+    "refresh_intervals": ["10s", "30s", "1m", "5m", "15m"],
+    "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d", "60d"]
+  },
+  "timezone": "utc",
+  "title": "Risk Dashboard — VaR / CVaR / Basel",
+  "uid": "risk-var-cvar",
+  "version": 1
+}
