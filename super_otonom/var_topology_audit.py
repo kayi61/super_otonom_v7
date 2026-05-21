@@ -64,6 +64,10 @@ _ALLOWLIST_FILES = (
     "test_grafana_risk_dashboard_vr23",
     "RISK_DASHBOARD.md",
     "risk.json",
+    "test_model_inventory_vr24",
+    "check_model_validation_due",
+    "MODEL_INVENTORY.md",
+    "MODEL_VALIDATION_TEMPLATE.md",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -132,6 +136,12 @@ _ALLOW_SUBSTR = (
     "risk_dashboard",
     "risk-var-cvar",
     "grafana_risk_dashboard",
+    "model_inventory",
+    "model_validation",
+    "model_validation_governance",
+    "check_model_validation_due",
+    "MODEL_INVENTORY",
+    "MODEL_VALIDATION_TEMPLATE",
 )
 
 
