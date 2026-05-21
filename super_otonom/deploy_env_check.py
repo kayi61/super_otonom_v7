@@ -134,6 +134,22 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001
         issues.append(f"[HATA] RiskConfig yüklenemedi: {exc}")
 
+    # ── VR-20: VaRLimits hierarchy invariant validation ─────────────────────
+    try:
+        from super_otonom.risk.var_limits import load_var_limits
+
+        _vl = load_var_limits()
+        _vl_issues = _vl.validate()
+        if _vl_issues:
+            issues.append(
+                "[HATA] VaRLimits hiyerarşi ihlali — "
+                + "; ".join(_vl_issues)
+            )
+        else:
+            print("deploy_env_check: VaRLimits hierarchy validation OK.")
+    except Exception as exc:  # noqa: BLE001
+        issues.append(f"[HATA] VaRLimits yüklenemedi: {exc}")
+
     if not issues:
         print(
             "deploy_env_check: A9 / canlı .env — engelleyici sorun yok "

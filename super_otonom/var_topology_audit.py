@@ -56,6 +56,7 @@ _ALLOWLIST_FILES = (
     "test_pre_trade_var_gate_vr17",
     "test_position_sizer_var_vr18",
     "test_var_breach_kill_switch_vr19",
+    "test_var_limits_hierarchy_vr20",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -107,6 +108,11 @@ _ALLOW_SUBSTR = (
     "var_99_breach",
     "cvar_975_breach",
     "stressed_var_breach",
+    "var_limit_hierarchy",
+    "var_limits",
+    "VaRLimits",
+    "check_limits",
+    "load_var_limits",
 )
 
 

@@ -38,7 +38,8 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-16 | P&L Attribution + Unexplained PnL Drift | ✅ Merged | #33 |
 | VR-17 | Pre-trade Marginal VaR Gate | ✅ Merged | #34 |
 | VR-18 | VaR-aware Position Sizing (Kelly + VaR Cap) | ✅ Merged | #35 |
-| VR-19 | Kill-switch — VaR/CVaR Breach Trigger | 🔄 PR Open | — |
+| VR-19 | Kill-switch — VaR/CVaR Breach Trigger | ✅ Merged | #37 |
+| VR-20 | VaR Limit Hierarchy (Strategy/Portfolio/Firm) | 🔄 PR Open | — |
 
 ## Project Structure (Risk Engine)
 ```
@@ -58,6 +59,7 @@ super_otonom/risk/
 ├── pnl_attribution.py       # VR-16: attribute_pnl, PnLAttribution, drift detection
 ├── pre_trade_var_gate.py    # VR-17: pre_trade_var_check, marginal VaR gate (<30ms)
 ├── position_sizer_var.py    # VR-18: VarAwarePositionSizer, size_with_var_cap (Kelly + VaR Cap)
+├── var_limits.py            # VR-20: VaRLimits, load_var_limits, check_limits (3-level hierarchy)
 └── risk_engine.py           # RiskEngine.compute() → RiskMetrics (~35 fields)
 ```
 
@@ -93,6 +95,7 @@ tests/risk/
 ├── test_pre_trade_var_gate_vr17.py # 36 tests — Pre-trade Marginal VaR Gate
 ├── test_position_sizer_var_vr18.py # 52 tests — VaR-aware Position Sizing (Kelly + VaR Cap)
 ├── test_var_breach_kill_switch_vr19.py # 39 tests — VaR/CVaR Breach Kill-switch
+├── test_var_limits_hierarchy_vr20.py # 46 tests — VaR Limit Hierarchy
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -100,7 +103,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 727 (all passing)
+**Total risk tests:** 773 (all passing)
 
 ## Technical Details
 
@@ -287,6 +290,24 @@ tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 - Alert: `BotVarBreachKillSwitch` — breach_code != 0 for 1m
 - Lives in `super_otonom/risk_manager.py` (extends existing class, not standalone module)
 
+### VaR Limit Hierarchy (VR-20)
+- **3-level limit system**: Strategy (per-strategy) → Portfolio (aggregate) → Firm (stressed)
+- `VaRLimits` frozen dataclass: 8 fields covering strategy/portfolio/trade/concentration/liquidity
+- **Override chain**: `env > config/var_limits.yaml > dataclass defaults`
+- `load_var_limits(yaml_path, skip_env)` → merges all 3 layers into VaRLimits
+- `check_limits(limits, metrics)` → returns list of breaches against RiskMetrics
+- `validate()` invariants:
+  - All limits in (0, 1]
+  - `strategy_var < portfolio_var < stressed_var`
+  - `strategy_cvar < portfolio_cvar`
+  - `marginal_var < strategy_var`
+- `deploy_env_check` integration: VaRLimits invariant validation at deploy time
+- YAML fallback parser: works without PyYAML (simple key: value)
+- Env override: field name upper-cased → `MAX_VAR_TOTAL_PCT=0.08`
+- Contains `var_limit_hierarchy_active = True` sentinel for var_topology detection
+- Standalone module: `super_otonom/risk/var_limits.py`
+- Config file: `config/var_limits.yaml`
+
 ### Aggregation
 - `var_for_limits = max(historical, parametric, MC)` (conservative)
 - After regime VaR: `vlim = max(vlim, regime_conditional)` (VR-10)
@@ -412,6 +433,11 @@ def compute(
 - **VR-19 stressed_var=0**: Stress fixture yoksa stressed_var=0.0 — 0>0 kontrolünden geçmez, breach olmaz
 - **VR-19 model_dispersion**: Log uyarısı, kill YOK — sadece manuel review tetikler
 - **VR-19 config override**: Test'lerde RISK dict'i değiştirirsen try/finally ile geri al — global state
+- **VR-20 override priority**: env > YAML > defaults — env her zaman kazanır, YAML kısmen override edebilir
+- **VR-20 YAML parser**: PyYAML yoksa basit key: value parser kullanılır — nested YAML desteklemez
+- **VR-20 validate strict >**: strategy_var == portfolio_var invalid — strict less-than gerekli
+- **VR-20 check_limits component**: component_var / var_for_limits_95 oranı — var_total=0 olursa division guard var
+- **VR-20 deploy_env_check**: VaRLimits invariant ihlali deploy'u engeller (exit code 1)
 
 ## Dependencies
 - Python 3.12, numpy, scipy>=1.11.0, arch>=7.0.0, pytest, ruff
