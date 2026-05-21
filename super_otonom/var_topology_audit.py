@@ -57,6 +57,7 @@ _ALLOWLIST_FILES = (
     "test_position_sizer_var_vr18",
     "test_var_breach_kill_switch_vr19",
     "test_var_limits_hierarchy_vr20",
+    "test_prometheus_var_suite_vr21",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -113,6 +114,12 @@ _ALLOW_SUBSTR = (
     "VaRLimits",
     "check_limits",
     "load_var_limits",
+    "prometheus_var_full_suite",
+    "record_var_suite",
+    "var_limit_utilisation",
+    "var_model_dispersion",
+    "component_var_pct",
+    "stressed_var_pct",
 )
 
 

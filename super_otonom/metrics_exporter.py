@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 """
-MetricsExporter v5.1
+MetricsExporter v5.2
 ─────────────────────────────────────────────────────────────────────────────
-YENİLİKLER (v4 → v5):
-  • slippage_avg gauge eklendi (sembol bazında ortalama execution kayması)
-  • record_slippage(symbol, expected_price, actual_price) — yeni metod
-  • regime gauge eklendi (0=NOISY, 1=MEAN_REVERTING, 2=TRENDING)
-  • circuit_breaker_open gauge eklendi (0/1 sembol bazında)
+YENİLİKLER (v5.1 → v5.2):
+  • VR-21: Multi-labeled VaR/CVaR Prometheus gauges (conf × model × scope)
+  • record_var_suite() — tek çağrıda tüm VaR/CVaR/stress metriklerini yazar
+  • bot_var_pct{conf,model,scope}, bot_cvar_pct{conf,model,scope}
+  • bot_stressed_var_pct, bot_component_var_pct{symbol}, bot_var_model_dispersion_pct
 """
 
 import logging
@@ -385,6 +385,81 @@ class MetricsExporter:
                 f"{namespace}_model_dispersion_current"
             )
 
+        # ── VR-21: Multi-labeled VaR/CVaR full suite ─────────────────────────
+        # var_topology sentinel
+        self._prometheus_var_full_suite = True
+
+        try:
+            self._gauges["var_pct"] = Gauge(
+                f"{namespace}_var_pct",
+                "VaR as fraction of NAV (multi-dimensional)",
+                ["conf", "model", "scope"],
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["var_pct"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_var_pct"
+            )
+        try:
+            self._gauges["cvar_pct"] = Gauge(
+                f"{namespace}_cvar_pct",
+                "CVaR / Expected Shortfall as fraction of NAV",
+                ["conf", "model", "scope"],
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["cvar_pct"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_cvar_pct"
+            )
+        try:
+            self._gauges["stressed_var_pct"] = Gauge(
+                f"{namespace}_stressed_var_pct",
+                "Stressed VaR (Basel 2.5) as fraction of NAV",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["stressed_var_pct"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_stressed_var_pct"
+            )
+        try:
+            self._gauges["component_var_pct"] = Gauge(
+                f"{namespace}_component_var_pct",
+                "Component VaR per symbol as fraction of portfolio VaR",
+                ["symbol"],
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["component_var_pct"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_component_var_pct"
+            )
+        try:
+            self._gauges["var_model_dispersion_pct"] = Gauge(
+                f"{namespace}_var_model_dispersion_pct",
+                "Model dispersion: max(VaR) / min(VaR) - 1",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["var_model_dispersion_pct"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_var_model_dispersion_pct"
+            )
+        try:
+            self._gauges["var_limit_utilisation"] = Gauge(
+                f"{namespace}_var_limit_utilisation",
+                "VaR / limit ratio (0-1+): approaching 1.0 means near limit",
+                ["level"],
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["var_limit_utilisation"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_var_limit_utilisation"
+            )
+
         # ── VR-08: LVaR (sembol bazında) ─────────────────────────────────────
         try:
             self._gauges["var_liquidity_adjusted"] = Gauge(
@@ -751,6 +826,130 @@ class MetricsExporter:
             self._gauges["host_ntp_synchronized"].set(val)
         except Exception as exc:
             log.debug("MetricsExporter.record_host_ntp hata: %s", exc)
+
+    # ── VR-21: Comprehensive VaR suite recorder ──────────────────────────────
+
+    def record_var_suite(
+        self,
+        metrics: Any,
+        *,
+        limits: Any = None,
+        component_var: Optional[Dict[str, float]] = None,
+    ) -> None:
+        """VR-21: Tek çağrıda tüm VaR/CVaR/stress metriklerini Prometheus'a yazar.
+
+        Parameters
+        ----------
+        metrics : RiskMetrics
+            ``RiskEngine.compute()`` çıktısı.
+        limits : VaRLimits, optional
+            Aktif limit seti. Verilirse limit utilisation gauge'ları güncellenir.
+        component_var : dict, optional
+            ``{symbol: component_var_fraction}`` sözlüğü. RiskMetrics'te yoksa
+            ayrıca verilebilir.
+        """
+        if not self._enabled:
+            return
+
+        # ── Per-model VaR at each confidence ─────────────────────────────────
+        _var_map = {
+            ("95", "historical", "portfolio"): "var_historical_95",
+            ("95", "parametric_t", "portfolio"): "var_parametric_95",
+            ("95", "monte_carlo", "portfolio"): "var_monte_carlo_95",
+            ("95", "cornish_fisher", "portfolio"): "var_cornish_fisher_95",
+            ("95", "aggregate", "portfolio"): "var_for_limits_95",
+            ("99", "historical", "portfolio"): "var_historical_99",
+            ("99", "parametric_t", "portfolio"): "var_parametric_99",
+            ("99", "monte_carlo", "portfolio"): "var_monte_carlo_99",
+            ("99", "cornish_fisher", "portfolio"): "var_cornish_fisher_99",
+            ("99", "aggregate", "portfolio"): "var_for_limits_99",
+            ("99", "evt", "portfolio"): "var_evt_99",
+            ("95", "fhs", "portfolio"): "var_fhs_95",
+            ("99", "fhs", "portfolio"): "var_fhs_99",
+            ("95", "regime", "portfolio"): "var_regime_conditional_95",
+            ("99", "regime", "portfolio"): "var_regime_conditional_99",
+        }
+        for (conf, model, scope), attr in _var_map.items():
+            val = getattr(metrics, attr, None)
+            if val is not None:
+                try:
+                    self._gauges["var_pct"].labels(
+                        conf=conf, model=model, scope=scope,
+                    ).set(float(val))
+                except Exception:
+                    pass
+
+        # ── Per-model CVaR ───────────────────────────────────────────────────
+        _cvar_map = {
+            ("95", "historical", "portfolio"): "cvar_historical_95",
+            ("95", "parametric", "portfolio"): "cvar_parametric_95",
+            ("95", "monte_carlo", "portfolio"): "cvar_monte_carlo_95",
+            ("99", "historical", "portfolio"): "cvar_historical_99",
+            ("99", "parametric", "portfolio"): "cvar_parametric_99",
+            ("99", "monte_carlo", "portfolio"): "cvar_monte_carlo_99",
+            ("975", "aggregate", "portfolio"): "cvar_975_1d",
+            ("95", "aggregate", "portfolio"): "cvar_95_1d",
+            ("99", "aggregate", "portfolio"): "cvar_99_1d",
+            ("99", "evt", "portfolio"): "cvar_evt_99",
+            ("95", "fhs", "portfolio"): "cvar_fhs_95",
+            ("99", "fhs", "portfolio"): "cvar_fhs_99",
+        }
+        for (conf, model, scope), attr in _cvar_map.items():
+            val = getattr(metrics, attr, None)
+            if val is not None:
+                try:
+                    self._gauges["cvar_pct"].labels(
+                        conf=conf, model=model, scope=scope,
+                    ).set(float(val))
+                except Exception:
+                    pass
+
+        # ── Stressed VaR ─────────────────────────────────────────────────────
+        svar = getattr(metrics, "stressed_var", None)
+        if svar is not None:
+            try:
+                self._gauges["stressed_var_pct"].set(float(svar))
+            except Exception:
+                pass
+
+        # ── Model dispersion ─────────────────────────────────────────────────
+        disp = getattr(metrics, "model_dispersion_pct", None)
+        if disp is not None:
+            try:
+                self._gauges["var_model_dispersion_pct"].set(float(disp))
+            except Exception:
+                pass
+
+        # ── Component VaR per symbol ─────────────────────────────────────────
+        comp = component_var or getattr(metrics, "component_var_per_position", None) or {}
+        _vt = getattr(metrics, "var_for_limits_95", None)
+        var_total = float(_vt) if _vt is not None and _vt != 0.0 else 0.0
+        for symbol, cv in comp.items():
+            ratio = abs(float(cv)) / abs(var_total) if abs(var_total) > 1e-12 else 0.0
+            try:
+                self._gauges["component_var_pct"].labels(symbol=symbol).set(ratio)
+            except Exception:
+                pass
+
+        # ── Limit utilisation ────────────────────────────────────────────────
+        if limits is not None:
+            var_99 = getattr(metrics, "var_99_1d", 0.0) or 0.0
+            cvar_975 = getattr(metrics, "cvar_975_1d", 0.0) or 0.0
+            stressed = getattr(metrics, "stressed_var", 0.0) or 0.0
+            lvar_val = getattr(metrics, "lvar", 0.0) or 0.0
+
+            _util_map = {
+                "var_99": (var_99, getattr(limits, "max_var_total_pct", 1.0)),
+                "cvar_975": (cvar_975, getattr(limits, "max_cvar_total_pct", 1.0)),
+                "stressed_var": (stressed, getattr(limits, "max_stressed_var_total_pct", 1.0)),
+                "lvar": (lvar_val, getattr(limits, "max_lvar_to_nav", 1.0)),
+            }
+            for level, (current, limit) in _util_map.items():
+                util = current / limit if limit > 1e-12 else 0.0
+                try:
+                    self._gauges["var_limit_utilisation"].labels(level=level).set(util)
+                except Exception:
+                    pass
 
     # ── Durum sorgusu ─────────────────────────────────────────────────────────
 

@@ -160,3 +160,68 @@ groups:
         annotations:
           summary: "Host NTP senkron degil (sonda)"
           description: "w32tm/timedatectl — chrony kurulumu repoda yok"
+
+      # ── VR-21: Prometheus VaR/CVaR Full Suite Alerts ──────────────────────
+
+      - alert: BotVaRApproachingLimit
+        expr: bot_var_limit_utilisation{level="var_99"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "VaR 99% limite yaklasiyor (>%80 kullanim)"
+          description: "var_limit_utilisation={{ $value | printf \"%.2f\" }} (1.0 = limit)"
+
+      - alert: BotVaRLimitBreach
+        expr: bot_var_limit_utilisation{level="var_99"} >= 1.0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "VaR 99% limiti asildi — kill-switch kontrolu aktif"
+          description: "var_limit_utilisation={{ $value | printf \"%.2f\" }}"
+
+      - alert: BotCVaRLimitBreach
+        expr: bot_var_limit_utilisation{level="cvar_975"} >= 1.0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CVaR 97.5% limiti asildi"
+          description: "cvar_limit_utilisation={{ $value | printf \"%.2f\" }}"
+
+      - alert: BotModelDispersionHigh
+        expr: bot_var_model_dispersion_pct > 0.5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "VaR model dispersion > %50 — modeller anlamlı farklilik gosteriyor"
+          description: "model_dispersion={{ $value | printf \"%.4f\" }}"
+
+      - alert: BotPnLUnexplainedHigh
+        expr: bot_pnl_unexplained_pct > 0.0015
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Aciklanamayan PnL > 15 bps — kaynak arastirmasi gerekli"
+          description: "unexplained_pct={{ $value | printf \"%.6f\" }}"
+
+      - alert: BotStressedVaRApproachingLimit
+        expr: bot_var_limit_utilisation{level="stressed_var"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Stressed VaR limite yaklasiyor (>%80 kullanim)"
+          description: "stressed_var_utilisation={{ $value | printf \"%.2f\" }}"
+
+      - alert: BotLVaRLimitBreach
+        expr: bot_var_limit_utilisation{level="lvar"} >= 1.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LVaR/NAV limiti asildi"
+          description: "lvar_utilisation={{ $value | printf \"%.2f\" }}"
