@@ -339,6 +339,52 @@ class MetricsExporter:
                 f"{namespace}_position_sizer_var_capped_size"
             )
 
+        # ── VR-19: VaR Breach Kill-switch ──────────────────────────────────────
+        try:
+            self._gauges["var_breach_kill_switch"] = Gauge(
+                f"{namespace}_var_breach_kill_switch",
+                "VaR breach kill-switch: 0=normal, 1=var_99, 2=cvar_975, 3=stressed_var",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["var_breach_kill_switch"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_var_breach_kill_switch"
+            )
+        try:
+            self._gauges["var_99_current"] = Gauge(
+                f"{namespace}_var_99_current",
+                "Guncel VaR 99% (fraksiyon)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["var_99_current"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_var_99_current"
+            )
+        try:
+            self._gauges["cvar_975_current"] = Gauge(
+                f"{namespace}_cvar_975_current",
+                "Guncel CVaR 97.5% (fraksiyon)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["cvar_975_current"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_cvar_975_current"
+            )
+        try:
+            self._gauges["model_dispersion_current"] = Gauge(
+                f"{namespace}_model_dispersion_current",
+                "Guncel model dispersion (fraksiyon)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["model_dispersion_current"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_model_dispersion_current"
+            )
+
         # ── VR-08: LVaR (sembol bazında) ─────────────────────────────────────
         try:
             self._gauges["var_liquidity_adjusted"] = Gauge(
@@ -663,6 +709,30 @@ class MetricsExporter:
             self._gauges["var_liquidity_adjusted"].labels(symbol=symbol).set(lvar)
         except Exception as exc:
             log.debug("MetricsExporter.record_lvar hata: %s", exc)
+
+    def record_var_breach(
+        self,
+        breach_code: Optional[str],
+        var_99: float,
+        cvar_975: float,
+        model_dispersion: float,
+    ) -> None:
+        """VR-19: VaR breach kill-switch metrikleri."""
+        if not self._enabled:
+            return
+        code_map = {
+            None: 0.0,
+            "var_99_breach": 1.0,
+            "cvar_975_breach": 2.0,
+            "stressed_var_breach": 3.0,
+        }
+        try:
+            self._gauges["var_breach_kill_switch"].set(code_map.get(breach_code, 0.0))
+            self._gauges["var_99_current"].set(var_99)
+            self._gauges["cvar_975_current"].set(cvar_975)
+            self._gauges["model_dispersion_current"].set(model_dispersion)
+        except Exception as exc:
+            log.debug("MetricsExporter.record_var_breach hata: %s", exc)
 
     def record_var_cap(self, cap_binding: bool, capped_size: float) -> None:
         if not self._enabled:

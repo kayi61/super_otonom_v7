@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 """
-RiskManager v5.2
+RiskManager v5.3
 ─────────────────────────────────────────────────────────────────────────────
+v5.3 → VR-19: VaR/CVaR breach kill-switch
+         _check_var_breach() → var_99, cvar_975, stressed_var breach trigger
+         Model dispersion uyarısı (>50%)
+         check_risk() zincirine entegre (loss/drawdown sonrası, exposure öncesi)
 v5.2 → check_risk() artık RiskOntology'den okur (tek NAV kaynağı)
          daily_loss/sod_nav · weekly_loss/sow_nav · drawdown/peak_nav
          Tutarlı denominators — inconsistent baz sorunu kapandı
@@ -11,27 +15,32 @@ v5.2 → check_risk() artık RiskOntology'den okur (tek NAV kaynağı)
 
 import logging
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 from super_otonom.config import RISK
 
 if TYPE_CHECKING:
+    from super_otonom.risk.risk_engine import RiskEngine
     from super_otonom.risk_ontology import RiskOntology
 
 log = logging.getLogger("super_otonom.risk")
 
+# VR-19 sentinel — var_topology tarafından tespit edilir
+var_breach_kill_switch = True
+
 
 class RiskManager:
     """
-    v5.1 — Dinamik Oynaklık Bazlı Günlük Kayıp Limiti
+    v5.3 — VaR/CVaR Breach Kill-switch
 
     Kontrol zinciri (check_risk):
       1. emergency_stop kilidi
-      2. Dinamik günlük kayıp limiti  ← v5.1 YENİLİK
+      2. Dinamik günlük kayıp limiti  ← v5.1
       3. Haftalık kayıp limiti (statik)
       4. Peak-to-trough drawdown
-      5. Exposure limiti
-      6. Volatility spike
+      5. VaR/CVaR breach kill-switch  ← v5.3 / VR-19 YENİLİK
+      6. Exposure limiti
+      7. Volatility spike
     """
 
     def __init__(self, initial_capital: float):
@@ -53,6 +62,10 @@ class RiskManager:
         # v5.2 — RiskOntology referansı (bot_engine tarafından set edilir)
         self._onto: Optional["RiskOntology"] = None
         self._onto_warned: bool = False  # log flood önlemi
+        # v5.3 / VR-19 — VaR breach kill-switch
+        self._risk_engine: Optional["RiskEngine"] = None
+        self._returns_history: List[float] = []
+        self._last_var_breach_reason: Optional[str] = None
 
     def record_omega_trade_outcome(self, pnl: float) -> None:
         """
@@ -77,6 +90,106 @@ class RiskManager:
         """BotEngine __init__ sonrası çağrılır — tek NAV kaynağını bağlar."""
         self._onto = onto
         log.info("RiskManager: RiskOntology baglandi — tutarli denominatorlar aktif")
+
+    def set_risk_engine(self, engine: "RiskEngine") -> None:
+        """VR-19: RiskEngine referansını bağlar — VaR breach kontrolü için."""
+        self._risk_engine = engine
+        log.info("RiskManager: RiskEngine baglandi — VaR breach kill-switch aktif")
+
+    def record_return(self, ret: float) -> None:
+        """
+        VR-19: Portföy return'ünü kaydet — _check_var_breach() için.
+        BotEngine her tick'te çağırmalı.
+        """
+        self._returns_history.append(float(ret))
+        if len(self._returns_history) > 500:
+            self._returns_history = self._returns_history[-500:]
+
+    def _check_var_breach(self) -> Optional[str]:
+        """
+        VR-19: VaR/CVaR breach kill-switch.
+
+        Kontroller (sırasıyla):
+          1. var_99 > max_var_99_pct → emergency_stop
+          2. cvar_975 > max_cvar_975_pct → emergency_stop
+          3. stressed_var > 2 × var_99 → emergency_stop
+          4. model_dispersion > max_model_dispersion_pct → log.critical (uyarı, stop yok)
+
+        Dönüş: breach kodu veya None (geçti).
+        """
+        if self._risk_engine is None:
+            return None
+        if len(self._returns_history) < 20:
+            return None
+
+        from super_otonom.risk.stressed_var import StressedVaR
+
+        try:
+            # Stressed VaR için fixture yükle (varsa)
+            stress_returns: Optional[Dict[str, Sequence[float]]] = None
+            try:
+                svar = StressedVaR.from_fixture()
+                stress_returns = svar._stress_periods
+            except Exception:
+                pass
+
+            metrics = self._risk_engine.compute(
+                self._returns_history,
+                stress_returns=stress_returns,
+            )
+        except Exception as exc:
+            log.warning("VR-19 | _check_var_breach compute hata: %s", exc)
+            return None
+
+        max_var_99 = float(RISK.get("max_var_99_pct", 0.06))
+        max_cvar_975 = float(RISK.get("max_cvar_975_pct", 0.10))
+        max_dispersion = float(RISK.get("max_model_dispersion_pct", 0.50))
+
+        # Check 1: VaR 99% breach
+        if metrics.var_99_1d > max_var_99:
+            self.trigger_emergency("var_99_breach", silent=True)
+            log.critical(
+                "KILL_SWITCH | code=var_99_breach | var_99=%.4f > limit=%.4f",
+                metrics.var_99_1d,
+                max_var_99,
+            )
+            self._last_var_breach_reason = "var_99_breach"
+            return "var_99_breach"
+
+        # Check 2: CVaR 97.5% breach
+        if metrics.cvar_975_1d > max_cvar_975:
+            self.trigger_emergency("cvar_975_breach", silent=True)
+            log.critical(
+                "KILL_SWITCH | code=cvar_975_breach | cvar_975=%.4f > limit=%.4f",
+                metrics.cvar_975_1d,
+                max_cvar_975,
+            )
+            self._last_var_breach_reason = "cvar_975_breach"
+            return "cvar_975_breach"
+
+        # Check 3: Stressed VaR > 2 × VaR 99%
+        if metrics.stressed_var > 0 and metrics.var_99_1d > 0:
+            if metrics.stressed_var > 2 * metrics.var_99_1d:
+                self.trigger_emergency("stressed_var_breach", silent=True)
+                log.critical(
+                    "KILL_SWITCH | code=stressed_var_breach | "
+                    "stressed_var=%.4f > 2*var_99=%.4f",
+                    metrics.stressed_var,
+                    2 * metrics.var_99_1d,
+                )
+                self._last_var_breach_reason = "stressed_var_breach"
+                return "stressed_var_breach"
+
+        # Check 4: Model dispersion warning (log only, no kill)
+        if metrics.model_dispersion_pct > max_dispersion:
+            log.critical(
+                "MODEL_RISK | dispersion=%.2f%% > limit=%.2f%% — manuel review gerekli",
+                metrics.model_dispersion_pct * 100,
+                max_dispersion * 100,
+            )
+
+        self._last_var_breach_reason = None
+        return None
 
     def _warn_if_onto_missing(self) -> None:
         """
@@ -362,8 +475,9 @@ class RiskManager:
           2. Dinamik günlük kayıp limiti  [v5.1 - volatiliteye duyarlı]
           3. Haftalık kayıp limiti (statik)
           4. Peak-to-trough drawdown
-          5. Exposure limiti
-          6. Volatility spike
+          5. VaR/CVaR breach kill-switch  [v5.3 / VR-19]
+          6. Exposure limiti
+          7. Volatility spike
         """
         self._last_risk_deny = None
         self._warn_if_onto_missing()
@@ -384,6 +498,12 @@ class RiskManager:
         else:
             deny = self._check_risk_without_onto(current_equity, current_vol)
 
+        if deny:
+            self._last_risk_deny = deny
+            return False
+
+        # VR-19: VaR/CVaR breach kill-switch
+        deny = self._check_var_breach()
         if deny:
             self._last_risk_deny = deny
             return False
@@ -449,6 +569,9 @@ class RiskManager:
             "dynamic_daily_limit_pct": round(self._last_dynamic_limit * 100, 2),
             "omega_qmin_tighten": self._omega_qmin_tighten,
             "onto_active": self._onto is not None,  # v5.2
+            "var_breach_kill_switch_active": self._risk_engine is not None,  # v5.3
+            "last_var_breach_reason": self._last_var_breach_reason,  # v5.3
+            "returns_history_len": len(self._returns_history),  # v5.3
         }
         # v5.2 — onto varsa tutarlı metrikleri üzerine yaz
         if self._onto is not None:

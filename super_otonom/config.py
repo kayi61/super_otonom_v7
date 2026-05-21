@@ -134,6 +134,10 @@ RISK = {
     # Kill-switch: limit üstü exposure acil durdurur (true = risk.trigger_emergency)
     "exposure_breach_emergency": os.getenv("EXPOSURE_BREACH_EMERGENCY", "false").lower()
     in ("1", "true", "yes", "on"),
+    # VR-19: VaR/CVaR breach kill-switch limitleri
+    "max_var_99_pct": float(os.getenv("MAX_VAR_99_PCT", "0.06")),
+    "max_cvar_975_pct": float(os.getenv("MAX_CVAR_975_PCT", "0.10")),
+    "max_model_dispersion_pct": float(os.getenv("MAX_MODEL_DISPERSION_PCT", "0.50")),
     # Istatistiksel
     "var_confidence": float(os.getenv("VAR_CONFIDENCE", "0.95")),
     "entry_min_confidence": float(os.getenv("ENTRY_MIN_CONFIDENCE", "0.62")),
