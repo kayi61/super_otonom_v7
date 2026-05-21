@@ -43,6 +43,7 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-21 | Prometheus VaR/CVaR/Stres Metrikleri — Tam Suite | 🔄 PR Open | — |
 | VR-22 | Günlük Risk Raporu — Otomatik Üretim | 🔄 PR Open | — |
 | VR-23 | Grafana Risk Dashboard | 🔄 PR Open | — |
+| VR-24 | Model Envanteri + Validasyon Yönetişimi | 🔄 PR Open | — |
 
 ## Project Structure (Risk Engine)
 ```
@@ -102,6 +103,7 @@ tests/risk/
 ├── test_prometheus_var_suite_vr21.py # 52 tests — Prometheus VaR/CVaR Full Suite
 ├── test_daily_risk_report_vr22.py  # 52 tests — Daily Risk Report
 ├── test_grafana_risk_dashboard_vr23.py # 50 tests — Grafana Risk Dashboard
+├── test_model_inventory_vr24.py    # 54 tests — Model Inventory + Validation Governance
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -109,7 +111,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 927 (all passing)
+**Total risk tests:** 981 (all passing)
 
 ## Technical Details
 
@@ -370,6 +372,24 @@ tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 - All queries use `prometheus` datasource (uid: `prometheus`)
 - Refresh: 30s, timezone: UTC, default range: 7d
 - Documentation: `docs/RISK_DASHBOARD.md`
+
+### Model Inventory + Validation Governance (VR-24)
+- **22 risk models** registered in `docs/MODEL_INVENTORY.md` (MR-VAR-HIST through MR-LIMITS)
+- Covers VR-02 through VR-20 (all implemented risk modules)
+- **Independence rule**: model developer ≠ model validator (enforced in CI)
+- **Semi-annual validation cycle** (6 months), 30-day early warning
+- `docs/MODEL_VALIDATION_TEMPLATE.md`: 9-section structured validation report template
+- `scripts/check_model_validation_due.py`: CI due-date checker
+  - `parse_inventory()` — regex-based Markdown table parser
+  - `check_due(entries, today=, warn_days=30)` → `List[ValidationAlert]`
+  - `_open_github_issue(alert)` — auto-creates GitHub issue via `gh` CLI
+  - CLI: `--ci` (auto-open issues), `--json`, `--date`, `--warn-days`
+  - Exit code 1 when any model is within 30 days or overdue
+- `ModelEntry` frozen dataclass: model_id, name, vr, module, developer, validator, dates, status
+- `ValidationAlert` frozen dataclass: model_id, days_remaining, overdue, governance_violation
+- `developer_equals_validator` property: case-insensitive check for independence violation
+- Contains `model_validation_governance_active = True` sentinel for var_topology detection
+- Governance roles: `quant-dev` (developer), `risk-review` (validator), `risk-committee` (approval)
 
 ### Aggregation
 - `var_for_limits = max(historical, parametric, MC)` (conservative)
