@@ -61,6 +61,9 @@ _ALLOWLIST_FILES = (
     "test_daily_risk_report_vr22",
     "generate_daily_risk_report",
     "risk_report_to_pdf",
+    "test_grafana_risk_dashboard_vr23",
+    "RISK_DASHBOARD.md",
+    "risk.json",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -126,6 +129,9 @@ _ALLOW_SUBSTR = (
     "daily_risk_report",
     "generate_report",
     "risk_report_to_pdf",
+    "risk_dashboard",
+    "risk-var-cvar",
+    "grafana_risk_dashboard",
 )
 
 

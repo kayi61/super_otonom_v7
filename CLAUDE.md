@@ -42,6 +42,7 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-20 | VaR Limit Hierarchy (Strategy/Portfolio/Firm) | 🔄 PR Open | — |
 | VR-21 | Prometheus VaR/CVaR/Stres Metrikleri — Tam Suite | 🔄 PR Open | — |
 | VR-22 | Günlük Risk Raporu — Otomatik Üretim | 🔄 PR Open | — |
+| VR-23 | Grafana Risk Dashboard | 🔄 PR Open | — |
 
 ## Project Structure (Risk Engine)
 ```
@@ -100,6 +101,7 @@ tests/risk/
 ├── test_var_limits_hierarchy_vr20.py # 46 tests — VaR Limit Hierarchy
 ├── test_prometheus_var_suite_vr21.py # 52 tests — Prometheus VaR/CVaR Full Suite
 ├── test_daily_risk_report_vr22.py  # 52 tests — Daily Risk Report
+├── test_grafana_risk_dashboard_vr23.py # 50 tests — Grafana Risk Dashboard
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -107,7 +109,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 877 (all passing)
+**Total risk tests:** 927 (all passing)
 
 ## Technical Details
 
@@ -356,6 +358,18 @@ tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 - Bonus: `scripts/risk_report_to_pdf.py` — Markdown → PDF (weasyprint > pdfkit fallback)
 - Contains `daily_risk_report_active = True` sentinel for var_topology detection
 - Scripts: `scripts/generate_daily_risk_report.py`, `scripts/risk_report_to_pdf.py`
+
+### Grafana Risk Dashboard (VR-23)
+- **14-panel Grafana dashboard** provisioned via JSON
+- UID: `risk-var-cvar`, auto-loaded from `docker/grafana/provisioning/dashboards/json/risk.json`
+- **9 core panels**: VaR timeline, CVaR timeline, Component VaR pie, VaR vs PnL overlay, Traffic light history, Model dispersion gauge, Stress worst PnL, Unexplained PnL bars, Limit utilization heatmap
+- **5 bonus panels**: Kill switch status, Kupiec p-value, Christoffersen CC, Summary stats, LVaR per symbol
+- **4 template variables** (dropdowns): `conf`, `model`, `symbol`, `horizon`
+- Multi-select on conf/model/symbol, PromQL `label_values()` queries
+- Color themes: traffic light (GREEN/YELLOW/RED), limit utilization (5 steps), dispersion gauge (4 steps)
+- All queries use `prometheus` datasource (uid: `prometheus`)
+- Refresh: 30s, timezone: UTC, default range: 7d
+- Documentation: `docs/RISK_DASHBOARD.md`
 
 ### Aggregation
 - `var_for_limits = max(historical, parametric, MC)` (conservative)
