@@ -44,6 +44,7 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-22 | Günlük Risk Raporu — Otomatik Üretim | 🔄 PR Open | — |
 | VR-23 | Grafana Risk Dashboard | 🔄 PR Open | — |
 | VR-24 | Model Envanteri + Validasyon Yönetişimi | 🔄 PR Open | — |
+| VR-25 | Risk Appetite Statement + Escalation Matrisi | 🔄 PR Open | — |
 
 ## Project Structure (Risk Engine)
 ```
@@ -104,6 +105,7 @@ tests/risk/
 ├── test_daily_risk_report_vr22.py  # 52 tests — Daily Risk Report
 ├── test_grafana_risk_dashboard_vr23.py # 50 tests — Grafana Risk Dashboard
 ├── test_model_inventory_vr24.py    # 54 tests — Model Inventory + Validation Governance
+├── test_risk_appetite_vr25.py     # 43 tests — Risk Appetite + Escalation Matrix
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -111,7 +113,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 981 (all passing)
+**Total risk tests:** 1024 (all passing)
 
 ## Technical Details
 
@@ -390,6 +392,26 @@ tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 - `developer_equals_validator` property: case-insensitive check for independence violation
 - Contains `model_validation_governance_active = True` sentinel for var_topology detection
 - Governance roles: `quant-dev` (developer), `risk-review` (validator), `risk-committee` (approval)
+
+### Risk Appetite Statement + Escalation Matrix (VR-25)
+- **4 risk categories**: Market, Liquidity, Operational, Counterparty — each with GREEN/AMBER/RED/CRITICAL zones
+- **Tolerance levels**: GREEN (normal), AMBER (warning, bot continues), RED (defensive mode), CRITICAL (halt all)
+- **VaRLimits cross-reference table**: 8 limits mapped to `var_limits.py` defaults with appetite zones
+- **Escalation matrix (L1–L4)**:
+  - L1 AMBER: on-call notify, bot full capacity
+  - L2 RED single: defensive mode (size %50, no new pairs)
+  - L3 RED multiple: `emergency_stop`, all positions closed
+  - L4 CRITICAL: halt all systems, post-mortem 24h required
+- **Approval levels**: <2% desk, 2–5% risk manager, >5% committee
+- **Quarterly board review** cycle documented
+- `scripts/risk_appetite_check.py`: CI consistency checker
+  - `parse_appetite_limits()` — regex Markdown table parser for cross-ref section
+  - `check_appetite_vs_limits(entries, limits)` → drift detection
+  - `check_escalation_matrix()`, `check_approval_levels()`, `check_quarterly_review()`
+  - `_parse_pct()` — handles `6%` → 0.06, `0.5%` → 0.005 correctly
+  - CLI: `--json`, exit code 1 on mismatch
+- Contains `risk_appetite_check_active = True` sentinel
+- Documentation: `docs/RISK_APPETITE.md`
 
 ### Aggregation
 - `var_for_limits = max(historical, parametric, MC)` (conservative)

@@ -68,6 +68,9 @@ _ALLOWLIST_FILES = (
     "check_model_validation_due",
     "MODEL_INVENTORY.md",
     "MODEL_VALIDATION_TEMPLATE.md",
+    "test_risk_appetite_vr25",
+    "risk_appetite_check",
+    "RISK_APPETITE.md",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -142,6 +145,11 @@ _ALLOW_SUBSTR = (
     "check_model_validation_due",
     "MODEL_INVENTORY",
     "MODEL_VALIDATION_TEMPLATE",
+    "risk_appetite",
+    "risk_appetite_check",
+    "RISK_APPETITE",
+    "escalation_matrix",
+    "approval_levels",
 )
 
 
