@@ -65,6 +65,11 @@ from super_otonom.risk.var_decomposition import (
     incremental_var,
     marginal_var,
 )
+from super_otonom.risk.var_limits import (
+    VaRLimits,
+    check_limits,
+    load_var_limits,
+)
 from super_otonom.risk.var_models import (
     cornish_fisher_var,
     historical_var,
@@ -136,4 +141,7 @@ __all__ = [
     "VarCapResult",
     "size_with_var_cap",
     "var_cap_result_to_dict",
+    "VaRLimits",
+    "load_var_limits",
+    "check_limits",
 ]

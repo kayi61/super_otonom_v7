@@ -1,0 +1,28 @@
+# VR-20: VaR Limit Hierarchy — Strategy / Portfolio / Firm
+# Override priority: env > this YAML > dataclass defaults
+#
+# Usage:
+#   from super_otonom.risk.var_limits import load_var_limits
+#   limits = load_var_limits()  # merges env + yaml + defaults
+#
+# Env override examples:
+#   MAX_VAR_PER_STRATEGY_PCT=0.03
+#   MAX_VAR_TOTAL_PCT=0.08
+
+# ── Strategy-level (per-strategy 1d 99% VaR cap) ────────────────────────────
+max_var_per_strategy_pct: 0.02
+max_cvar_per_strategy_pct: 0.03
+
+# ── Portfolio-level (aggregate) ──────────────────────────────────────────────
+max_var_total_pct: 0.06
+max_cvar_total_pct: 0.10
+max_stressed_var_total_pct: 0.15
+
+# ── Single-trade marginal VaR ───────────────────────────────────────────────
+max_marginal_var_per_trade_pct: 0.005
+
+# ── Concentration (component VaR / total VaR) ───────────────────────────────
+max_component_var_per_position_pct: 0.40
+
+# ── Liquidity (LVaR / NAV) ──────────────────────────────────────────────────
+max_lvar_to_nav: 0.08
