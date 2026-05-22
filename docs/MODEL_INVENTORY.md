@@ -33,6 +33,8 @@ takvimini takip eder.
 | MR-SIZER | VaR-aware Position Sizer | VR-18 | `risk/position_sizer_var.py` | Sizer | quant-dev | risk-review | 2026-04-01 | 2026-10-01 | Active |
 | MR-KILL | VaR Breach Kill-switch | VR-19 | `risk_manager.py` | Control | quant-dev | risk-review | 2026-04-01 | 2026-10-01 | Active |
 | MR-LIMITS | VaR Limit Hierarchy | VR-20 | `risk/var_limits.py` | Limits | quant-dev | risk-review | 2026-04-01 | 2026-10-01 | Active |
+| MR-PROP | Property-Based VaR Invariants | VR-26 | `tests/risk/test_var_properties_vr26.py` | Testing | quant-dev | risk-review | 2026-05-22 | 2026-11-22 | Active |
+| MR-REGIME-DET | Statistical Regime Detector | VR-27 | `risk/regime_detector.py` | Detection | quant-dev | risk-review | 2026-05-22 | 2026-11-22 | Active |
 
 ## Model Categories
 
@@ -67,6 +69,10 @@ takvimini takip eder.
 - **MR-KILL**: 3-trigger emergency stop (VaR 99 / CVaR 97.5 / Stressed VaR)
 - **MR-LIMITS**: 3-level hierarchy (Strategy → Portfolio → Firm)
 - **MR-STRESS**: 5+ predefined scenarios, forward + reverse stress test
+
+### Testing & Detection
+- **MR-PROP**: Hypothesis property-based testing — Euler sum invariant, positive homogeneity, sub-additivity, monotonicity
+- **MR-REGIME-DET**: Volatility-threshold + z-score change-point detection, 3 regime states (LOW_VOL, NORMAL, HIGH_VOL)
 
 ## Validation Cycle
 
