@@ -31,6 +31,15 @@ from super_otonom.risk.pre_trade_var_gate import (
     pre_trade_var_check_batch,
     simulate_trade_weights,
 )
+from super_otonom.risk.regime_detector import (
+    Regime,
+    RegimeDetector,
+    RegimeHistory,
+    RegimeState,
+    classify_volatility_threshold,
+    detect_and_load_regimes,
+    detect_change_points,
+)
 from super_otonom.risk.regime_var import RegimeConditionalVaR
 from super_otonom.risk.risk_engine import RiskEngine, RiskMetrics
 from super_otonom.risk.stress_scenarios import (
@@ -97,6 +106,13 @@ __all__ = [
     "marginal_var",
     "component_var",
     "incremental_var",
+    "Regime",
+    "RegimeDetector",
+    "RegimeHistory",
+    "RegimeState",
+    "classify_volatility_threshold",
+    "detect_and_load_regimes",
+    "detect_change_points",
     "RegimeConditionalVaR",
     "StressedVaR",
     "compute_stressed_var",
