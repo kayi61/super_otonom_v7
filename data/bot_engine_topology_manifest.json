@@ -1,8 +1,8 @@
 {
   "audit": 8,
   "schema_version": 1,
-  "file_line_count": 1361,
-  "file_nonempty_line_count": 1180,
+  "file_line_count": 1369,
+  "file_nonempty_line_count": 1187,
   "bot_engine_class_line_count": 1013,
   "bot_engine_method_count": 35,
   "file_line_ceiling": 1450,
