@@ -39,14 +39,14 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-17 | Pre-trade Marginal VaR Gate | ✅ Merged | #34 |
 | VR-18 | VaR-aware Position Sizing (Kelly + VaR Cap) | ✅ Merged | #35 |
 | VR-19 | Kill-switch — VaR/CVaR Breach Trigger | ✅ Merged | #37 |
-| VR-20 | VaR Limit Hierarchy (Strategy/Portfolio/Firm) | 🔄 PR Open | — |
-| VR-21 | Prometheus VaR/CVaR/Stres Metrikleri — Tam Suite | 🔄 PR Open | — |
-| VR-22 | Günlük Risk Raporu — Otomatik Üretim | 🔄 PR Open | — |
-| VR-23 | Grafana Risk Dashboard | 🔄 PR Open | — |
-| VR-24 | Model Envanteri + Validasyon Yönetişimi | 🔄 PR Open | — |
-| VR-25 | Risk Appetite Statement + Escalation Matrisi | 🔄 PR Open | — |
-| VR-26 | Property-Based VaR/CVaR Invariants (Hypothesis) | 🔄 PR Open | — |
-| VR-27 | Regime Detection Engine (Statistical) | 🔄 PR Open | — |
+| VR-20 | VaR Limit Hierarchy (Strategy/Portfolio/Firm) | ✅ Merged | #38 |
+| VR-21 | Prometheus VaR/CVaR/Stres Metrikleri — Tam Suite | ✅ Merged | #39 |
+| VR-22 | Günlük Risk Raporu — Otomatik Üretim | ✅ Merged | #40 |
+| VR-23 | Grafana Risk Dashboard | ✅ Merged | #41 |
+| VR-24 | Model Envanteri + Validasyon Yönetişimi | ✅ Merged | #42 |
+| VR-25 | Risk Appetite Statement + Escalation Matrisi | ✅ Merged | #43 |
+| VR-26 | Property-Based VaR/CVaR Invariants (Hypothesis) | ✅ Merged | #44 |
+| VR-27 | Regime Detection Engine (Statistical) | ✅ Merged | #46 |
 
 ## Project Structure (Risk Engine)
 ```

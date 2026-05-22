@@ -203,6 +203,14 @@ except ImportError:
                 # intentionally empty stub — no ontology in stub mode
                 pass
 
+            def set_risk_engine(self, _engine):
+                # intentionally empty stub — no risk engine in stub mode
+                pass
+
+            def record_return(self, _ret):
+                # intentionally empty stub — no return tracking in stub mode
+                pass
+
         PositionSizer = _StubSizer  # type: ignore
         RiskManager = _StubRisk  # type: ignore
 
