@@ -48,6 +48,29 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-26 | Property-Based VaR/CVaR Invariants (Hypothesis) | ✅ Merged | #44 |
 | VR-27 | Regime Detection Engine (Statistical) | ✅ Merged | #46 |
 
+## Integration Status (Post-VR)
+| Faz | Başlık | Durum | PR |
+|-----|--------|-------|----|
+| Faz A | Acil düzeltmeler (test fix, tracker, exports, stub) | ✅ Merged | #47 |
+| Faz B | BotEngine ↔ Risk Engine tam entegrasyon | ✅ Merged | #49 |
+| Faz C | 10-day VaR + CI workflows + model governance | ✅ Merged | #50 |
+| Faz D | Polish & documentation | ✅ Merged | #51 |
+
+### BotEngine ↔ RiskEngine Wiring (Faz B)
+- `BotEngine.__init__`: RiskEngine + RegimeDetector + RegimeConditionalVaR wired
+- `BotEngine._tick_impl`: NAV-based return → `risk.record_return()` + regime detection
+- VR-21 Prometheus: every 60 ticks → `RiskEngine.compute()` + `record_var_suite()`
+- Graceful fallback: risk module errors never crash the bot
+
+### Basel FRTB 10-day VaR (Faz C)
+- `RiskMetrics.var_10d_99 = var_for_limits_99 * sqrt(10)`
+- `RiskMetrics.cvar_10d_975 = cvar_975_1d * sqrt(10)`
+- Prometheus: `bot_var_10d_99_pct`, `bot_cvar_10d_975_pct`
+
+### CI Pipeline (Faz C)
+- `nightly-risk-report.yml`: 23:55 UTC daily + model due-date auto-issue
+- `ci.yml`: VR-24 model validation + VR-25 risk appetite consistency checks added
+
 ## Project Structure (Risk Engine)
 ```
 super_otonom/risk/
@@ -446,6 +469,7 @@ LVaR: lvar, lvar_data_health
 Decomposition: component_var_per_position, marginal_var_per_position (VR-09)
 Regime: var_regime_conditional_95/99, current_regime (VR-10)
 Model risk: model_dispersion_pct
+10-day Basel FRTB: var_10d_99, cvar_10d_975 (sqrt(10) scaling)
 Legacy: pnl_var_95
 Properties: var_max_95, var_max_99
 
