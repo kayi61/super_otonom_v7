@@ -262,3 +262,41 @@ def test_config_new_fields() -> None:
     assert 10 in cfg.var_horizons_days
     assert cfg.cvar_primary_conf == 0.975
     assert cfg.cvar_secondary_conf == 0.99
+
+
+# ── 10-day VaR / CVaR (Basel FRTB) ──────────────────────────────────────────
+
+def test_var_10d_99_sqrt10_scaling() -> None:
+    rng = np.random.default_rng(42)
+    ret = (rng.normal(0.0, 0.02, 120)).tolist()
+    m = RiskEngine().compute(ret)
+    expected = m.var_for_limits_99 * np.sqrt(10)
+    assert abs(m.var_10d_99 - expected) < 1e-12
+
+
+def test_cvar_10d_975_sqrt10_scaling() -> None:
+    rng = np.random.default_rng(42)
+    ret = (rng.normal(0.0, 0.02, 120)).tolist()
+    m = RiskEngine().compute(ret)
+    expected = m.cvar_975_1d * np.sqrt(10)
+    assert abs(m.cvar_10d_975 - expected) < 1e-12
+
+
+def test_var_10d_greater_than_1d() -> None:
+    rng = np.random.default_rng(99)
+    ret = (rng.normal(-0.001, 0.025, 200)).tolist()
+    m = RiskEngine().compute(ret)
+    assert m.var_10d_99 > m.var_for_limits_99
+    assert m.cvar_10d_975 > m.cvar_975_1d
+
+
+def test_var_10d_zero_for_short_series() -> None:
+    m = RiskEngine().compute([0.01, -0.01])
+    assert m.var_10d_99 == 0.0
+    assert m.cvar_10d_975 == 0.0
+
+
+def test_var_10d_default_zero() -> None:
+    m = RiskMetrics()
+    assert m.var_10d_99 == 0.0
+    assert m.cvar_10d_975 == 0.0

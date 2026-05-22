@@ -81,6 +81,12 @@ jobs:
       - name: VR-01 VaR single source audit
         run: python scripts/audit_var_source.py
 
+      - name: VR-24 Model validation due-date check
+        run: python scripts/check_model_validation_due.py
+
+      - name: VR-25 Risk appetite consistency check
+        run: python scripts/risk_appetite_check.py
+
       - name: Pytest fastrun (5000 gate)
         run: python -m pytest tests -m fastrun -q --tb=short
 

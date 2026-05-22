@@ -460,6 +460,30 @@ class MetricsExporter:
                 f"{namespace}_var_limit_utilisation"
             )
 
+        # ── Basel FRTB 10-day VaR/CVaR ──────────────────────────────────────
+        try:
+            self._gauges["var_10d_99_pct"] = Gauge(
+                f"{namespace}_var_10d_99_pct",
+                "10-day VaR 99% (Basel FRTB sqrt-10 scaling)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["var_10d_99_pct"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_var_10d_99_pct"
+            )
+        try:
+            self._gauges["cvar_10d_975_pct"] = Gauge(
+                f"{namespace}_cvar_10d_975_pct",
+                "10-day CVaR 97.5% (Basel FRTB sqrt-10 scaling)",
+            )
+        except ValueError:
+            from prometheus_client import REGISTRY
+
+            self._gauges["cvar_10d_975_pct"] = REGISTRY._names_to_collectors.get(
+                f"{namespace}_cvar_10d_975_pct"
+            )
+
         # ── VR-08: LVaR (sembol bazında) ─────────────────────────────────────
         try:
             self._gauges["var_liquidity_adjusted"] = Gauge(
@@ -911,6 +935,18 @@ class MetricsExporter:
                 self._gauges["stressed_var_pct"].set(float(svar))
             except Exception:
                 pass
+
+        # ── 10-day VaR/CVaR (Basel FRTB) ─────────────────────────────────────
+        for attr, gauge_key in (
+            ("var_10d_99", "var_10d_99_pct"),
+            ("cvar_10d_975", "cvar_10d_975_pct"),
+        ):
+            val = getattr(metrics, attr, None)
+            if val is not None:
+                try:
+                    self._gauges[gauge_key].set(float(val))
+                except Exception:
+                    pass
 
         # ── Model dispersion ─────────────────────────────────────────────────
         disp = getattr(metrics, "model_dispersion_pct", None)

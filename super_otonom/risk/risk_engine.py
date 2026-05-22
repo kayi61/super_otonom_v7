@@ -92,6 +92,10 @@ class RiskMetrics:
     var_regime_conditional_99: Optional[float] = None
     current_regime: Optional[str] = None
 
+    # ── 10-day VaR / CVaR (Basel FRTB) ──────────────────────────────────────
+    var_10d_99: float = 0.0
+    cvar_10d_975: float = 0.0
+
     # ── Legacy compat (live tick PnL-based) ──────────────────────────────────
     pnl_var_95: float = 0.0
 
@@ -329,6 +333,8 @@ class RiskEngine:
             var_regime_conditional_95=rc_var95,
             var_regime_conditional_99=rc_var99,
             current_regime=regime_label,
+            var_10d_99=vlim99 * float(np.sqrt(10)),
+            cvar_10d_975=cv975 * float(np.sqrt(10)),
         )
 
     # ── Legacy live-tick interface (RiskOntology compat) ─────────────────────
