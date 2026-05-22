@@ -71,6 +71,8 @@ _ALLOWLIST_FILES = (
     "test_risk_appetite_vr25",
     "risk_appetite_check",
     "RISK_APPETITE.md",
+    "test_var_properties_vr26",
+    "var_property_check",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -150,6 +152,11 @@ _ALLOW_SUBSTR = (
     "RISK_APPETITE",
     "escalation_matrix",
     "approval_levels",
+    "var_property_check",
+    "property_based",
+    "euler_invariant",
+    "positive_homogeneity",
+    "subadditivity",
 )
 
 
