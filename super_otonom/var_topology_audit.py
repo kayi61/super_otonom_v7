@@ -73,6 +73,9 @@ _ALLOWLIST_FILES = (
     "RISK_APPETITE.md",
     "test_var_properties_vr26",
     "var_property_check",
+    "test_regime_detector_vr27",
+    "regime_detector",
+    "regime_detect",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -157,6 +160,14 @@ _ALLOW_SUBSTR = (
     "euler_invariant",
     "positive_homogeneity",
     "subadditivity",
+    "regime_detection_engine",
+    "regime_detector",
+    "regime_detect",
+    "detect_change_points",
+    "detect_and_load_regimes",
+    "RegimeDetector",
+    "RegimeState",
+    "RegimeHistory",
 )
 
 

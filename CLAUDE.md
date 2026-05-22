@@ -46,6 +46,7 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-24 | Model Envanteri + Validasyon Yönetişimi | 🔄 PR Open | — |
 | VR-25 | Risk Appetite Statement + Escalation Matrisi | 🔄 PR Open | — |
 | VR-26 | Property-Based VaR/CVaR Invariants (Hypothesis) | 🔄 PR Open | — |
+| VR-27 | Regime Detection Engine (Statistical) | 🔄 PR Open | — |
 
 ## Project Structure (Risk Engine)
 ```
@@ -59,6 +60,7 @@ super_otonom/risk/
 ├── lvar.py                  # VR-08: bdss_lvar, time_to_liquidate_lvar, compute_lvar
 ├── var_decomposition.py     # VR-09: compute_var_decomposition, marginal_var, component_var, incremental_var
 ├── regime_var.py            # VR-10: RegimeConditionalVaR (deque-backed per-regime buffers)
+├── regime_detector.py       # VR-27: RegimeDetector (vol-threshold, z-score change-point)
 ├── stressed_var.py          # VR-11: StressedVaR (Basel 2.5, 5 stress periods, rescaling)
 ├── stress_scenarios.py      # VR-12: StressScenarioLibrary, forward_stress, reverse_stress
 ├── var_backtest.py          # VR-13/14/15: kupiec_pof, christoffersen, basel_traffic_light
@@ -108,6 +110,7 @@ tests/risk/
 ├── test_model_inventory_vr24.py    # 54 tests — Model Inventory + Validation Governance
 ├── test_risk_appetite_vr25.py     # 43 tests — Risk Appetite + Escalation Matrix
 ├── test_var_properties_vr26.py    # 34 tests — Property-Based VaR/CVaR Invariants (Hypothesis)
+├── test_regime_detector_vr27.py   # 41 tests — Regime Detection Engine (VR-27)
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -115,7 +118,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 1058 (all passing)
+**Total risk tests:** 1099 (all passing)
 
 ## Technical Details
 
