@@ -71,6 +71,9 @@ _ALLOWLIST_FILES = (
     "test_risk_appetite_vr25",
     "risk_appetite_check",
     "RISK_APPETITE.md",
+    "test_regime_detector_vr27",
+    "regime_detector",
+    "regime_detect",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
@@ -150,6 +153,14 @@ _ALLOW_SUBSTR = (
     "RISK_APPETITE",
     "escalation_matrix",
     "approval_levels",
+    "regime_detection_engine",
+    "regime_detector",
+    "regime_detect",
+    "detect_change_points",
+    "detect_and_load_regimes",
+    "RegimeDetector",
+    "RegimeState",
+    "RegimeHistory",
 )
 
 
