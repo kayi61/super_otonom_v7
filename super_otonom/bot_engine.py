@@ -421,6 +421,30 @@ class BotEngine:
 
         self.risk = RiskManager(capital)
         self.risk.set_ontology(self.onto)  # v5.2 — tek NAV kaynağını bağla
+
+        # VR-19/27 — RiskEngine + RegimeDetector → RiskManager wiring
+        try:
+            from super_otonom.risk.regime_detector import RegimeDetector as _RD
+            from super_otonom.risk.regime_var import RegimeConditionalVaR as _RCV
+            from super_otonom.risk.risk_engine import RiskEngine as _RE
+
+            self._risk_engine = _RE()
+            self.risk.set_risk_engine(self._risk_engine)
+            self._regime_detector = _RD()
+            self._regime_var = _RCV()
+            self._regime_fitted = False
+            log.info("BotEngine: RiskEngine + RegimeDetector + RegimeConditionalVaR aktif")
+        except Exception as exc:
+            self._risk_engine = None
+            self._regime_detector = None
+            self._regime_var = None
+            self._regime_fitted = False
+            log.debug("BotEngine: Risk engine wiring atlanıyor: %s", exc)
+
+        # VR-suite: önceki NAV (return hesabı için) + tick sayacı
+        self._prev_nav: float = float(capital)
+        self._var_suite_interval: int = 60  # her 60 tick'te 1 kez VaR suite yaz
+
         self.ai = AILayer()
         self.sizer = PositionSizer(
             max_position_pct=RISK["max_position_pct"],
@@ -843,6 +867,25 @@ class BotEngine:
 
             self.correlation_mgr.update_returns(symbol, price)
 
+            # VR-19/27 — return kaydı + regime detection
+            _cur_nav = self.capital.nav
+            if self._prev_nav > 0 and _cur_nav > 0:
+                _tick_ret = (_cur_nav - self._prev_nav) / self._prev_nav
+                self.risk.record_return(_tick_ret)
+                # VR-27: regime detection (yeterli veri varsa)
+                if self._regime_detector is not None:
+                    try:
+                        _rh = self.risk._returns_history
+                        if len(_rh) >= 60 and not self._regime_fitted:
+                            self._regime_detector.fit(_rh)
+                            self._regime_fitted = True
+                        elif self._regime_fitted:
+                            _regime = self._regime_detector.update(_tick_ret)
+                            self._regime_var.record(_tick_ret, _regime)
+                    except Exception:
+                        pass  # regime detection hatası bot'u durdurmamalı
+            self._prev_nav = _cur_nav
+
         with _tick_span(analysis, "system_gate"):
             gate = run_system_gate_phase(self, symbol, price, dctx, out, analysis)
         if gate == "kill":
@@ -900,6 +943,30 @@ class BotEngine:
 
             self.metrics.update(self.status())
             self.metrics.record_analysis(analysis)
+
+            # VR-21 — Prometheus VaR/CVaR full suite (her N tick'te)
+            if (
+                self._risk_engine is not None
+                and self._tick_counter % self._var_suite_interval == 0
+                and len(self.risk._returns_history) >= 20
+            ):
+                try:
+                    _regime_label = None
+                    _rv = None
+                    if self._regime_fitted and self._regime_detector is not None:
+                        _rs = self._regime_detector.current_regime()
+                        if _rs is not None:
+                            _regime_label = _rs.regime
+                            _rv = self._regime_var
+                    _rm = self._risk_engine.compute(
+                        self.risk._returns_history,
+                        current_regime=_regime_label,
+                        regime_var=_rv,
+                    )
+                    if hasattr(self.metrics, "record_var_suite"):
+                        self.metrics.record_var_suite(_rm)
+                except Exception as exc:
+                    log.debug("VR-21 | VaR suite Prometheus yazım hatası: %s", exc)
 
         return out
 
