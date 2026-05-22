@@ -45,6 +45,7 @@ Crypto trading bot with institutional-grade risk management. Currently implement
 | VR-23 | Grafana Risk Dashboard | 🔄 PR Open | — |
 | VR-24 | Model Envanteri + Validasyon Yönetişimi | 🔄 PR Open | — |
 | VR-25 | Risk Appetite Statement + Escalation Matrisi | 🔄 PR Open | — |
+| VR-26 | Property-Based VaR/CVaR Invariants (Hypothesis) | 🔄 PR Open | — |
 
 ## Project Structure (Risk Engine)
 ```
@@ -106,6 +107,7 @@ tests/risk/
 ├── test_grafana_risk_dashboard_vr23.py # 50 tests — Grafana Risk Dashboard
 ├── test_model_inventory_vr24.py    # 54 tests — Model Inventory + Validation Governance
 ├── test_risk_appetite_vr25.py     # 43 tests — Risk Appetite + Escalation Matrix
+├── test_var_properties_vr26.py    # 34 tests — Property-Based VaR/CVaR Invariants (Hypothesis)
 ├── test_risk_engine_unified.py     # 23 tests — Unified engine + legacy compat
 └── fixtures/
     ├── unified_returns_golden.json          # 120 returns (dict with "returns" key)
@@ -113,7 +115,7 @@ tests/risk/
 tests/test_portfolio_risk_engine.py # 9 tests — portfolio integration
 tests/test_var_topology_fastrun.py  # 8 tests — topology + manifest + audit
 ```
-**Total risk tests:** 1024 (all passing)
+**Total risk tests:** 1058 (all passing)
 
 ## Technical Details
 
