@@ -1,7 +1,7 @@
 {
   "audit": 7,
   "schema_version": 1,
-  "flat_production_count": 123,
+  "flat_production_count": 125,
   "flat_test_count": 29,
   "flat_production_ceiling": 125,
   "allowed_subpackages": [
@@ -39,6 +39,8 @@
     "bot_engine.py",
     "bot_engine_audit.py",
     "bot_engine_capital_patch.py",
+    "bot_engine_risk_bridge.py",
+    "bot_engine_status.py",
     "bot_engine_topology.py",
     "capital_engine.py",
     "causal_alpha_engine.py",

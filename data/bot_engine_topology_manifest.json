@@ -1,9 +1,9 @@
 {
   "audit": 8,
   "schema_version": 1,
-  "file_line_count": 1431,
-  "file_nonempty_line_count": 1243,
-  "bot_engine_class_line_count": 1075,
+  "file_line_count": 1223,
+  "file_nonempty_line_count": 1038,
+  "bot_engine_class_line_count": 862,
   "bot_engine_method_count": 35,
   "file_line_ceiling": 1450,
   "class_line_ceiling": 1100,
@@ -21,7 +21,9 @@
     "engine_managers",
     "hard_safety_contract",
     "pipelines",
-    "state_machine"
+    "state_machine",
+    "bot_engine_risk_bridge",
+    "bot_engine_status"
   ],
   "helper_classes_in_file": [
     "ExecutionSimulator",
@@ -65,5 +67,5 @@
     "tick",
     "tick_async"
   ],
-  "disclaimer_tr": "BotEngine tek sınıfta tick, giriş/çıkış, risk ve state taşır (~1000+ satır). engine_managers ve pipelines kısmi delegasyondur; kurumsal tek-sorumluluk iddiası bu yapı ile uyumlu değildir. LOC manifest ve tavan ile büyüme kontrol edilir."
+  "disclaimer_tr": "BotEngine tek sınıfta tick, giriş/çıkış ve state taşır (~862 satır). engine_managers, pipelines, bot_engine_risk_bridge ve bot_engine_status delegasyondur; kurumsal tek-sorumluluk iddiası bu yapı ile uyumlu değildir. LOC manifest ve tavan ile büyüme kontrol edilir."
 }
