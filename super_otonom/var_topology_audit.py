@@ -168,6 +168,10 @@ _ALLOW_SUBSTR = (
     "RegimeDetector",
     "RegimeState",
     "RegimeHistory",
+    "var_10d_99",
+    "cvar_10d_975",
+    "var_10d",
+    "cvar_10d",
 )
 
 
