@@ -23,8 +23,13 @@ _ROOT = Path(__file__).resolve().parents[1]
 
 def test_release_gate_execution_pipeline_faz71_to_80_chain() -> None:
     """Faz 71→…→80 + 47 kritik yol (gerçek ``execute_trade_phase`` zinciri)."""
-    from super_otonom import test_execution_pipeline_faz80_chain as m
+    import importlib
+    import sys
 
+    _tests_dir = str(Path(__file__).resolve().parent)
+    if _tests_dir not in sys.path:
+        sys.path.insert(0, _tests_dir)
+    m = importlib.import_module("test_execution_pipeline_faz80_chain")
     m.test_execution_pipeline_runs_faz_71_to_79_then_47_80_chain()
 
 
