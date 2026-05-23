@@ -10,6 +10,10 @@ on:
       - "super_otonom/capital_engine.py"
       - "super_otonom/risk_ontology.py"
       - "super_otonom/pre_trade_gate.py"
+      - "super_otonom/risk/var_models.py"
+      - "super_otonom/risk/cvar_models.py"
+      - "super_otonom/risk/stressed_var.py"
+      - "super_otonom/risk/var_backtest.py"
       - ".github/workflows/mutation.yml"
       - "pyproject.toml"
       - "scripts/mutmut_gate.py"
@@ -18,6 +22,13 @@ on:
       - "tests/test_risk_ontology_mutation.py"
       - "tests/test_risk_manager_mutation.py"
       - "tests/branch/test_risk_manager_branch_matrix.py"
+      - "tests/risk/test_var_models_vr02.py"
+      - "tests/risk/test_cornish_fisher_vr03.py"
+      - "tests/risk/test_cvar_vr04.py"
+      - "tests/risk/test_stressed_var_vr11.py"
+      - "tests/risk/test_var_backtest_vr13.py"
+      - "tests/risk/test_christoffersen_vr14.py"
+      - "tests/risk/test_basel_traffic_light_vr15.py"
   workflow_dispatch:
 
 concurrency:
@@ -33,6 +44,10 @@ jobs:
       capital_engine: ${{ steps.filter.outputs.capital_engine }}
       risk_ontology: ${{ steps.filter.outputs.risk_ontology }}
       pre_trade_gate: ${{ steps.filter.outputs.pre_trade_gate }}
+      var_models: ${{ steps.filter.outputs.var_models }}
+      cvar_models: ${{ steps.filter.outputs.cvar_models }}
+      stressed_var: ${{ steps.filter.outputs.stressed_var }}
+      var_backtest: ${{ steps.filter.outputs.var_backtest }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -54,6 +69,21 @@ jobs:
               - 'scripts/mutmut_risk_targets.py'
             pre_trade_gate:
               - 'super_otonom/pre_trade_gate.py'
+            var_models:
+              - 'super_otonom/risk/var_models.py'
+              - 'tests/risk/test_var_models_vr02.py'
+              - 'tests/risk/test_cornish_fisher_vr03.py'
+            cvar_models:
+              - 'super_otonom/risk/cvar_models.py'
+              - 'tests/risk/test_cvar_vr04.py'
+            stressed_var:
+              - 'super_otonom/risk/stressed_var.py'
+              - 'tests/risk/test_stressed_var_vr11.py'
+            var_backtest:
+              - 'super_otonom/risk/var_backtest.py'
+              - 'tests/risk/test_var_backtest_vr13.py'
+              - 'tests/risk/test_christoffersen_vr14.py'
+              - 'tests/risk/test_basel_traffic_light_vr15.py'
 
   mutation-risk-manager:
     name: "Mutation — risk_manager.py (eşik: %80)"
@@ -185,6 +215,144 @@ jobs:
         run: |
           mutmut run \
             --paths-to-mutate super_otonom/pre_trade_gate.py \
+            --use-coverage \
+            --disable-mutation-types=string \
+            --runner "python -m pytest ${{ steps.targets.outputs.paths }} -x -q --tb=no" \
+            --CI
+          python scripts/mutmut_gate.py --min 80
+
+  # ── risk/ package modules (VR-02+) ──────────────────────────────────
+
+  mutation-var-models:
+    name: "Mutation — risk/var_models.py (eşik: %80)"
+    needs: changes
+    if: needs.changes.outputs.var_models == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Bağımlılıkları yükle
+        run: |
+          pip install "mutmut>=2.4,<3"
+          pip install -e ".[dev]"
+      - name: Hedef test listesi
+        id: targets
+        run: echo "paths=$(python scripts/mutmut_risk_targets.py var_models)" >> "$GITHUB_OUTPUT"
+      - name: Coverage bağlamı
+        run: |
+          python -m pytest ${{ steps.targets.outputs.paths }} -q \
+            --cov=super_otonom.risk.var_models \
+            --cov-context=test \
+            --cov-report=
+      - name: Mutation testi çalıştır
+        run: |
+          mutmut run \
+            --paths-to-mutate super_otonom/risk/var_models.py \
+            --use-coverage \
+            --disable-mutation-types=string \
+            --runner "python -m pytest ${{ steps.targets.outputs.paths }} -x -q --tb=no" \
+            --CI
+          python scripts/mutmut_gate.py --min 80
+
+  mutation-cvar-models:
+    name: "Mutation — risk/cvar_models.py (eşik: %80)"
+    needs: changes
+    if: needs.changes.outputs.cvar_models == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Bağımlılıkları yükle
+        run: |
+          pip install "mutmut>=2.4,<3"
+          pip install -e ".[dev]"
+      - name: Hedef test listesi
+        id: targets
+        run: echo "paths=$(python scripts/mutmut_risk_targets.py cvar_models)" >> "$GITHUB_OUTPUT"
+      - name: Coverage bağlamı
+        run: |
+          python -m pytest ${{ steps.targets.outputs.paths }} -q \
+            --cov=super_otonom.risk.cvar_models \
+            --cov-context=test \
+            --cov-report=
+      - name: Mutation testi çalıştır
+        run: |
+          mutmut run \
+            --paths-to-mutate super_otonom/risk/cvar_models.py \
+            --use-coverage \
+            --disable-mutation-types=string \
+            --runner "python -m pytest ${{ steps.targets.outputs.paths }} -x -q --tb=no" \
+            --CI
+          python scripts/mutmut_gate.py --min 80
+
+  mutation-stressed-var:
+    name: "Mutation — risk/stressed_var.py (eşik: %80)"
+    needs: changes
+    if: needs.changes.outputs.stressed_var == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Bağımlılıkları yükle
+        run: |
+          pip install "mutmut>=2.4,<3"
+          pip install -e ".[dev]"
+      - name: Hedef test listesi
+        id: targets
+        run: echo "paths=$(python scripts/mutmut_risk_targets.py stressed_var)" >> "$GITHUB_OUTPUT"
+      - name: Coverage bağlamı
+        run: |
+          python -m pytest ${{ steps.targets.outputs.paths }} -q \
+            --cov=super_otonom.risk.stressed_var \
+            --cov-context=test \
+            --cov-report=
+      - name: Mutation testi çalıştır
+        run: |
+          mutmut run \
+            --paths-to-mutate super_otonom/risk/stressed_var.py \
+            --use-coverage \
+            --disable-mutation-types=string \
+            --runner "python -m pytest ${{ steps.targets.outputs.paths }} -x -q --tb=no" \
+            --CI
+          python scripts/mutmut_gate.py --min 80
+
+  mutation-var-backtest:
+    name: "Mutation — risk/var_backtest.py (eşik: %80)"
+    needs: changes
+    if: needs.changes.outputs.var_backtest == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Bağımlılıkları yükle
+        run: |
+          pip install "mutmut>=2.4,<3"
+          pip install -e ".[dev]"
+      - name: Hedef test listesi
+        id: targets
+        run: echo "paths=$(python scripts/mutmut_risk_targets.py var_backtest)" >> "$GITHUB_OUTPUT"
+      - name: Coverage bağlamı
+        run: |
+          python -m pytest ${{ steps.targets.outputs.paths }} -q \
+            --cov=super_otonom.risk.var_backtest \
+            --cov-context=test \
+            --cov-report=
+      - name: Mutation testi çalıştır
+        run: |
+          mutmut run \
+            --paths-to-mutate super_otonom/risk/var_backtest.py \
             --use-coverage \
             --disable-mutation-types=string \
             --runner "python -m pytest ${{ steps.targets.outputs.paths }} -x -q --tb=no" \
