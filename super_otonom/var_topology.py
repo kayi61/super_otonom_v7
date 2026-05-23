@@ -47,6 +47,14 @@ _LIVE_TICK_PORTFOLIO_RISK_IMPORT_MARKERS = (
     "run_portfolio_risk_phase(",
 )
 
+_LIVE_TICK_RISK_ENGINE_MARKERS = (
+    "tick_record_var_suite",
+    "tick_check_var_limits",
+    "_risk_engine.compute(",
+    "from super_otonom.risk.risk_engine import",
+    "from super_otonom.bot_engine_risk_bridge import",
+)
+
 
 @dataclass(frozen=True)
 class VarTopology:
@@ -54,6 +62,7 @@ class VarTopology:
     var_methods_present: List[str] = field(default_factory=list)
     live_var_modules: List[str] = field(default_factory=list)
     live_tick_uses_portfolio_risk_engine: bool = False
+    live_tick_uses_risk_engine: bool = False
     regime_conditional_var_present: bool = False
     liquidity_adjusted_var_present: bool = False
     institutional_stress_grid_present: bool = False
@@ -160,6 +169,24 @@ def live_tick_imports_portfolio_risk_engine(pkg_root: Optional[Path] = None) -> 
     return False
 
 
+def live_tick_uses_risk_engine(pkg_root: Optional[Path] = None) -> bool:
+    """BotEngine tick yolu RiskEngine.compute() (3-model suite) kullanıyor mu?"""
+    root = pkg_root or _PKG
+    check_files = (
+        "bot_engine.py",
+        "bot_engine_risk_bridge.py",
+        "engine_managers.py",
+    )
+    for rel in check_files:
+        p = root / rel
+        if not p.is_file():
+            continue
+        text = p.read_text(encoding="utf-8")
+        if any(m in text for m in _LIVE_TICK_RISK_ENGINE_MARKERS):
+            return True
+    return False
+
+
 def _risk_pkg_has(pkg_root: Path, marker: str) -> bool:
     """Check whether the risk/ subpackage contains a real implementation of *marker*."""
     risk_dir = pkg_root / "risk"
@@ -186,6 +213,7 @@ def inspect_var_topology(
         var_methods_present=scan_var_methods_in_portfolio_risk(root),
         live_var_modules=scan_live_var_modules(root),
         live_tick_uses_portfolio_risk_engine=live_tick_imports_portfolio_risk_engine(root),
+        live_tick_uses_risk_engine=live_tick_uses_risk_engine(root),
         regime_conditional_var_present=(
             _risk_pkg_has(root, "regime_conditional_var")
             or any("regime_conditional" in str(v) for v in gap_hits.values())
@@ -214,8 +242,13 @@ def build_manifest_payload(topo: VarTopology) -> Dict[str, Any]:
         "var_methods_present": topo.var_methods_present,
         "phase24_var_suite_present": topo.phase24_var_suite_present,
         "live_var_modules": topo.live_var_modules,
-        "live_tick_var_source": "risk_ontology_percentile_pnl",
+        "live_tick_var_source": (
+            "risk_engine_3model_suite"
+            if topo.live_tick_uses_risk_engine
+            else "risk_ontology_percentile_pnl"
+        ),
         "live_tick_uses_portfolio_risk_engine": topo.live_tick_uses_portfolio_risk_engine,
+        "live_tick_uses_risk_engine": topo.live_tick_uses_risk_engine,
         "regime_conditional_var_present": topo.regime_conditional_var_present,
         "liquidity_adjusted_var_present": topo.liquidity_adjusted_var_present,
         "institutional_stress_grid_present": topo.institutional_stress_grid_present,
@@ -225,8 +258,14 @@ def build_manifest_payload(topo: VarTopology) -> Dict[str, Any]:
         "institutional_var_claim_allowed": False,
         "disclaimer_tr": (
             "portfolio_risk_engine faz-24 icin parametrik/tarihsel/MC VaR ve CVaR sunar; "
-            "canli tick risk_ontology uzerinden tek tarihsel yuzdelik VaR kullanir. "
-            "Rejim kosullu VaR (VR-10) risk paketinde uygulanmistir; "
+            + (
+                "canli tick RiskEngine.compute() uzerinden 3-model VaR suite "
+                "(tarihsel/parametrik/MC) kullanir; VR-19 breach kill-switch, "
+                "VR-20 limit hierarchy, VR-21 Prometheus suite aktif. "
+                if topo.live_tick_uses_risk_engine
+                else "canli tick risk_ontology uzerinden tek tarihsel yuzdelik VaR kullanir. "
+            )
+            + "Rejim kosullu VaR (VR-10) risk paketinde uygulanmistir; "
             "Stressed VaR (VR-11) Basel 2.5 stres-donem olceklemesi risk paketinde uygulanmistir; "
             "Stres Senaryo Kutuphanesi (VR-12) 5+ senaryo forward/reverse stress test risk paketinde uygulanmistir; "
             "Kurumsal risk motoru iddiasi bu topoloji ile uyumlu degildir; "
@@ -269,6 +308,13 @@ def compare_topology_to_manifest(
         issues.append(
             "live_tick_uses_portfolio_risk_engine drift: "
             f"manifest={exp_live} live={topo.live_tick_uses_portfolio_risk_engine}"
+        )
+
+    exp_re = manifest.get("live_tick_uses_risk_engine")
+    if exp_re is not None and bool(exp_re) != topo.live_tick_uses_risk_engine:
+        issues.append(
+            "live_tick_uses_risk_engine drift: "
+            f"manifest={exp_re} live={topo.live_tick_uses_risk_engine}"
         )
 
     if manifest.get("phase24_var_suite_present") is True and not topo.phase24_var_suite_present:
@@ -324,8 +370,12 @@ def var_disclosure(*, topo: Optional[VarTopology] = None) -> Dict[str, Any]:
     t = topo or inspect_var_topology()
     limitations: List[str] = [
         "phase24_var_not_live_tick_default",
-        "live_var_historical_percentile_only",
     ]
+    # RiskEngine 3-model suite aktifse historical-only sınırlaması geçersiz
+    if not t.live_tick_uses_risk_engine:
+        limitations.append("live_var_historical_percentile_only")
+    else:
+        limitations.append("live_tick_risk_engine_3model_active")
     if not t.institutional_stress_grid_present:
         limitations.append("no_institutional_stress_grid")
     if not t.regime_conditional_var_present:
@@ -346,6 +396,7 @@ def var_disclosure(*, topo: Optional[VarTopology] = None) -> Dict[str, Any]:
             "phase24_var_suite_present": t.phase24_var_suite_present,
             "live_var_modules": t.live_var_modules,
             "live_tick_uses_portfolio_risk_engine": t.live_tick_uses_portfolio_risk_engine,
+            "live_tick_uses_risk_engine": t.live_tick_uses_risk_engine,
             "stress_heuristic_in_portfolio_risk": t.stress_heuristic_in_portfolio_risk,
             "stressed_var_engine_present": t.stressed_var_engine_present,
             "institutional_gap_hits": t.institutional_gap_hits,
