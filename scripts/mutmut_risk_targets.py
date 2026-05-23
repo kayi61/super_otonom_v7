@@ -27,6 +27,25 @@ TARGETS: dict[str, list[str]] = {
     "pre_trade_gate": [
         "tests/test_risk_mutation_targets.py",
     ],
+    # ── risk/ package modules (VR-02+) ────────────────────────────────
+    "var_models": [
+        "tests/risk/test_var_models_vr02.py",
+        "tests/risk/test_cornish_fisher_vr03.py",
+        "tests/risk/test_risk_engine_unified.py",
+    ],
+    "cvar_models": [
+        "tests/risk/test_cvar_vr04.py",
+        "tests/risk/test_risk_engine_unified.py",
+    ],
+    "stressed_var": [
+        "tests/risk/test_stressed_var_vr11.py",
+        "tests/risk/test_risk_engine_unified.py",
+    ],
+    "var_backtest": [
+        "tests/risk/test_var_backtest_vr13.py",
+        "tests/risk/test_christoffersen_vr14.py",
+        "tests/risk/test_basel_traffic_light_vr15.py",
+    ],
 }
 
 
