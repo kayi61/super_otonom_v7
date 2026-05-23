@@ -477,6 +477,7 @@ class BotEngine:
             port=METRICS.get("prometheus_port", 8000),
             namespace=METRICS.get("namespace", "bot"),
         )
+        self.risk.set_metrics(self.metrics)  # VR-19 Prometheus wiring
         try:
             from super_otonom.ops_metrics import bind_metrics, refresh_dependencies
 
