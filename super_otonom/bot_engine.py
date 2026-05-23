@@ -1040,6 +1040,13 @@ class BotEngine:
         if self._entry_kill_switch_check(symbol, dctx):
             return
 
+        # VR-17 — Pre-trade marginal VaR gate (skip in _StubRisk fallback)
+        if _CORE_AVAILABLE and self._risk_engine is not None:
+            from super_otonom.bot_engine_risk_bridge import run_pre_trade_var_gate
+
+            if not run_pre_trade_var_gate(self, symbol, size, dctx):
+                return
+
         self._last_order_bar_ts[symbol] = bar_ts
 
         _order_id_attempt = f"{symbol}_{int(time.time() * 1000)}_attempt"
