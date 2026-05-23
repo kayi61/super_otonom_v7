@@ -113,6 +113,11 @@ class DecisionContext:
     phase_chain: Dict[str, Any] = field(default_factory=dict)
     # PROMPT-A7 — tick son kararı özeti (``signal_lineage.build_signal_lineage``)
     signal_lineage: Optional[Dict[str, Any]] = None
+    # VR-18 — VaR-aware position sizing observability
+    var_cap_original_size: Optional[float] = None
+    var_cap_final_size: Optional[float] = None
+    var_cap_binding: bool = False
+    var_cap_marginal_var: Optional[float] = None
     # İzlenebilir adımlar: (aşama, kısa not)
     trace: List[Tuple[str, str]] = field(default_factory=list)
 
@@ -158,6 +163,10 @@ class DecisionContext:
             "ai_explain": self.ai_explain,
             "phase_chain": dict(self.phase_chain),
             "signal_lineage": self.signal_lineage,
+            "var_cap_original_size": self.var_cap_original_size,
+            "var_cap_final_size": self.var_cap_final_size,
+            "var_cap_binding": self.var_cap_binding,
+            "var_cap_marginal_var": self.var_cap_marginal_var,
             "trace": [{"stage": s, "note": n} for s, n in self.trace],
         }
 
