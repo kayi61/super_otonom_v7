@@ -28,15 +28,20 @@ from super_otonom.capital_engine import CapitalEngine
 from super_otonom.config import METRICS, RISK
 from super_otonom.correlation_manager import CorrelationManager
 from super_otonom.decision_context import DecisionContext, DecisionStage
-from super_otonom.engine_managers import PositionManager, StateManager, TradeExecutor
+from super_otonom.engine_managers import (
+    EntryOrchestrator,
+    PositionManager,
+    StateManager,
+    TradeExecutor,
+)
 from super_otonom.hard_safety_contract import (
     enforce_entry_leverage_cap,
-    enforce_entry_prechecks,
-    enforce_entry_size_safety,
+    enforce_entry_prechecks,  # noqa: F401 — test patch target
+    enforce_entry_size_safety,  # noqa: F401 — test patch target
     gate_global_trade_disable,  # noqa: F401 — test patch
-    merge_entry_notional,
+    merge_entry_notional,  # noqa: F401 — test patch target
 )
-from super_otonom.kill_switch import HardLimitTracker, get_rate_limit_storm_tracker
+from super_otonom.kill_switch import HardLimitTracker
 from super_otonom.metrics_exporter import MetricsExporter
 from super_otonom.omega_regime import compute_omega_regime  # noqa: F401 — test patch hedefi
 from super_otonom.order_engine import OrderEngine
@@ -528,6 +533,7 @@ class BotEngine:
         self._state_mgr = StateManager(self)
         self._trade_exec = TradeExecutor(self)
         self._position_mgr = PositionManager(self)
+        self._entry_orch = EntryOrchestrator(self)
         self._state_mgr.load()
         self._onto = self.onto
 
@@ -863,23 +869,10 @@ class BotEngine:
 
             self.correlation_mgr.update_returns(symbol, price)
 
-        # ── VR-19/27 — return kaydı + regime detection ──
-        _cur_nav = self.capital.nav
-        if self._prev_nav > 0 and _cur_nav > 0:
-            _tick_ret = (_cur_nav - self._prev_nav) / self._prev_nav
-            self.risk.record_return(_tick_ret)
-            if self._regime_detector is not None:
-                try:
-                    _rh = self.risk._returns_history
-                    if len(_rh) >= 60 and not self._regime_fitted:
-                        self._regime_detector.fit(_rh)
-                        self._regime_fitted = True
-                    elif self._regime_fitted:
-                        _regime = self._regime_detector.update(_tick_ret)
-                        self._regime_var.record(_tick_ret, _regime)
-                except Exception:
-                    pass
-        self._prev_nav = _cur_nav
+        # ── VR-19/27 — return kaydı + regime detection (delegated) ──
+        from super_otonom.bot_engine_risk_bridge import tick_record_return_and_regime
+
+        tick_record_return_and_regime(self)
 
         with _tick_span(analysis, "system_gate"):
             gate = run_system_gate_phase(self, symbol, price, dctx, out, analysis)
@@ -939,29 +932,10 @@ class BotEngine:
             self.metrics.update(self.status())
             self.metrics.record_analysis(analysis)
 
-            # ── VR-21 — Prometheus VaR/CVaR full suite (her N tick'te) ──
-            if (
-                self._risk_engine is not None
-                and self._tick_counter % self._var_suite_interval == 0
-                and len(self.risk._returns_history) >= 20
-            ):
-                try:
-                    _regime_label = None
-                    _rv = None
-                    if self._regime_fitted and self._regime_detector is not None:
-                        _rs = self._regime_detector.current_regime()
-                        if _rs is not None:
-                            _regime_label = _rs.regime
-                            _rv = self._regime_var
-                    _rm = self._risk_engine.compute(
-                        self.risk._returns_history,
-                        current_regime=_regime_label,
-                        regime_var=_rv,
-                    )
-                    if hasattr(self.metrics, "record_var_suite"):
-                        self.metrics.record_var_suite(_rm)
-                except Exception as exc:
-                    log.debug("VR-21 | VaR suite Prometheus yazım hatası: %s", exc)
+            # ── VR-21 — Prometheus VaR/CVaR full suite (delegated) ──
+            from super_otonom.bot_engine_risk_bridge import tick_record_var_suite
+
+            tick_record_var_suite(self)
 
         return out
 
@@ -990,123 +964,14 @@ class BotEngine:
 
     # ── Giriş ────────────────────────────────────────────────────────────────
 
-    def _entry_check_gates(
-        self,
-        symbol: str,
-        signal: str,
-        confidence: float,
-        candles: Optional[List[Dict[str, Any]]],
-        dctx: Optional[DecisionContext],
-    ) -> tuple:
-        """Hard safety: same-bar, BUY slot, cooldown. (ok, bar_ts) döner."""
-        ok, bar_ts, block = enforce_entry_prechecks(
-            symbol,
-            signal,
-            confidence,
-            candles,
-            self._last_order_bar_ts,
-            self._last_entry_wall_ts,
-            len(self.open_positions),
-        )
-        if not ok:
-            if dctx is not None:
-                dctx.entry_blocked = block
-                stage = (
-                    DecisionStage.ENTRY.value
-                    if block != "same_bar_duplicate"
-                    else DecisionStage.ENTRY.value
-                )
-                dctx.add_trace(stage, f"hard:{block}")
-            log.debug("hard_safety | %s | %s", symbol, block)
-            return False, bar_ts
-        return True, bar_ts
+    def _entry_check_gates(self, symbol, signal, confidence, candles, dctx) -> tuple:
+        return self._entry_orch.check_gates(symbol, signal, confidence, candles, dctx)
 
-    def _entry_calculate_size(
-        self,
-        symbol: str,
-        analysis: Dict,
-        confidence: float,
-        corr_multiplier: float,
-        dctx: Optional[DecisionContext],
-    ) -> tuple:
-        """Pozisyon boyutu hesabı. (size, raw_size, ok) döner."""
-        self.sizer.set_trade_log(self.trade_log)
+    def _entry_calculate_size(self, symbol, analysis, confidence, corr_multiplier, dctx) -> tuple:
+        return self._entry_orch.calculate_size(symbol, analysis, confidence, corr_multiplier, dctx)
 
-        technical = self.sizer.calculate(
-            symbol,
-            equity=self.equity,
-            volatility=float(analysis.get("volatility", 0.01)),
-            ai_conf=float(confidence),
-        )
-        _osf = float(analysis.get("omega_size_factor", 1.0) or 1.0)
-        _osf = max(0.2, min(1.2, _osf))
-        technical = technical * _osf
-        if dctx is not None:
-            dctx.add_trace(DecisionStage.ENTRY.value, f"omega_size×{_osf:.2f}")
-
-        ob_in = analysis.get("ob_safe_size")
-        if dctx is not None:
-            try:
-                dctx.ob_safe_size_input = float(ob_in) if ob_in is not None else None
-            except (TypeError, ValueError):
-                dctx.ob_safe_size_input = None
-            dctx.notional_technical = round(float(technical), 6)
-
-        raw_merged, sizing_src, ob_block = merge_entry_notional(technical, ob_in)
-        if dctx is not None:
-            dctx.sizing_source = sizing_src
-        if ob_block:
-            if dctx is not None:
-                dctx.entry_blocked = ob_block
-                dctx.add_trace(DecisionStage.ENTRY.value, ob_block)
-            log.info("GIRIS | engellendi | symbol=%s | neden=%s", symbol, ob_block)
-            return 0.0, 0.0, False
-
-        raw_size = raw_merged
-        if dctx is not None:
-            dctx.notional_pre_corr = round(raw_size, 6)
-
-        size = round(raw_size * corr_multiplier, 4)
-        if dctx is not None:
-            dctx.notional_after_corr = size
-
-        return size, raw_size, True
-
-    def _entry_safety_checks(
-        self,
-        symbol: str,
-        size: float,
-        raw_size: float,
-        analysis: Dict,
-        dctx: Optional[DecisionContext],
-    ) -> bool:
-        """Hard safety: fat-finger, spread, OB depth, exposure."""
-        _ob = analysis.get("order_book") or {}
-        ok, block = enforce_entry_size_safety(
-            self.sizer,
-            symbol,
-            self.equity,
-            size,
-            raw_size,
-            self.free_capital,
-            self.open_positions,
-            _ob,
-        )
-        if not ok:
-            if dctx is not None:
-                dctx.entry_blocked = block
-                dctx.add_trace(DecisionStage.ENTRY.value, f"hard:{block}")
-            if "fat_finger" in block:
-                log.warning("FAT_FINGER | %s | size=%.2f", symbol, size)
-            elif "spread" in block:
-                log.warning("SPREAD_WIDE | %s | %s", symbol, block)
-            else:
-                log.debug("hard_safety size | %s | %s", symbol, block)
-            return False
-
-        if dctx is not None:
-            dctx.entry_blocked = None
-        return True
+    def _entry_safety_checks(self, symbol, size, raw_size, analysis, dctx) -> bool:
+        return self._entry_orch.safety_checks(symbol, size, raw_size, analysis, dctx)
 
     async def _entry_execute_order(
         self,
@@ -1119,16 +984,7 @@ class BotEngine:
         return await self._trade_exec.entry_execute_order(_symbol, price, size, analysis)
 
     def _entry_kill_switch_check(self, symbol: str, dctx: Optional[Any]) -> bool:
-        """Hard limit kill switch kontrolü. True ise engellendi."""
-        br = self._hard_limits.can_submit_order()
-        if not br:
-            return False
-        self.risk.trigger_emergency(br, silent=True)
-        if dctx is not None:
-            dctx.emergency_code = f"EMERGENCY_STOP:{br}"
-            dctx.add_trace("kill_switch", br)
-        log.critical("EMERGENCY_STOP | code=%s | symbol=%s", br, symbol)
-        return True
+        return self._entry_orch.kill_switch_check(symbol, dctx)
 
     async def _handle_entry(
         self,
@@ -1357,75 +1213,11 @@ class BotEngine:
     # ── Durum ────────────────────────────────────────────────────────────────
 
     def status(self) -> Dict[str, Any]:
-        total_pnl = self.equity - self.initial_capital
-        pnl_pct = (total_pnl / self.initial_capital) * 100.0 if self.initial_capital else 0.0
-        peak_dd = (
-            (self._peak_equity - self.equity) / self._peak_equity * 100.0
-            if self._peak_equity > 0
-            else 0.0
-        )
-        risk_st = self.risk.status_dict()
-        wr, rr, guven = self._calc_wr_rr()
-        corr_summary = self.correlation_mgr.summary()
-        open_exp = 0.0
-        for p in self.open_positions.values():
-            open_exp += float(p.get("qty", 0)) * float(p.get("entry", 0))
-        exp_pct = (open_exp / self.equity * 100.0) if self.equity > 0 else 0.0
-        emg = bool(risk_st.get("emergency_stop"))
-        er = risk_st.get("emergency_reason")
-        if emg and er:
-            ecode_line = f"EMERGENCY_STOP:{er}"
-        elif emg:
-            ecode_line = "EMERGENCY_STOP"
-        else:
-            ecode_line = "—"
-        return {
-            "mode": self.mode,
-            "initial_capital": round(self.initial_capital, 2),
-            "equity": round(self.equity, 2),
-            "free_capital": round(self.free_capital, 2),
-            "total_pnl": round(total_pnl, 2),
-            "pnl_pct": round(pnl_pct, 2),
-            "peak_drawdown_pct": round(peak_dd, 2),
-            "exposure_notional": round(open_exp, 2),
-            "exposure_pct": round(exp_pct, 1),
-            "open_positions": len(self.open_positions),
-            "trades_today": self._trades_today,
-            "total_trades": len(self.trade_log),
-            "win_rate": None if wr is None else round(wr * 100, 1),
-            "rr_ratio": None if rr is None else round(rr, 2),
-            "metrik_guveni": guven,
-            "var_95": risk_st["var_95"],
-            "daily_loss": risk_st["daily_loss"],
-            "emergency_stop": risk_st["emergency_stop"],
-            "emergency_reason": risk_st.get("emergency_reason"),
-            "emergency_code_line": ecode_line,
-            "last_risk_deny": risk_st.get("last_risk_deny"),
-            "omega_qmin_tighten": risk_st.get("omega_qmin_tighten"),
-            "dynamic_daily_limit": risk_st.get("dynamic_daily_limit_pct"),
-            "hard_limits": self._hard_limits.status_line(),
-            "rate_limit": get_rate_limit_storm_tracker().status_dict(),
-            "corr_tracked_symbols": corr_summary["tracked_symbols"],
-            "order_tracker_active": self._order_tracker is not None,
-            "capital": self.capital.snapshot(),
-            "risk_ontology": self.onto.snapshot(),
-            # Sprint 4 M2 — Monitoring
-            "alerts": self.alerts.snapshot() if self.alerts else None,
-            "state_corrupt_fallback": self._state_corrupt_fallback,
-            "safe_mode_block_new_entries": self._safe_mode_block_new_entries,
-            "safe_mode_reason": self._safe_mode_reason,
-        }
+        from super_otonom.bot_engine_status import compute_engine_status
+
+        return compute_engine_status(self)
 
     def _calc_wr_rr(self) -> Tuple[Optional[float], Optional[float], str]:
-        n = len(self.trade_log)
-        if n == 0:
-            return None, None, "kapanan_islem_yok"
-        recent = self.trade_log[-50:]
-        wins = [t for t in recent if t["pnl"] > 0]
-        losses = [t for t in recent if t["pnl"] <= 0]
-        wr = len(wins) / len(recent) if recent else 0.0
-        aw = sum(t["pnl"] for t in wins) / len(wins) if wins else 1.0
-        al = sum(abs(t["pnl"]) for t in losses) / len(losses) if losses else 1.0
-        rr = aw / al if al > 0 else 2.0
-        guven = f"dusuk_ornek n={n}" if n < 5 else f"son {len(recent)} islem_ozet"
-        return float(wr), float(rr), guven
+        from super_otonom.bot_engine_status import calc_wr_rr
+
+        return calc_wr_rr(self.trade_log)

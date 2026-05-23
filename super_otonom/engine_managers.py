@@ -262,6 +262,148 @@ class PositionManager:
         return max(1.0, sum(vols) / max(len(vols), 1))
 
 
+class EntryOrchestrator:
+    """BUY giriş kapı kontrolleri + boyutlandırma — BotEngine god-class'tan ayrıştırıldı."""
+
+    def __init__(self, engine: Any) -> None:
+        self._e = engine
+
+    def check_gates(
+        self,
+        symbol: str,
+        signal: str,
+        confidence: float,
+        candles: Any,
+        dctx: Any,
+    ) -> tuple:
+        """Hard safety: same-bar, BUY slot, cooldown. (ok, bar_ts) döner."""
+        import super_otonom.bot_engine as _be
+        from super_otonom.decision_context import DecisionStage
+
+        ok, bar_ts, block = _be.enforce_entry_prechecks(
+            symbol,
+            signal,
+            confidence,
+            candles,
+            self._e._last_order_bar_ts,
+            self._e._last_entry_wall_ts,
+            len(self._e.open_positions),
+        )
+        if not ok:
+            if dctx is not None:
+                dctx.entry_blocked = block
+                stage = DecisionStage.ENTRY.value
+                dctx.add_trace(stage, f"hard:{block}")
+            log.debug("hard_safety | %s | %s", symbol, block)
+            return False, bar_ts
+        return True, bar_ts
+
+    def calculate_size(
+        self,
+        symbol: str,
+        analysis: Dict,
+        confidence: float,
+        corr_multiplier: float,
+        dctx: Any,
+    ) -> tuple:
+        """Pozisyon boyutu hesabı. (size, raw_size, ok) döner."""
+        import super_otonom.bot_engine as _be
+        from super_otonom.decision_context import DecisionStage
+
+        self._e.sizer.set_trade_log(self._e.trade_log)
+
+        technical = self._e.sizer.calculate(
+            symbol,
+            equity=self._e.equity,
+            volatility=float(analysis.get("volatility", 0.01)),
+            ai_conf=float(confidence),
+        )
+        _osf = float(analysis.get("omega_size_factor", 1.0) or 1.0)
+        _osf = max(0.2, min(1.2, _osf))
+        technical = technical * _osf
+        if dctx is not None:
+            dctx.add_trace(DecisionStage.ENTRY.value, f"omega_size×{_osf:.2f}")
+
+        ob_in = analysis.get("ob_safe_size")
+        if dctx is not None:
+            try:
+                dctx.ob_safe_size_input = float(ob_in) if ob_in is not None else None
+            except (TypeError, ValueError):
+                dctx.ob_safe_size_input = None
+            dctx.notional_technical = round(float(technical), 6)
+
+        raw_merged, sizing_src, ob_block = _be.merge_entry_notional(technical, ob_in)
+        if dctx is not None:
+            dctx.sizing_source = sizing_src
+        if ob_block:
+            if dctx is not None:
+                dctx.entry_blocked = ob_block
+                dctx.add_trace(DecisionStage.ENTRY.value, ob_block)
+            log.info("GIRIS | engellendi | symbol=%s | neden=%s", symbol, ob_block)
+            return 0.0, 0.0, False
+
+        raw_size = raw_merged
+        if dctx is not None:
+            dctx.notional_pre_corr = round(raw_size, 6)
+
+        size = round(raw_size * corr_multiplier, 4)
+        if dctx is not None:
+            dctx.notional_after_corr = size
+
+        return size, raw_size, True
+
+    def safety_checks(
+        self,
+        symbol: str,
+        size: float,
+        raw_size: float,
+        analysis: Dict,
+        dctx: Any,
+    ) -> bool:
+        """Hard safety: fat-finger, spread, OB depth, exposure."""
+        import super_otonom.bot_engine as _be
+        from super_otonom.decision_context import DecisionStage
+
+        _ob = analysis.get("order_book") or {}
+        ok, block = _be.enforce_entry_size_safety(
+            self._e.sizer,
+            symbol,
+            self._e.equity,
+            size,
+            raw_size,
+            self._e.free_capital,
+            self._e.open_positions,
+            _ob,
+        )
+        if not ok:
+            if dctx is not None:
+                dctx.entry_blocked = block
+                dctx.add_trace(DecisionStage.ENTRY.value, f"hard:{block}")
+            if "fat_finger" in block:
+                log.warning("FAT_FINGER | %s | size=%.2f", symbol, size)
+            elif "spread" in block:
+                log.warning("SPREAD_WIDE | %s | %s", symbol, block)
+            else:
+                log.debug("hard_safety size | %s | %s", symbol, block)
+            return False
+
+        if dctx is not None:
+            dctx.entry_blocked = None
+        return True
+
+    def kill_switch_check(self, symbol: str, dctx: Any) -> bool:
+        """Hard limit kill switch kontrolü. True ise engellendi."""
+        br = self._e._hard_limits.can_submit_order()
+        if not br:
+            return False
+        self._e.risk.trigger_emergency(br, silent=True)
+        if dctx is not None:
+            dctx.emergency_code = f"EMERGENCY_STOP:{br}"
+            dctx.add_trace("kill_switch", br)
+        log.critical("EMERGENCY_STOP | code=%s | symbol=%s", br, symbol)
+        return True
+
+
 class TradeExecutor:
     """Giriş emri simülasyonu / borsa yürütmesi ve kapanışlar."""
 
