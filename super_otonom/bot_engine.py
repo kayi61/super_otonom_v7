@@ -212,6 +212,10 @@ except ImportError:
                 # intentionally empty stub — no risk engine in stub mode
                 pass
 
+            def set_metrics(self, _metrics):
+                # intentionally empty stub — no metrics in stub mode
+                pass
+
             def record_return(self, _ret):
                 # intentionally empty stub — no return tracking in stub mode
                 pass
