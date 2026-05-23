@@ -937,6 +937,11 @@ class BotEngine:
 
             tick_record_var_suite(self)
 
+            # ── VR-20 — VaR limit hierarchy check (same interval) ──
+            from super_otonom.bot_engine_risk_bridge import tick_check_var_limits
+
+            tick_check_var_limits(self)
+
         return out
 
     async def tick_async(

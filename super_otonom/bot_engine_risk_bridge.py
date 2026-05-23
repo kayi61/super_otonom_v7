@@ -1,4 +1,4 @@
-"""VR-17/18/19/21/27 — BotEngine ↔ RiskEngine tick-level bridge (delegation)."""
+"""VR-17/18/19/20/21/27 — BotEngine ↔ RiskEngine tick-level bridge (delegation)."""
 
 from __future__ import annotations
 
@@ -252,7 +252,58 @@ def tick_record_var_suite(engine: BotEngine) -> None:
             current_regime=regime_label,
             regime_var=rv,
         )
+        # Stash for VR-20 check_limits (avoids double compute)
+        engine._last_risk_metrics = rm
         if hasattr(engine.metrics, "record_var_suite"):
             engine.metrics.record_var_suite(rm)
     except Exception as exc:
         log.debug("VR-21 | VaR suite Prometheus yazım hatası: %s", exc)
+
+
+# ── VR-20 — VaR limit hierarchy check in tick path ───────────────────
+
+
+def tick_check_var_limits(engine: BotEngine) -> None:
+    """Check VaR limit hierarchy against latest RiskMetrics (VR-20).
+
+    Runs on the same interval as var_suite (piggybacking on stored metrics).
+    Firm-level breach → emergency_stop.
+    """
+    if engine._risk_engine is None:
+        return
+    if engine._tick_counter % engine._var_suite_interval != 0:
+        return
+
+    rm = getattr(engine, "_last_risk_metrics", None)
+    if rm is None:
+        return
+
+    try:
+        from super_otonom.risk.var_limits import check_limits, load_var_limits
+
+        limits = load_var_limits()
+        violations = check_limits(limits, rm)
+
+        if not violations:
+            return
+
+        for v in violations:
+            log.critical("VR-20 | LIMIT_BREACH | %s", v)
+
+        # Prometheus: record breach count
+        if hasattr(engine.metrics, "record_var_limit_breach"):
+            engine.metrics.record_var_limit_breach(len(violations))
+
+        # Firm-level breach (portfolio/stressed) → emergency stop
+        firm_keywords = ("portfolio_var", "stressed_var", "portfolio_cvar")
+        if any(
+            any(kw in str(v).lower() for kw in firm_keywords)
+            for v in violations
+        ):
+            engine.risk.trigger_emergency("var_limit_firm_breach")
+            log.critical(
+                "VR-20 | FIRM LIMIT BREACH → EMERGENCY STOP | violations=%s",
+                violations,
+            )
+    except Exception as exc:
+        log.debug("VR-20 | check_limits error (conservative pass): %s", exc)
