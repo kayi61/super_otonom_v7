@@ -66,6 +66,8 @@ class RiskManager:
         self._risk_engine: Optional["RiskEngine"] = None
         self._returns_history: List[float] = []
         self._last_var_breach_reason: Optional[str] = None
+        # VR-19 Prometheus — MetricsExporter referansı (bot_engine set eder)
+        self._metrics: Any = None
 
     def record_omega_trade_outcome(self, pnl: float) -> None:
         """
@@ -95,6 +97,10 @@ class RiskManager:
         """VR-19: RiskEngine referansını bağlar — VaR breach kontrolü için."""
         self._risk_engine = engine
         log.info("RiskManager: RiskEngine baglandi — VaR breach kill-switch aktif")
+
+    def set_metrics(self, metrics: Any) -> None:
+        """VR-19 Prometheus: MetricsExporter referansını bağlar."""
+        self._metrics = metrics
 
     def record_return(self, ret: float) -> None:
         """
@@ -145,6 +151,8 @@ class RiskManager:
         max_cvar_975 = float(RISK.get("max_cvar_975_pct", 0.10))
         max_dispersion = float(RISK.get("max_model_dispersion_pct", 0.50))
 
+        breach_code: Optional[str] = None
+
         # Check 1: VaR 99% breach
         if metrics.var_99_1d > max_var_99:
             self.trigger_emergency("var_99_breach", silent=True)
@@ -153,22 +161,20 @@ class RiskManager:
                 metrics.var_99_1d,
                 max_var_99,
             )
-            self._last_var_breach_reason = "var_99_breach"
-            return "var_99_breach"
+            breach_code = "var_99_breach"
 
         # Check 2: CVaR 97.5% breach
-        if metrics.cvar_975_1d > max_cvar_975:
+        elif metrics.cvar_975_1d > max_cvar_975:
             self.trigger_emergency("cvar_975_breach", silent=True)
             log.critical(
                 "KILL_SWITCH | code=cvar_975_breach | cvar_975=%.4f > limit=%.4f",
                 metrics.cvar_975_1d,
                 max_cvar_975,
             )
-            self._last_var_breach_reason = "cvar_975_breach"
-            return "cvar_975_breach"
+            breach_code = "cvar_975_breach"
 
         # Check 3: Stressed VaR > 2 × VaR 99%
-        if metrics.stressed_var > 0 and metrics.var_99_1d > 0:
+        elif metrics.stressed_var > 0 and metrics.var_99_1d > 0:
             if metrics.stressed_var > 2 * metrics.var_99_1d:
                 self.trigger_emergency("stressed_var_breach", silent=True)
                 log.critical(
@@ -177,8 +183,7 @@ class RiskManager:
                     metrics.stressed_var,
                     2 * metrics.var_99_1d,
                 )
-                self._last_var_breach_reason = "stressed_var_breach"
-                return "stressed_var_breach"
+                breach_code = "stressed_var_breach"
 
         # Check 4: Model dispersion warning (log only, no kill)
         if metrics.model_dispersion_pct > max_dispersion:
@@ -188,8 +193,35 @@ class RiskManager:
                 max_dispersion * 100,
             )
 
-        self._last_var_breach_reason = None
-        return None
+        # VR-19 Prometheus — record breach state (breach or normal)
+        self._record_var_breach_prometheus(
+            breach_code, metrics.var_99_1d, metrics.cvar_975_1d,
+            metrics.model_dispersion_pct,
+        )
+
+        self._last_var_breach_reason = breach_code
+        return breach_code
+
+    def _record_var_breach_prometheus(
+        self,
+        breach_code: Optional[str],
+        var_99: float,
+        cvar_975: float,
+        model_dispersion: float,
+    ) -> None:
+        """VR-19: Write breach state to Prometheus via MetricsExporter."""
+        try:
+            if self._metrics is not None and hasattr(
+                self._metrics, "record_var_breach"
+            ):
+                self._metrics.record_var_breach(
+                    breach_code=breach_code,
+                    var_99=var_99,
+                    cvar_975=cvar_975,
+                    model_dispersion=model_dispersion,
+                )
+        except Exception as exc:
+            log.debug("VR-19 | record_var_breach Prometheus hata: %s", exc)
 
     def _warn_if_onto_missing(self) -> None:
         """
