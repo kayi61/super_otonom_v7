@@ -19,7 +19,7 @@ import time
 
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "super_otonom"))
 
 # Minimal stub — gerçek modüller olmadan test
 import types

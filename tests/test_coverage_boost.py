@@ -8,7 +8,7 @@ Coverage artırma testleri — tüm %0 modüller için
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "super_otonom"))
 
 import asyncio
 import time
@@ -680,7 +680,6 @@ section("TEST 9: WFAManager")
 
 try:
     import pandas as pd
-
     from super_otonom.wfa_manager import WFAManager
 
     # T9.1 - fold üretimi
@@ -1162,7 +1161,6 @@ section("TEST 16: Backtester")
 
 try:
     import numpy as np
-
     from super_otonom.backtester import (
         BacktestReport,
         _compute_max_drawdown_pct,

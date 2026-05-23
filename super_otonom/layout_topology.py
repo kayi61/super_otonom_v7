@@ -38,7 +38,7 @@ class TestLayoutTopology:
 
     @property
     def institutional_production_test_layout_claim_allowed(self) -> bool:
-        return False
+        return self.in_package_test_count == 0
 
 
 def scan_in_package_test_modules(pkg_root: Optional[Path] = None) -> List[str]:
@@ -102,21 +102,30 @@ def inspect_test_layout(
 
 
 def build_manifest_payload(topo: TestLayoutTopology) -> Dict[str, Any]:
+    clean = topo.in_package_test_count == 0
+    if clean:
+        disclaimer = (
+            f"Tüm test dosyaları {topo.canonical_test_dir}/ altına taşınmıştır. "
+            "super_otonom/ paketinde test modülü kalmamıştır. "
+            "Pip wheel temiz dağıtım yapılabilir."
+        )
+    else:
+        disclaimer = (
+            f"Pytest kanonik kökü {topo.canonical_test_dir}/; super_otonom/test_*.py "
+            "geçiş dönemi borcudur ve pip wheel'e dahil edilmemelidir. "
+            "Kurumsal 'temiz paket' iddiası tüm testler tests/ altına taşınana kadar uygun değildir."
+        )
     return {
         "audit": 9,
         "schema_version": 1,
         "in_package_test_count": topo.in_package_test_count,
-        "in_package_test_ceiling": IN_PACKAGE_TEST_CEILING,
+        "in_package_test_ceiling": 0 if clean else IN_PACKAGE_TEST_CEILING,
         "in_package_test_modules": topo.in_package_test_modules,
         "canonical_test_dir": topo.canonical_test_dir,
         "canonical_test_file_count": topo.canonical_test_file_count,
         "wheel_test_module_count_expected": 0,
-        "institutional_production_test_layout_claim_allowed": False,
-        "disclaimer_tr": (
-            f"Pytest kanonik kökü {topo.canonical_test_dir}/; super_otonom/test_*.py "
-            "geçiş dönemi borcudur ve pip wheel'e dahil edilmemelidir. "
-            "Kurumsal 'temiz paket' iddiası tüm testler tests/ altına taşınana kadar uygun değildir."
-        ),
+        "institutional_production_test_layout_claim_allowed": clean,
+        "disclaimer_tr": disclaimer,
     }
 
 
@@ -134,8 +143,12 @@ def compare_layout_to_manifest(
     manifest: Mapping[str, Any],
 ) -> List[str]:
     issues: List[str] = []
-    if manifest.get("institutional_production_test_layout_claim_allowed") is not False:
-        issues.append("manifest: institutional_production_test_layout_claim_allowed must be false")
+    manifest_claim = manifest.get("institutional_production_test_layout_claim_allowed", False)
+    if bool(manifest_claim) != topo.institutional_production_test_layout_claim_allowed:
+        issues.append(
+            f"institutional_production_test_layout_claim_allowed drift: "
+            f"manifest={manifest_claim} live={topo.institutional_production_test_layout_claim_allowed}"
+        )
 
     exp_list = manifest.get("in_package_test_modules")
     if isinstance(exp_list, list):
@@ -230,15 +243,17 @@ def validate_test_layout_contract(
 def layout_disclosure(*, topo: Optional[TestLayoutTopology] = None) -> Dict[str, Any]:
     t = topo or inspect_test_layout(build_wheel=False)
     limitations: List[str] = [
-        "in_package_test_modules_present",
         "canonical_tests_under_tests_dir",
         "wheel_must_exclude_package_tests",
     ]
     if t.in_package_test_count > 0:
+        limitations.append("in_package_test_modules_present")
         limitations.append("migration_debt_super_otonom_test_files")
+    else:
+        limitations.append("all_tests_migrated_to_tests_dir")
     return {
         "test_layout_controlled": True,
-        "institutional_production_test_layout_claim_allowed": False,
+        "institutional_production_test_layout_claim_allowed": t.institutional_production_test_layout_claim_allowed,
         "topology": {
             "in_package_test_count": t.in_package_test_count,
             "in_package_test_ceiling": IN_PACKAGE_TEST_CEILING,

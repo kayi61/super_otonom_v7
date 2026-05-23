@@ -28,7 +28,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "super_otonom"))
 
 from order_engine import OrderEngine, OrderState
 from reconciliation_engine import ReconciliationEngine

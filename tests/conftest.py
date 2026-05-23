@@ -8,6 +8,23 @@ from pathlib import Path
 
 import pytest
 
+# ── Standalone script'ler (pytest testi değil) — collection'dan hariç tut ────
+collect_ignore = [
+    "test_5000.py",
+    "test_10000.py",
+    "test_capital_engine.py",
+    "test_capital_engine_v2_fixes.py",
+    "test_capital_engine_v3_fixes.py",
+    "test_core_modules.py",
+    "test_coverage_boost.py",
+    "test_faz2_fixes.py",
+    "test_order_reconciliation.py",
+    "test_fake_order_book_scenarios.py",
+    "test_override_phase_bridge.py",
+    "test_smart_order_router.py",
+    "test_execution_pipeline_faz80_chain.py",
+]
+
 
 class _GateCheck:
     """Script ``check(label, ok, detail)`` ile aynı sözleşme; anında ``assert`` (pytest traceback)."""

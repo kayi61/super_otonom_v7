@@ -73,13 +73,13 @@ python scripts/print_resolved_risk.py --summary
 
 | Kontrol | Komut / kanıt | RCO |
 |---------|----------------|-----|
-| `super_otonom/test_*.py` manifest | `data/test_layout_manifest.json` | [x] |
+| `super_otonom/test_*.py` manifest | `data/test_layout_manifest.json` — 0 in-package test | [x] |
 | Wheel'de test modülü **yok** | `layout_topology_audit --verify-wheel` → 0 | [x] |
 | Pytest kökü `tests/` | `pyproject.toml` testpaths | [x] |
-| Kurumsal temiz paket iddiası **yok** | `institutional_production_test_layout_claim_allowed=false` | [x] |
+| Kurumsal temiz paket iddiası **evet** | `institutional_production_test_layout_claim_allowed=true` | [x] |
 | Yerel gate | `scripts/fastrun_test_layout.cmd` PASS | [ ] |
 
-Yeni `super_otonom/test_*.py`: manifest güncelle + wheel doğrula.
+29 test dosyası `super_otonom/` → `tests/` altına taşınmıştır. Paket içi test borcu sıfırlanmıştır.
 
 ## §5 — BotEngine god class (Audit 8)
 
