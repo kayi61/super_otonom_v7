@@ -1023,6 +1023,17 @@ class BotEngine:
         if not ok_size:
             return
 
+        # VR-18 — VaR-aware position sizing (skip in _StubRisk fallback)
+        if _CORE_AVAILABLE and self._risk_engine is not None:
+            from super_otonom.bot_engine_risk_bridge import run_var_cap_sizing
+
+            size = run_var_cap_sizing(self, symbol, size, dctx)
+            if size <= 0:
+                if dctx is not None:
+                    dctx.entry_blocked = "VAR_CAP_ZERO_SIZE"
+                    dctx.add_trace(DecisionStage.ENTRY.value, "var_cap_zero")
+                return
+
         ok_lv, block_lv = enforce_entry_leverage_cap(
             self.equity,
             max(float(size), float(raw_size)),

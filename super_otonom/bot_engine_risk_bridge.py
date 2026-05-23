@@ -1,4 +1,4 @@
-"""VR-17/19/21/27 — BotEngine ↔ RiskEngine tick-level bridge (delegation)."""
+"""VR-17/18/19/21/27 — BotEngine ↔ RiskEngine tick-level bridge (delegation)."""
 
 from __future__ import annotations
 
@@ -98,6 +98,111 @@ def _build_and_run_var_gate(
         current_weights=current_weights,
         asset_returns=asset_returns,
     )
+
+
+# ── VR-18 — VaR-aware position sizing (cap via binary search) ─────────
+
+
+def run_var_cap_sizing(
+    engine: BotEngine,
+    symbol: str,
+    size: float,
+    dctx: Optional[Any] = None,
+) -> float:
+    """Apply VR-18 VaR cap to *size*.  Returns capped size (≤ original).
+
+    On compute error → conservative pass (return original size unchanged).
+    """
+
+    try:
+        result = _build_and_run_var_cap(engine, symbol, size)
+    except Exception as exc:
+        log.debug("VR-18 | var_cap_sizing error (conservative pass): %s", exc)
+        return size
+
+    capped = result["capped_size"]
+    binding = capped < size
+
+    # Decision context observability
+    if dctx is not None:
+        dctx.var_cap_original_size = size
+        dctx.var_cap_final_size = capped
+        dctx.var_cap_binding = binding
+        dctx.var_cap_marginal_var = result.get("marginal_var")
+        from super_otonom.decision_context import DecisionStage
+
+        cap_note = (
+            f"var_cap_binding:{size:.2f}->{capped:.2f}"
+            if binding
+            else f"var_cap_pass:{size:.2f}"
+        )
+        dctx.add_trace(DecisionStage.ENTRY.value, cap_note)
+
+    if binding:
+        log.info(
+            "VR-18 | VAR_CAP BINDING | %s | kelly=%.2f capped=%.2f "
+            "mvar=%.6f cap=%.6f",
+            symbol,
+            size,
+            capped,
+            result.get("marginal_var", 0.0),
+            result.get("cap_abs", 0.0),
+        )
+
+    return capped
+
+
+def _build_and_run_var_cap(
+    engine: BotEngine,
+    symbol: str,
+    size: float,
+) -> Dict[str, float]:
+    """Derive asset_returns + positions → call size_with_var_cap."""
+    from super_otonom.risk.position_sizer_var import (
+        MarginalVarEngine,
+        size_with_var_cap,
+    )
+
+    nav = engine.capital.nav
+    if nav <= 0:
+        return {"capped_size": size, "marginal_var": 0.0, "cap_abs": 0.0}
+
+    # Current open position notionals
+    current_positions: Dict[str, float] = {}
+    for sym, pos in engine.open_positions.items():
+        pos_size = float(pos.get("size", 0.0))
+        if pos_size > 0:
+            current_positions[sym] = pos_size
+
+    # Per-symbol returns from correlation manager price history
+    asset_returns: Dict[str, list] = {}
+    ph = engine.correlation_mgr._price_history
+    for sym in set(list(current_positions.keys()) + [symbol]):
+        hist = ph.get(sym)
+        if hist and len(hist) >= 2:
+            prices = list(hist)
+            asset_returns[sym] = [
+                (prices[i] - prices[i - 1]) / (prices[i - 1] + 1e-9)
+                for i in range(1, len(prices))
+            ]
+
+    var_engine = MarginalVarEngine(asset_returns)
+
+    capped = size_with_var_cap(
+        kelly_size=size,
+        symbol=symbol,
+        equity=nav,
+        var_engine=var_engine,
+        current_positions=current_positions,
+    )
+
+    # Compute marginal VaR at final size for observability
+    from super_otonom.risk.position_sizer_var import _env_max_marginal_var_pct
+
+    mvar = var_engine.marginal_var_for_trade(symbol, capped, current_positions)
+    cap_abs = _env_max_marginal_var_pct() * nav
+
+    return {"capped_size": capped, "marginal_var": mvar, "cap_abs": cap_abs}
 
 
 def tick_record_return_and_regime(engine: BotEngine) -> None:
