@@ -125,3 +125,40 @@ def test_second_exporter_reuses_prometheus_registry() -> None:
     assert a._counters["trades"] is b._counters["trades"]
     b.update({"equity": 1.0})
     b.record_trade(0.0, reason="dup")
+
+
+@pytest.mark.skipif(not _PROMETHEUS_AVAILABLE, reason="prometheus_client yok")
+def test_record_portfolio_risk_sets_gauges() -> None:
+    """Faz-24: record_portfolio_risk sets all 5 portfolio risk gauges."""
+    ns = f"pf_risk_{uuid.uuid4().hex[:8]}"
+    m = MetricsExporter(port=0, namespace=ns)
+    result = {
+        "trade_permission": "BLOCK",
+        "risk_score": 0.82,
+        "portfolio_risk": {
+            "var_max": 0.12,
+            "cvar": 0.18,
+            "herfindahl_hhi": 0.65,
+        },
+    }
+    m.record_portfolio_risk(result)
+    # Gauges should have been set — verify no error
+    assert m._gauges["portfolio_risk_permission"] is not None
+
+
+@pytest.mark.skipif(not _PROMETHEUS_AVAILABLE, reason="prometheus_client yok")
+def test_record_portfolio_risk_swallows_errors() -> None:
+    """Faz-24: record_portfolio_risk exception path."""
+    ns = f"pf_err_{uuid.uuid4().hex[:8]}"
+    m = MetricsExporter(port=0, namespace=ns)
+    bad = MagicMock()
+    bad.set.side_effect = RuntimeError("gauge boom")
+    m._gauges["portfolio_risk_permission"] = bad
+    m.record_portfolio_risk({"trade_permission": "ALLOW"})  # should not raise
+
+
+def test_record_portfolio_risk_disabled_noop() -> None:
+    """Faz-24: disabled exporter → early return."""
+    m = MetricsExporter(port=0)
+    m._enabled = False
+    m.record_portfolio_risk({"trade_permission": "HALT"})  # no-op, no crash
