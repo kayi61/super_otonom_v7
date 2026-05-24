@@ -385,6 +385,23 @@ class MetricsExporter:
                 f"{namespace}_model_dispersion_current"
             )
 
+        # ── Faz 24: Portfolio risk phase gauges ─────────────────────────────
+        for _gn, _gd in (
+            ("portfolio_risk_permission", "Portfolio risk izni: 0=ALLOW 1=BLOCK 2=HALT"),
+            ("portfolio_risk_score", "Portfolio risk skoru [0,1]"),
+            ("portfolio_risk_var_max", "Portfolio VaR max (3 yontem) fraksiyon"),
+            ("portfolio_risk_cvar", "Portfolio CVaR / Expected Shortfall fraksiyon"),
+            ("portfolio_risk_hhi", "Herfindahl konsantrasyon endeksi [0,1]"),
+        ):
+            try:
+                self._gauges[_gn] = Gauge(f"{namespace}_{_gn}", _gd)
+            except ValueError:
+                from prometheus_client import REGISTRY
+
+                self._gauges[_gn] = REGISTRY._names_to_collectors.get(
+                    f"{namespace}_{_gn}"
+                )
+
         # ── VR-21: Multi-labeled VaR/CVaR full suite ─────────────────────────
         # var_topology sentinel
         self._prometheus_var_full_suite = True
@@ -841,6 +858,22 @@ class MetricsExporter:
             self._gauges["position_sizer_var_capped_size"].set(capped_size)
         except Exception as exc:
             log.debug("MetricsExporter.record_var_cap hata: %s", exc)
+
+    def record_portfolio_risk(self, result: Dict[str, Any]) -> None:
+        """Faz 24 — portfolio risk phase Prometheus kaydı."""
+        if not self._enabled:
+            return
+        try:
+            perm = result.get("trade_permission", "ALLOW")
+            perm_val = {"ALLOW": 0.0, "BLOCK": 1.0, "HALT": 2.0}.get(perm, -1.0)
+            self._gauges["portfolio_risk_permission"].set(perm_val)
+            self._gauges["portfolio_risk_score"].set(float(result.get("risk_score", 0)))
+            pr = result.get("portfolio_risk", {})
+            self._gauges["portfolio_risk_var_max"].set(float(pr.get("var_max", 0)))
+            self._gauges["portfolio_risk_cvar"].set(float(pr.get("cvar", 0)))
+            self._gauges["portfolio_risk_hhi"].set(float(pr.get("herfindahl_hhi", 0)))
+        except Exception as exc:
+            log.debug("MetricsExporter.record_portfolio_risk hata: %s", exc)
 
     def record_host_ntp(self, synced: Optional[bool]) -> None:
         if not self._enabled:

@@ -370,6 +370,8 @@ class BotEngine:
     **Aktif tick zinciri (özet)** — ayrıntı: ``docs/ACTIVE_PIPELINE.md``.
 
     1. ``tick`` → ``_tick_impl``: unrealized / funding / ontology / correlation güncelle
+    1b. VR-19/27 — return kaydı + regime detection
+    1c. Faz 24 — ``tick_portfolio_risk_phase`` → portfolio-level VaR/CVaR/HHI gate
     2. ``run_system_gate_phase`` (unified_system_core) → kill / risk erken çıkış
     3. ``process_signal`` → ``signal_pipeline.process_signal_phase`` (+ fusion / gates içerde)
     4. ``apply_filters``
@@ -507,6 +509,7 @@ class BotEngine:
         self._tick_counter = 0
         self._a11_tick_depth = 0  # PROMPT-A11 — tick() reentrancy (aynı engine)
         self._a11_audit_analysis: Optional[Dict[str, Any]] = None
+        self._portfolio_risk_permission: str = "ALLOW"  # Faz 24: son portföy risk izni
         self._last_order_bar_ts: dict = {}  # Faz 3: same-bar duplicate koruması
         # Hard safety: son başarılı giriş zamanı (monotonic); AI bu sözlüğü sıfırlamaz — yalnızca başarılı BUY sonrası güncellenir
         self._last_entry_wall_ts: Dict[str, float] = {}
@@ -879,6 +882,12 @@ class BotEngine:
 
         tick_record_return_and_regime(self)
 
+        # ── Faz 24 — Portfolio risk phase (delegated) ──
+        from super_otonom.bot_engine_risk_bridge import tick_portfolio_risk_phase
+
+        with _tick_span(analysis, "portfolio_risk"):
+            tick_portfolio_risk_phase(self, symbol, analysis)
+
         with _tick_span(analysis, "system_gate"):
             gate = run_system_gate_phase(self, symbol, price, dctx, out, analysis)
         if gate == "kill":
@@ -1021,6 +1030,24 @@ class BotEngine:
                 dctx.entry_blocked = "SAFE_MODE_BLOCK_NEW_ENTRIES"
                 dctx.add_trace(DecisionStage.ENTRY.value, "safe_mode")
             out.setdefault("decision_reason", "SAFE_MODE_BLOCK_NEW_ENTRIES")
+            return
+
+        # Faz 24 — Portfolio-level risk gate
+        if self._portfolio_risk_permission in ("BLOCK", "HALT"):
+            log.warning(
+                "FAZ-24 | BUY bloklandi | %s | perm=%s",
+                symbol,
+                self._portfolio_risk_permission,
+            )
+            if dctx is not None:
+                dctx.entry_blocked = f"PORTFOLIO_RISK_{self._portfolio_risk_permission}"
+                dctx.add_trace(
+                    DecisionStage.ENTRY.value,
+                    f"portfolio_risk_{self._portfolio_risk_permission.lower()}",
+                )
+            out.setdefault(
+                "decision_reason", f"PORTFOLIO_RISK_{self._portfolio_risk_permission}"
+            )
             return
 
         ok, bar_ts = self._entry_check_gates(symbol, signal, confidence, candles, dctx)

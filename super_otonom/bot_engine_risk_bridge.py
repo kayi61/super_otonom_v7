@@ -205,6 +205,112 @@ def _build_and_run_var_cap(
     return {"capped_size": capped, "marginal_var": mvar, "cap_abs": cap_abs}
 
 
+# ── Faz 24 — Portfolio risk phase in tick path ─────────────────────────
+
+
+def tick_portfolio_risk_phase(engine: BotEngine, symbol: str, analysis: Dict[str, Any]) -> None:
+    """Run portfolio risk (Faz 24) periodically and cache trade_permission.
+
+    Updates ``engine._portfolio_risk_permission`` which is checked in
+    ``_handle_entry`` to block new entries when portfolio-level risk is elevated.
+
+    Interval: same as ``_var_suite_interval`` to avoid per-tick overhead.
+    No open positions → ALLOW (skip computation).
+    HALT → ``trigger_emergency`` (firm-level kill).
+    """
+    # No positions → nothing to assess at portfolio level
+    if not engine.open_positions:
+        engine._portfolio_risk_permission = "ALLOW"
+        return
+
+    # Run on same cadence as VR-21 suite
+    if engine._tick_counter % engine._var_suite_interval != 0:
+        return  # keep last cached permission
+
+    try:
+        portfolio_data = _build_portfolio_data(engine)
+        if not portfolio_data:
+            engine._portfolio_risk_permission = "ALLOW"
+            return
+
+        from super_otonom.portfolio_risk_engine import run_portfolio_risk_phase
+
+        result = run_portfolio_risk_phase(
+            symbol,
+            portfolio_data,
+            analysis,
+            attach_to_analysis=True,
+        )
+
+        perm = result.get("trade_permission", "ALLOW")
+        engine._portfolio_risk_permission = perm
+
+        # Prometheus
+        if hasattr(engine.metrics, "record_portfolio_risk"):
+            engine.metrics.record_portfolio_risk(result)
+
+        if perm != "ALLOW":
+            pr = result.get("portfolio_risk", {})
+            log.warning(
+                "FAZ-24 | PORTFOLIO_RISK %s | %s | risk=%.3f var_max=%.4f "
+                "cvar=%.4f hhi=%.3f",
+                perm,
+                symbol,
+                result.get("risk_score", 0),
+                pr.get("var_max", 0),
+                pr.get("cvar", 0),
+                pr.get("herfindahl_hhi", 0),
+            )
+
+        if perm == "HALT":
+            engine.risk.trigger_emergency("portfolio_risk_halt")
+            log.critical("FAZ-24 | PORTFOLIO HALT → EMERGENCY STOP | %s", symbol)
+
+    except Exception as exc:
+        log.debug("FAZ-24 | portfolio risk error (conservative pass): %s", exc)
+        engine._portfolio_risk_permission = "ALLOW"
+
+
+def _build_portfolio_data(engine: BotEngine) -> Dict[str, Any]:
+    """Construct ``portfolio_data`` dict from engine live state."""
+    nav = engine.capital.nav
+    if nav <= 0:
+        return {}
+
+    # Weights from open positions (notional / NAV)
+    weights: Dict[str, float] = {}
+    for sym, pos in engine.open_positions.items():
+        pos_size = float(pos.get("size", 0.0))
+        if pos_size > 0:
+            weights[sym] = pos_size / nav
+
+    if not weights:
+        return {}
+
+    # Portfolio returns from NAV-based return history
+    rh = getattr(engine.risk, "_returns_history", None)
+    portfolio_returns: list = list(rh) if rh else []
+
+    # Per-symbol returns from correlation manager price history
+    asset_returns: Dict[str, list] = {}
+    ph = engine.correlation_mgr._price_history
+    for sym in weights:
+        hist = ph.get(sym)
+        if hist and len(hist) >= 2:
+            prices = list(hist)
+            asset_returns[sym] = [
+                (prices[i] - prices[i - 1]) / (prices[i - 1] + 1e-9)
+                for i in range(1, len(prices))
+            ]
+
+    return {
+        "weights": weights,
+        "portfolio_returns": portfolio_returns,
+        "asset_returns": asset_returns,
+        "nav": nav,
+    }
+
+
 def tick_record_return_and_regime(engine: BotEngine) -> None:
     """Record NAV-based return + update regime detector (VR-19/27)."""
     cur_nav = engine.capital.nav
