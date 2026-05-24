@@ -26,14 +26,14 @@ pytestmark = pytest.mark.fastrun
 
 def test_in_package_test_count() -> None:
     mods = scan_in_package_test_modules()
-    assert len(mods) >= 29
-    assert "test_5000.py" in mods
+    assert len(mods) == 0, f"super_otonom/ içinde test modülü kalmamalı: {mods}"
 
 
-def test_disclosure_not_institutional() -> None:
+def test_disclosure_institutional() -> None:
     d = layout_disclosure_fn()
-    assert d["institutional_production_test_layout_claim_allowed"] is False
+    assert d["institutional_production_test_layout_claim_allowed"] is True
     assert d["topology"]["canonical_test_dir"] == "tests"
+    assert d["topology"]["in_package_test_count"] == 0
 
 
 def test_validate_repo_contract() -> None:
