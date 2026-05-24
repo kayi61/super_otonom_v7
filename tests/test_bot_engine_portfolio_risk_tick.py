@@ -77,7 +77,8 @@ def test_portfolio_risk_with_positions_runs(
     assert "phase24" in analysis
 
 
-def test_portfolio_risk_block_prevents_entry(
+@pytest.mark.asyncio
+async def test_portfolio_risk_block_prevents_entry(
     tmp_path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Portfolio risk BLOCK → _handle_entry returns without executing."""
@@ -90,13 +91,9 @@ def test_portfolio_risk_block_prevents_entry(
     dctx = DecisionContext.start("BTC/USDT", 1, {})
     out: dict = {"actions": [], "final_signal": "BUY"}
 
-    import asyncio
-
-    asyncio.get_event_loop().run_until_complete(
-        eng._handle_entry(
-            "BTC/USDT", 50000.0, {"avg_volume": 1.0, "volatility": 0.01},
-            "BUY", 0.9, out, 1.0, dctx,
-        )
+    await eng._handle_entry(
+        "BTC/USDT", 50000.0, {"avg_volume": 1.0, "volatility": 0.01},
+        "BUY", 0.9, out, 1.0, dctx,
     )
 
     # No BUY action should be recorded
