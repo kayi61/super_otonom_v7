@@ -6,11 +6,13 @@
   "flat_production_ceiling": 125,
   "allowed_subpackages": [
     "execution",
+    "ha",
     "pipelines",
     "risk"
   ],
   "subpackages_observed": [
     "execution",
+    "ha",
     "pipelines",
     "risk"
   ],
