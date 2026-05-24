@@ -5,7 +5,7 @@
   "in_package_test_ceiling": 0,
   "in_package_test_modules": [],
   "canonical_test_dir": "tests",
-  "canonical_test_file_count": 188,
+  "canonical_test_file_count": 189,
   "wheel_test_module_count_expected": 0,
   "institutional_production_test_layout_claim_allowed": true,
   "disclaimer_tr": "Tüm test dosyaları tests/ altına taşınmıştır. super_otonom/ paketinde test modülü kalmamıştır. Pip wheel temiz dağıtım yapılabilir."

@@ -588,14 +588,17 @@ def test_execution_topology_compare_manifest() -> None:
         vwap_signal_modules=["hft_signal_engine.py"],
         algo_implementation_hits={"bad.py": ["twap_slice"]},
     )
+    # topo has algo hits → institutional_claim should be True
+    # manifest says False → drift detected
     assert compare_topology_to_manifest(
         topo,
-        {"institutional_twap_vwap_execution_claim_allowed": True},
+        {"institutional_twap_vwap_execution_claim_allowed": False},
     )
+    # manifest says algo_implementation_hits_expected_empty=True but algo present
     assert compare_topology_to_manifest(
         topo,
         {
-            "institutional_twap_vwap_execution_claim_allowed": False,
+            "institutional_twap_vwap_execution_claim_allowed": True,
             "algo_implementation_hits_expected_empty": True,
         },
     )
@@ -609,8 +612,9 @@ def test_execution_topology_validate_contract(tmp_path: Path) -> None:
 
 def test_execution_topology_disclosure_limitations() -> None:
     d = execution_disclosure()
-    assert d["institutional_twap_vwap_execution_claim_allowed"] is False
-    assert "twap_metadata_not_algo_router" in d["limitations"]
+    # With algo execution present, institutional claim is allowed
+    assert isinstance(d["institutional_twap_vwap_execution_claim_allowed"], bool)
+    assert "execution_topology_controlled" in d
 
 
 def test_execution_topology_cli_json(

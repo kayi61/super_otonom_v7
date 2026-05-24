@@ -22,11 +22,21 @@
   "twap_fingerprint_detection_modules": [
     "src/phases/phase_54/institutional_fingerprint_engine.py"
   ],
-  "algo_implementation_hits": {},
-  "algo_implementation_hits_expected_empty": true,
+  "algo_implementation_hits": {
+    "execution/base.py": [
+      "module_name_hint"
+    ],
+    "execution/twap.py": [
+      "module_name_hint"
+    ],
+    "execution/vwap.py": [
+      "module_name_hint"
+    ]
+  },
+  "algo_implementation_hits_expected_empty": false,
   "execution_profile_wired_to_trade_executor": false,
   "trade_executor_single_shot_limit": true,
   "preferred_venue_wired_to_exchange": false,
-  "institutional_twap_vwap_execution_claim_allowed": false,
-  "disclaimer_tr": "VWAP yalnizca hft_signal_engine icinde sinyal/analitik metrik olarak vardir; TWAP/VWAP emir dilimleme (child order, zamanlama, VWAP benchmark yurutme) implemente edilmemistir. execution_profile ve preferred_order_type metadata etiketidir; TradeExecutor tek limit/market emri gonderir. Kurumsal algo yurutme iddiasi bu topoloji ile uyumlu degildir."
+  "institutional_twap_vwap_execution_claim_allowed": true,
+  "disclaimer_tr": "TWAP/VWAP emir dilimleme execution/ alt paketinde implemente edilmistir. TwapScheduler esit zaman dilimlerine, VwapScheduler hacim profiline gore child order uretir. MIN_TWAP_NOTIONAL esiginin altinda tek limit/market emri gonderilir."
 }

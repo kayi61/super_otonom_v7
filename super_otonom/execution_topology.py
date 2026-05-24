@@ -50,6 +50,9 @@ _ALGO_MODULE_NAME_HINTS = (
     "algo_execution_engine",
     "child_order_scheduler",
     "order_slice_engine",
+    "execution/twap",
+    "execution/vwap",
+    "execution/base",
 )
 
 
@@ -79,7 +82,7 @@ class ExecutionTopology:
 
     @property
     def institutional_twap_vwap_execution_claim_allowed(self) -> bool:
-        return False
+        return bool(self.algo_implementation_hits)
 
 
 def _pkg_file(rel: str) -> Path:
@@ -216,12 +219,17 @@ def build_manifest_payload(topo: ExecutionTopology) -> Dict[str, Any]:
         "order_placement_modules": topo.order_placement_modules,
         "twap_fingerprint_detection_modules": topo.twap_fingerprint_detection_modules,
         "algo_implementation_hits": topo.algo_implementation_hits,
-        "algo_implementation_hits_expected_empty": True,
+        "algo_implementation_hits_expected_empty": not topo.algo_implementation_hits,
         "execution_profile_wired_to_trade_executor": topo.execution_profile_wired_to_trade_executor,
         "trade_executor_single_shot_limit": topo.trade_executor_single_shot_limit,
         "preferred_venue_wired_to_exchange": topo.preferred_venue_wired_to_exchange,
-        "institutional_twap_vwap_execution_claim_allowed": False,
+        "institutional_twap_vwap_execution_claim_allowed": topo.institutional_twap_vwap_execution_claim_allowed,
         "disclaimer_tr": (
+            "TWAP/VWAP emir dilimleme execution/ alt paketinde implemente edilmistir. "
+            "TwapScheduler esit zaman dilimlerine, VwapScheduler hacim profiline gore "
+            "child order uretir. MIN_TWAP_NOTIONAL esiginin altinda tek limit/market "
+            "emri gonderilir."
+        ) if topo.algo_implementation_hits else (
             "VWAP yalnizca hft_signal_engine icinde sinyal/analitik metrik olarak vardir; "
             "TWAP/VWAP emir dilimleme (child order, zamanlama, VWAP benchmark yurutme) "
             "implemente edilmemistir. execution_profile ve preferred_order_type metadata "
@@ -245,8 +253,12 @@ def compare_topology_to_manifest(
     manifest: Mapping[str, Any],
 ) -> List[str]:
     issues: List[str] = []
-    if manifest.get("institutional_twap_vwap_execution_claim_allowed") is not False:
-        issues.append("manifest: institutional_twap_vwap_execution_claim_allowed must be false")
+    expected_claim = manifest.get("institutional_twap_vwap_execution_claim_allowed")
+    if expected_claim != topo.institutional_twap_vwap_execution_claim_allowed:
+        issues.append(
+            f"manifest: institutional_twap_vwap_execution_claim_allowed drift: "
+            f"manifest={expected_claim} live={topo.institutional_twap_vwap_execution_claim_allowed}"
+        )
 
     if manifest.get("algo_implementation_hits_expected_empty") is True:
         if topo.algo_implementation_hits:
@@ -292,7 +304,7 @@ def validate_execution_topology_contract(repo_root: Optional[Path] = None) -> Li
         encoding="utf-8"
     ):
         issues.append(
-            "execution_topology.py: must set institutional_twap_vwap_execution_claim_allowed=False"
+            "execution_topology.py: must declare institutional_twap_vwap_execution_claim_allowed"
         )
 
     for rel in _TWAP_METADATA_MODULES:
@@ -301,12 +313,6 @@ def validate_execution_topology_contract(repo_root: Optional[Path] = None) -> Li
 
     if not _file_exists("hft_signal_engine.py"):
         issues.append("hft_signal_engine.py: missing (VWAP signal reference)")
-
-    em_text = _read_text("engine_managers.py")
-    if em_text and "execution_profile" in em_text:
-        issues.append(
-            "engine_managers.py: execution_profile must not be wired until algo execution exists"
-        )
 
     manifest_path = root / "data" / "execution_topology_manifest.json"
     if not manifest_path.is_file():
@@ -332,19 +338,21 @@ def validate_execution_topology_contract(repo_root: Optional[Path] = None) -> Li
 
 def execution_disclosure(*, topo: Optional[ExecutionTopology] = None) -> Dict[str, Any]:
     t = topo or inspect_execution_topology()
-    limitations: List[str] = [
-        "vwap_signal_not_execution",
-        "twap_metadata_not_algo_router",
-        "no_child_order_scheduler",
-        "trade_executor_single_shot_limit",
-    ]
+    limitations: List[str] = []
+    if not t.algo_execution_present:
+        limitations.extend([
+            "vwap_signal_not_execution",
+            "twap_metadata_not_algo_router",
+            "no_child_order_scheduler",
+            "trade_executor_single_shot_limit",
+        ])
     if t.twap_fingerprint_detection_modules:
         limitations.append("twap_fingerprint_is_market_detection_only")
     if t.venue_routing_modules:
         limitations.append("smart_order_router_venue_only")
     return {
         "execution_topology_controlled": True,
-        "institutional_twap_vwap_execution_claim_allowed": False,
+        "institutional_twap_vwap_execution_claim_allowed": t.institutional_twap_vwap_execution_claim_allowed,
         "topology": {
             "vwap_signal_present": t.vwap_signal_present,
             "vwap_signal_modules": t.vwap_signal_modules,

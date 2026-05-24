@@ -38,6 +38,7 @@ _ALLOWLIST_FILES = (
     "execution_topology_manifest.json",
     "test_execution_topology",
     "test_audit_modules_coverage",
+    "test_twap_vwap_execution",
     "hft_signal_engine.py",
     "regime_adaptive_execution_engine.py",
     "mm_whale_consensus_controller.py",
@@ -45,6 +46,10 @@ _ALLOWLIST_FILES = (
     "execution_pipeline.py",
     "institutional_fingerprint_engine.py",
     "INSTITUTIONAL_CONTROL_CHECKLIST_TR.md",
+    "execution/twap.py",
+    "execution/vwap.py",
+    "execution/base.py",
+    "execution/__init__.py",
 )
 
 _ALLOW_SUBSTR = (
