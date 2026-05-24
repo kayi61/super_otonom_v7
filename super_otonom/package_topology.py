@@ -19,7 +19,7 @@ _PKG = _REPO / "super_otonom"
 _DEFAULT_MANIFEST = _REPO / "data" / "package_topology_manifest.json"
 _COMPOSE_MARKER = "audit 7"
 
-ALLOWED_SUBPACKAGES = frozenset({"pipelines", "risk", "execution"})
+ALLOWED_SUBPACKAGES = frozenset({"pipelines", "risk", "execution", "ha"})
 IGNORE_DIR_NAMES = frozenset(
     {".pytest_cache", ".scannerwork", "__pycache__", "data", ".mypy_cache", ".ruff_cache"}
 )

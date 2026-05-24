@@ -34,6 +34,11 @@ _FORBIDDEN_CLAIMS = (
 _ALLOWLIST = (
     "ha_audit.py",
     "ha_topology.py",
+    "ha/__init__.py",
+    "ha/leader_election.py",
+    "ha/state_replicator.py",
+    "ha/health_check.py",
+    "ha/coordinator.py",
     "test_ha",
     "test_audit_modules_coverage",
     "SLO-Availability",

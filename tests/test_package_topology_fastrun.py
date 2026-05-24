@@ -30,7 +30,7 @@ def test_scan_god_package_flat() -> None:
     assert topo.flat_production_count >= 80
     assert topo.god_package_flat is True
     assert topo.institutional_modular_boundary_claim_allowed is False
-    assert topo.subpackages == ["execution", "pipelines", "risk"]
+    assert topo.subpackages == ["execution", "ha", "pipelines", "risk"]
 
 
 def test_disclosure_no_institutional_modular() -> None:
