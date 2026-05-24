@@ -229,7 +229,7 @@ class LSTMTrainer:
         Dönüş: toplam sample sayısı.
         """
         try:
-            from super_otonom.timescale_bridge import TimescaleBridge
+            from super_otonom.infra.timescale_bridge import TimescaleBridge
 
             db = TimescaleBridge()
             if not db._available:

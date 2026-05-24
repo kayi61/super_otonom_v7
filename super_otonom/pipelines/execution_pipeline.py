@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from super_otonom.alpha_decay_realtime_monitor import monitor_alpha_decay
 from super_otonom.autonomous_decision_core import decide_autonomously
 from super_otonom.confidence_calibration import calibrate_confidence_mvp
 from super_otonom.cross_venue_leadlag_intelligence import infer_cross_venue_leadlag
@@ -22,6 +21,7 @@ from super_otonom.mm_whale_consensus_controller import compute_mm_whale_consensu
 from super_otonom.multi_timeframe_consensus_engine import infer_mtf_consensus
 from super_otonom.pipelines.override_phase_bridge import fill_governance_phases_if_missing
 from super_otonom.regime_adaptive_execution_engine import infer_regime_adaptive_execution
+from super_otonom.signals.alpha_decay_realtime_monitor import monitor_alpha_decay
 from super_otonom.smart_order_router import compute_smart_order_route
 from super_otonom.smart_stop_engine import compute_smart_stop
 from super_otonom.whale_intent_microstructure_engine import infer_whale_intent

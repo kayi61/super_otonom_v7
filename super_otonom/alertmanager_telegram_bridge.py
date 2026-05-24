@@ -19,7 +19,7 @@ def _telegram_creds() -> Tuple[str, str]:
     if token and chat:
         return token, chat
     try:
-        from super_otonom.vault_bridge import VaultBridge
+        from super_otonom.infra.vault_bridge import VaultBridge
 
         sec = VaultBridge().get_all_secrets("telegram")
         token = str(sec.get("bot_token") or "").strip()

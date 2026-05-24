@@ -11,8 +11,8 @@ import types
 from unittest import mock
 
 import pytest
-import super_otonom.sentiment_layer as slm
-from super_otonom.sentiment_layer import SentimentLayer, _dynamic_fallback_score
+import super_otonom.signals.sentiment_layer as slm
+from super_otonom.signals.sentiment_layer import SentimentLayer, _dynamic_fallback_score
 
 
 @contextlib.contextmanager
@@ -86,7 +86,7 @@ def test_bearish_and_bullish_status_from_api(
 
 
 def test_dynamic_fallback_by_utc_hour() -> None:
-    with mock.patch("super_otonom.sentiment_layer.datetime.datetime") as mdt:
+    with mock.patch("super_otonom.signals.sentiment_layer.datetime.datetime") as mdt:
         for hour, expected in [
             (3, 0.45),
             (10, 0.50),
@@ -103,20 +103,20 @@ def test_http_import_error_sets_flag() -> None:
     urllib_stash = {
         k: sys.modules.pop(k) for k in list(sys.modules) if k == "urllib" or k.startswith("urllib.")
     }
-    saved_sl = sys.modules.pop("super_otonom.sentiment_layer", None)
+    saved_sl = sys.modules.pop("super_otonom.signals.sentiment_layer", None)
     try:
         sys.modules["urllib"] = types.ModuleType("urllib")
-        mod = importlib.import_module("super_otonom.sentiment_layer")
+        mod = importlib.import_module("super_otonom.signals.sentiment_layer")
         assert mod._HTTP_AVAILABLE is False
     finally:
-        sys.modules.pop("super_otonom.sentiment_layer", None)
+        sys.modules.pop("super_otonom.signals.sentiment_layer", None)
         for k in list(sys.modules):
             if k == "urllib" or k.startswith("urllib."):
                 sys.modules.pop(k, None)
         sys.modules.update(urllib_stash)
         if saved_sl is not None:
-            sys.modules["super_otonom.sentiment_layer"] = saved_sl
-        importlib.import_module("super_otonom.sentiment_layer")
+            sys.modules["super_otonom.signals.sentiment_layer"] = saved_sl
+        importlib.import_module("super_otonom.signals.sentiment_layer")
 
 
 def test_fetch_from_api_sends_bearer_when_key_set() -> None:

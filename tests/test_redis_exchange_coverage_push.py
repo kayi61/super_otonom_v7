@@ -34,11 +34,11 @@ def _guard(name, globals=None, locals=None, fromlist=(), level=0):
 
 builtins.__import__ = _guard
 sys.path.insert(0, r"%s")
-if "super_otonom.redis_bridge" in sys.modules:
-    del sys.modules["super_otonom.redis_bridge"]
+if "super_otonom.infra.redis_bridge" in sys.modules:
+    del sys.modules["super_otonom.infra.redis_bridge"]
 if "redis" in sys.modules:
     del sys.modules["redis"]
-m = importlib.import_module("super_otonom.redis_bridge")
+m = importlib.import_module("super_otonom.infra.redis_bridge")
 assert m._REDIS_AVAILABLE is False
 b = m.RedisBridge(url="redis://localhost:0")
 assert b.is_connected is False
@@ -64,7 +64,7 @@ assert b.status()["connected"] is False
 
 def test_redis_bridge_subscribe_outer_error_logs(monkeypatch: pytest.MonkeyPatch) -> None:
     """subscribe: pubsub.listen() hemen hata → except bloğu (satır 157–158)."""
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
 
@@ -97,7 +97,7 @@ def test_redis_bridge_subscribe_outer_error_logs(monkeypatch: pytest.MonkeyPatch
 
 def test_redis_bridge_get_latest_price_zero_close(monkeypatch: pytest.MonkeyPatch) -> None:
     """get_latest_price: close 0 / falsy → float 0.0 (satır 131)."""
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
 
@@ -123,7 +123,7 @@ def test_redis_bridge_status_symbol_price_none_when_no_close(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """status(): kline var ama close yok → price 0.0 (satır 170–176)."""
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
 
@@ -150,7 +150,7 @@ def test_redis_bridge_status_symbol_price_none_when_no_close(
 
 def test_redis_bridge_close_client_only_no_pubsub() -> None:
     """close(): _pubsub yok, yalnızca _client (satır 192–197)."""
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
     bridge = rb.RedisBridge.__new__(rb.RedisBridge)
@@ -166,7 +166,7 @@ def test_redis_bridge_when_flag_unavailable_short_circuits_init(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Modül redis yüklü olsa bile _REDIS_AVAILABLE=False → ctor erken çıkış (61–67)."""
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
     monkeypatch.setattr(rb, "_REDIS_AVAILABLE", False)
@@ -178,7 +178,7 @@ def test_redis_bridge_when_flag_unavailable_short_circuits_init(
 
 def test_redis_bridge_ping_failure_degrades(monkeypatch: pytest.MonkeyPatch) -> None:
     """from_url başarılı, ping exception → degrade (74–76)."""
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
 
@@ -199,7 +199,7 @@ def test_redis_bridge_ping_failure_degrades(monkeypatch: pytest.MonkeyPatch) -> 
 def test_redis_bridge_redis_klines_available_false_when_disconnected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
 
@@ -217,7 +217,7 @@ def test_redis_bridge_redis_klines_available_false_when_disconnected(
 
 
 def test_redis_bridge_get_kline_raw_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
 
@@ -240,7 +240,7 @@ def test_redis_bridge_get_kline_raw_none(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_redis_bridge_get_kline_stale_returns_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
     old = json.dumps({"updated_at": 0, "close": 1.0})
@@ -264,7 +264,7 @@ def test_redis_bridge_get_kline_stale_returns_none(
 def test_redis_bridge_get_kline_future_updated_at_returns_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
     fut = time.time() * 1000 + 999_999_999
@@ -289,7 +289,7 @@ def test_redis_bridge_get_kline_future_updated_at_returns_none(
 def test_redis_bridge_clear_stale_kline_keys_deletes_old(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
     old = time.time() * 1000 - 9_999_999_999
@@ -320,7 +320,7 @@ def test_redis_bridge_clear_stale_kline_keys_deletes_old(
 def test_redis_bridge_get_kline_invalid_json_logs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
 
@@ -343,7 +343,7 @@ def test_redis_bridge_get_kline_invalid_json_logs(
 def test_redis_bridge_get_all_klines_maps_symbols(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
     fresh = json.dumps({"updated_at": time.time() * 1000, "close": 2.5})
@@ -371,7 +371,7 @@ def test_redis_bridge_get_all_klines_maps_symbols(
 
 def test_redis_bridge_close_pubsub_only_no_client() -> None:
     """close(): pubsub var, client yok → 192 dalı False, yine 197."""
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
     ps = MagicMock()
@@ -386,7 +386,7 @@ def test_redis_bridge_close_pubsub_only_no_client() -> None:
 
 
 def test_redis_bridge_close_pubsub_and_client_swallow_errors() -> None:
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
     ps = MagicMock()

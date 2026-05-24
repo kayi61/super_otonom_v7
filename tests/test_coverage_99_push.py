@@ -33,7 +33,7 @@ async def test_adversarial_analyze_attaches_when_empty_dict() -> None:
 
 @pytest.mark.asyncio
 async def test_causal_analyze_attaches_empty_payload() -> None:
-    from super_otonom.causal_alpha_engine import analyze_causal_alpha
+    from super_otonom.signals.causal_alpha_engine import analyze_causal_alpha
 
     a: Dict[str, Any] = {}
     out = analyze_causal_alpha("Y", {}, a, attach_to_analysis=True)
@@ -62,7 +62,7 @@ async def test_liquidity_detect_stop_hunt_when_wide_spread_and_skewed_book() -> 
 async def test_apply_ob_safe_size_uses_candle_ts_when_redis_kline_has_no_updated_at(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import super_otonom.redis_bridge as rb_mod
+    import super_otonom.infra.redis_bridge as rb_mod
     from super_otonom.main_loop import _apply_ob_safe_size
 
     class _RB:
@@ -98,7 +98,7 @@ async def test_apply_ob_safe_size_redis_import_path_falls_back_on_exception(
     def _bad_rb(*_a: Any, **_k: Any) -> None:
         raise RuntimeError("redis bridge unavailable")
 
-    monkeypatch.setattr("super_otonom.redis_bridge.RedisBridge", _bad_rb)
+    monkeypatch.setattr("super_otonom.infra.redis_bridge.RedisBridge", _bad_rb)
 
     engine = MagicMock()
     engine.equity = 10_000.0
@@ -259,7 +259,7 @@ async def test_portfolio_optimizer_black_litterman_fallback_on_singular_views() 
 
 @pytest.mark.asyncio
 async def test_hft_analyze_force_halt_permission() -> None:
-    from super_otonom.hft_signal_engine import analyze_hft_signal
+    from super_otonom.signals.hft_signal_engine import analyze_hft_signal
 
     ticks = [{"price": 100.0 + 0.01 * i, "ts": float(i * 1000), "size": 1.0} for i in range(40)]
     out = analyze_hft_signal("H", {"ticks": ticks, "force_halt": True}, {}, attach_to_analysis=False)
@@ -268,7 +268,7 @@ async def test_hft_analyze_force_halt_permission() -> None:
 
 @pytest.mark.asyncio
 async def test_hft_resolve_ohlcv_dict_rows_and_synthetic_ts_step() -> None:
-    from super_otonom.hft_signal_engine import _resolve_series, analyze_hft_signal
+    from super_otonom.signals.hft_signal_engine import _resolve_series, analyze_hft_signal
 
     ohlcv: list[Dict[str, Any]] = []
     for i in range(40):
@@ -289,7 +289,7 @@ async def test_hft_resolve_ohlcv_dict_rows_and_synthetic_ts_step() -> None:
 
 @pytest.mark.asyncio
 async def test_hft_extract_prices_timestamps_mid_times_keys() -> None:
-    from super_otonom.hft_signal_engine import _extract_ticks_from_dict
+    from super_otonom.signals.hft_signal_engine import _extract_ticks_from_dict
 
     n = 30
     d = {

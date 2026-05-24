@@ -685,7 +685,7 @@ def test_dec_write_last_ok_error(
 
 
 def test_social_signal_basic_and_empty() -> None:
-    from super_otonom.social_signal import (
+    from super_otonom.signals.social_signal import (
         _aggregate_sentiment,
         _detect_hype_stage,
         _mention_momentum,
@@ -725,7 +725,7 @@ def test_social_signal_basic_and_empty() -> None:
 
 
 def test_social_signal_analyze_paths() -> None:
-    from super_otonom.social_signal import analyze_social_signal
+    from super_otonom.signals.social_signal import analyze_social_signal
 
     out = analyze_social_signal("BTC", None, {})
     assert out["phase"] == "16"

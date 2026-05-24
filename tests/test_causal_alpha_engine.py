@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
-from super_otonom.causal_alpha_engine import analyze_causal_alpha, run_causal_alpha_phase
+from super_otonom.signals.causal_alpha_engine import analyze_causal_alpha, run_causal_alpha_phase
 
 
 def test_causal_empty_blocks_quality() -> None:

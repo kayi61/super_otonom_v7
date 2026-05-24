@@ -208,7 +208,7 @@ def run_drill(*, write_doc: bool = True, doc_path: Optional[Path] = None) -> int
         "Set-Location -LiteralPath '<repo_koku>'",
         ".\\scripts\\fastrun_observability.cmd",
         "# yalnizca dogrulama (stack zaten ayaktaysa):",
-        "python -m super_otonom.observability_drill",
+        "python -m super_otonom.infra.observability_drill",
         "```",
         "",
         "**Onkosul:** Docker; istege bagli `data\\local\\telegram.env` (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID).",

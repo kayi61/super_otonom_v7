@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 
-from super_otonom.vault_bridge import VaultBridge
+from super_otonom.infra.vault_bridge import VaultBridge
 
 
 def main() -> int:

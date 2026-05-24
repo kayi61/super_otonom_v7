@@ -1,4 +1,4 @@
-"""Docker Vault: init, AppRole, .env patch. Kullanim: python -m super_otonom.vault_bootstrap_docker [--reset]"""
+"""Docker Vault: init, AppRole, .env patch. Kullanim: python -m super_otonom.infra.vault_bootstrap_docker [--reset]"""
 
 from __future__ import annotations
 
@@ -183,7 +183,7 @@ def main() -> int:
         role_id, secret_id = setup_approle(token)
         patch_env(role_id, secret_id)
         print("vault_bootstrap: OK (AppRole -> .env)")
-        print("vault_bootstrap: sonraki: python -m super_otonom.vault_rotate --full")
+        print("vault_bootstrap: sonraki: python -m super_otonom.infra.vault_rotate --full")
         return 0
     except Exception as exc:
         print(f"vault_bootstrap: HATA — {exc}", file=sys.stderr)

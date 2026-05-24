@@ -812,7 +812,7 @@ def test_config_advisory_log_live_with_ack(
 
 
 def test_redis_bridge_lib_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     monkeypatch.setattr(rb, "_REDIS_AVAILABLE", False)
     b = rb.RedisBridge(url="redis://localhost:0")
@@ -828,7 +828,7 @@ def test_redis_bridge_lib_missing(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_redis_bridge_connection_fail(monkeypatch: pytest.MonkeyPatch) -> None:
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
 
@@ -847,7 +847,7 @@ def test_redis_bridge_connection_fail(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_redis_bridge_get_kline_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     import time as _t
 
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
 
@@ -1030,7 +1030,7 @@ def test_benchmark_percentile_edges() -> None:
 
 
 def test_redis_bridge_close_swallows_pubsub_client_errors() -> None:
-    import super_otonom.redis_bridge as rb
+    import super_otonom.infra.redis_bridge as rb
 
     pytest.importorskip("redis")
     bridge = rb.RedisBridge.__new__(rb.RedisBridge)

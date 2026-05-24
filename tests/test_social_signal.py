@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from super_otonom.social_signal import analyze_social_signal, run_social_signal_phase
+from super_otonom.signals.social_signal import analyze_social_signal, run_social_signal_phase
 
 
 def test_social_empty_blocks_quality_zero_health() -> None:

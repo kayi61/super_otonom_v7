@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 from super_otonom.data_freshness import redis_kline_max_age_ms
-from super_otonom.redis_bridge import SYMBOLS, RedisBridge
+from super_otonom.infra.redis_bridge import SYMBOLS, RedisBridge
 
 
 def _redis_url() -> str:
@@ -40,7 +40,7 @@ def live_redis_url() -> str:
 
 
 def _kline_key(sym: str) -> str:
-    from super_otonom.redis_bridge import _KLINE_KEY_SUFFIX
+    from super_otonom.infra.redis_bridge import _KLINE_KEY_SUFFIX
 
     return f"market:{sym.upper()}:{_KLINE_KEY_SUFFIX}"
 

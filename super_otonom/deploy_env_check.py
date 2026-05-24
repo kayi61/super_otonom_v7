@@ -62,7 +62,7 @@ def main() -> int:
         )
 
     if live_like:
-        from super_otonom.vault_bridge import (
+        from super_otonom.infra.vault_bridge import (
             VaultBridge,
             env_api_key_names,
             secrets_vault_only_mode,
@@ -88,7 +88,7 @@ def main() -> int:
                 "[HATA] API anahtarları .env/ortamda — üretimde yalnızca Vault KV: "
                 + ", ".join(leaked[:6])
                 + (" …" if len(leaked) > 6 else "")
-                + ". Taşıma: python -m super_otonom.vault_seed"
+                + ". Taşıma: python -m super_otonom.infra.vault_seed"
             )
         elif leaked and not vault_only:
             print(

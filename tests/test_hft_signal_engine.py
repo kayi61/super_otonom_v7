@@ -6,8 +6,8 @@ import ast
 from pathlib import Path
 
 import numpy as np
-import super_otonom.hft_signal_engine as hft_mod
-from super_otonom.hft_signal_engine import analyze_hft_signal, run_hft_signal_phase
+import super_otonom.signals.hft_signal_engine as hft_mod
+from super_otonom.signals.hft_signal_engine import analyze_hft_signal, run_hft_signal_phase
 
 
 def test_hft_empty_blocks_quality() -> None:

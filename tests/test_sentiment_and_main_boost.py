@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 import pytest
-from super_otonom.sentiment_layer import SentimentLayer, _dynamic_fallback_score
+from super_otonom.signals.sentiment_layer import SentimentLayer, _dynamic_fallback_score
 
 from tests.test_main_loop_96 import _MAIN_LOOP_MOCK_USDT, apply_main_loop_mock_contract
 

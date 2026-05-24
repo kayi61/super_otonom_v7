@@ -40,7 +40,7 @@ def _vault_bridge() -> Any:
     """Tek VaultBridge örneği — EXCHANGES yüklenirken tekrarlı health check olmasın."""
     global _VAULT_BRIDGE
     if _VAULT_BRIDGE is None:
-        from super_otonom.vault_bridge import VaultBridge
+        from super_otonom.infra.vault_bridge import VaultBridge
 
         _VAULT_BRIDGE = VaultBridge()
     return _VAULT_BRIDGE

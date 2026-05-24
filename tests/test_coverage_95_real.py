@@ -1214,7 +1214,7 @@ def test_backtest_leakage_guard_full() -> None:
 
 
 def test_alpha_decay_full() -> None:
-    from super_otonom.alpha_decay_realtime_monitor import (
+    from super_otonom.signals.alpha_decay_realtime_monitor import (
         _clamp01,
         _clamp100,
         _try_int,
@@ -1266,7 +1266,7 @@ def test_alpha_decay_full() -> None:
 
 
 def test_signal_lineage_full() -> None:
-    from super_otonom.signal_lineage import (
+    from super_otonom.signals.signal_lineage import (
         SCHEMA_VERSION,
         _f,
         _infer_primary_phase,

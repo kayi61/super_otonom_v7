@@ -21,7 +21,7 @@ _DEFAULT_MANIFEST = _REPO / "data" / "execution_topology_manifest.json"
 _COMPOSE_MARKER = "audit 10"
 
 # Sinyal / metadata modülleri (algo yürütme sayılmaz)
-_VWAP_SIGNAL_MODULES = frozenset({"hft_signal_engine.py"})
+_VWAP_SIGNAL_MODULES = frozenset({"signals/hft_signal_engine.py"})
 _TWAP_METADATA_MODULES = frozenset(
     {
         "regime_adaptive_execution_engine.py",
@@ -311,8 +311,8 @@ def validate_execution_topology_contract(repo_root: Optional[Path] = None) -> Li
         if not _file_exists(rel):
             issues.append(f"expected twap metadata module missing: {rel}")
 
-    if not _file_exists("hft_signal_engine.py"):
-        issues.append("hft_signal_engine.py: missing (VWAP signal reference)")
+    if not _file_exists("signals/hft_signal_engine.py"):
+        issues.append("signals/hft_signal_engine.py: missing (VWAP signal reference)")
 
     manifest_path = root / "data" / "execution_topology_manifest.json"
     if not manifest_path.is_file():

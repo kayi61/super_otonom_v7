@@ -83,7 +83,7 @@ def _ohlcv_from_closes(closes: List[float]) -> List[List[float]]:
 
 def test_hft_helpers_basic() -> None:
     import numpy as np
-    from super_otonom.hft_signal_engine import (
+    from super_otonom.signals.hft_signal_engine import (
         _clamp01,
         _excess_kurtosis,
         _fat_tail_metrics,
@@ -131,7 +131,7 @@ def test_hft_helpers_basic() -> None:
 
 
 def test_hft_analyze_full_ohlcv() -> None:
-    from super_otonom.hft_signal_engine import analyze_hft_signal, run_hft_signal_phase
+    from super_otonom.signals.hft_signal_engine import analyze_hft_signal, run_hft_signal_phase
 
     closes = _trend_closes(80)
     ohlcv = _ohlcv_from_closes(closes)
@@ -145,7 +145,7 @@ def test_hft_analyze_full_ohlcv() -> None:
 
 
 def test_hft_analyze_ticks() -> None:
-    from super_otonom.hft_signal_engine import analyze_hft_signal
+    from super_otonom.signals.hft_signal_engine import analyze_hft_signal
 
     ticks = []
     for i in range(40):
@@ -162,7 +162,7 @@ def test_hft_analyze_ticks() -> None:
 
 
 def test_hft_analyze_empty_and_short() -> None:
-    from super_otonom.hft_signal_engine import analyze_hft_signal
+    from super_otonom.signals.hft_signal_engine import analyze_hft_signal
 
     r1 = analyze_hft_signal("X", {}, half_life_ms=10_000)
     assert r1["empty_reason"] == "no_hft_data"
@@ -528,7 +528,7 @@ def test_rl_agent_analyze_full() -> None:
 
 def test_causal_helpers() -> None:
     import numpy as np
-    from super_otonom.causal_alpha_engine import (
+    from super_otonom.signals.causal_alpha_engine import (
         _as_float_series,
         _build_lag_matrix,
         _clamp01,
@@ -627,7 +627,10 @@ def test_causal_helpers() -> None:
 
 
 def test_causal_analyze_full() -> None:
-    from super_otonom.causal_alpha_engine import analyze_causal_alpha, run_causal_alpha_phase
+    from super_otonom.signals.causal_alpha_engine import (
+        analyze_causal_alpha,
+        run_causal_alpha_phase,
+    )
 
     series_a = [100.0 + math.sin(i * 0.21) for i in range(40)]
     series_b = [100.0 + math.sin((i - 1) * 0.21) for i in range(40)]
@@ -749,7 +752,7 @@ def test_adversarial_analyze_full() -> None:
 
 
 def test_alt_data_helpers() -> None:
-    from super_otonom.alternative_data_engine import (
+    from super_otonom.signals.alternative_data_engine import (
         _adoption_scores,
         _clamp01,
         _developer_scores,
@@ -806,7 +809,7 @@ def test_alt_data_helpers() -> None:
 
 
 def test_alt_data_analyze_full() -> None:
-    from super_otonom.alternative_data_engine import (
+    from super_otonom.signals.alternative_data_engine import (
         analyze_alternative_data,
         run_alternative_data_phase,
     )
@@ -1475,7 +1478,7 @@ def test_market_impact_full() -> None:
 
 
 def test_news_event_helpers() -> None:
-    from super_otonom.news_event_intelligence import (
+    from super_otonom.signals.news_event_intelligence import (
         _clamp01,
         _combined_text,
         _flag_truthy,
@@ -1538,7 +1541,10 @@ def test_news_event_helpers() -> None:
 
 
 def test_news_event_analyze_full() -> None:
-    from super_otonom.news_event_intelligence import analyze_news_event, run_news_event_phase
+    from super_otonom.signals.news_event_intelligence import (
+        analyze_news_event,
+        run_news_event_phase,
+    )
 
     res = analyze_news_event(
         "BTC/USDT",
@@ -1690,7 +1696,7 @@ def test_derivatives_full() -> None:
 
 
 def test_news_event_extra_branches() -> None:
-    from super_otonom.news_event_intelligence import (
+    from super_otonom.signals.news_event_intelligence import (
         _categories_set,
         _freshness_confidence_factor,
         _half_life_from_freshness,
@@ -1752,7 +1758,7 @@ def test_transformer_extra_branches() -> None:
 
 
 def test_alt_data_extra_branches() -> None:
-    from super_otonom.alternative_data_engine import analyze_alternative_data
+    from super_otonom.signals.alternative_data_engine import analyze_alternative_data
 
     # high option risk → BLOCK
     high_opt = {
@@ -1786,7 +1792,7 @@ def test_meta_learning_extra_branches() -> None:
 
 
 def test_causal_extra_branches() -> None:
-    from super_otonom.causal_alpha_engine import analyze_causal_alpha
+    from super_otonom.signals.causal_alpha_engine import analyze_causal_alpha
 
     # high pearson correlation but no Granger → spurious
     n = 30

@@ -49,7 +49,7 @@ def refresh_dependencies() -> None:
         set_dependency_up("vault", False)
 
     try:
-        from super_otonom.timescale_bridge import probe_timescale_available
+        from super_otonom.infra.timescale_bridge import probe_timescale_available
 
         set_dependency_up("timescale", probe_timescale_available())
     except Exception:

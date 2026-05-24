@@ -1,8 +1,8 @@
 """
 Timescale/Postgres parolasini .env ile volume icindeki kullaniciya esitle.
 
-  python -m super_otonom.timescale_password_migrate
-  python -m super_otonom.timescale_password_migrate --reset-volume  # dev: veri siler
+  python -m super_otonom.infra.timescale_password_migrate
+  python -m super_otonom.infra.timescale_password_migrate --reset-volume  # dev: veri siler
 
 Volume ilk kurulumda farkli parolayla olusturulduysa POSTGRES_PASSWORD env sonradan etkisizdir;
 bu script ALTER USER ile gunceller ve ag (scram) uzerinden dogrular.

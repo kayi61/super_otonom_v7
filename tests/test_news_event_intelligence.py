@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from unittest.mock import patch
 
-from super_otonom.news_event_intelligence import analyze_news_event, run_news_event_phase
+from super_otonom.signals.news_event_intelligence import analyze_news_event, run_news_event_phase
 
 
 def test_news_empty_blocks_quality() -> None:
@@ -131,7 +131,7 @@ def test_run_news_event_phase_matches_analyze() -> None:
     # _news_age_hours ve unlock süreleri _now_ms() ile hesaplanır; iki ayrı çağrıda duvar saati
     # kayarsa phase23 tam eşit olmayabilir — test için süreyi dondur.
     with patch(
-        "super_otonom.news_event_intelligence._now_ms",
+        "super_otonom.signals.news_event_intelligence._now_ms",
         return_value=fixed_now_ms,
     ):
         r1 = run_news_event_phase("Q/USDT", d, a1, attach_to_analysis=True, event_ts=fixed_pub_ms)

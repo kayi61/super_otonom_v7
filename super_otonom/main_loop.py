@@ -30,15 +30,15 @@ from super_otonom.health_summary import (
     format_durum_line,
     log_tick_health,
 )
+from super_otonom.infra.structured_logging import configure_logging
 from super_otonom.kill_switch import apply_storm_trip_to_risk
 from super_otonom.market_snapshot import attach_market_snapshot
 from super_otonom.omega_regime import compute_omega_regime
 from super_otonom.reconciliation_engine import ReconciliationEngine
-from super_otonom.signal_fusion_engine import record_analyzer_snapshot
-from super_otonom.structured_logging import configure_logging
+from super_otonom.signals.signal_fusion_engine import record_analyzer_snapshot
 
 try:
-    from super_otonom.ws_manager import WebSocketManager
+    from super_otonom.infra.ws_manager import WebSocketManager
 
     _WS_AVAILABLE = True
 except ImportError:
@@ -198,7 +198,7 @@ def _apply_ob_safe_size(
         now_ms = time.time() * 1000
         last_ts = float(candles_1h[-1].get("timestamp", now_ms))
         try:
-            from super_otonom.redis_bridge import RedisBridge
+            from super_otonom.infra.redis_bridge import RedisBridge
 
             _rb = RedisBridge()
             _kline = _rb.get_kline(symbol.replace("/", ""))

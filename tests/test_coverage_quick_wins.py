@@ -327,7 +327,7 @@ def test_smart_order_router_paths() -> None:
 
 
 def test_signal_fusion_engine_helpers_and_apply(monkeypatch: pytest.MonkeyPatch) -> None:
-    import super_otonom.signal_fusion_engine as sfe
+    import super_otonom.signals.signal_fusion_engine as sfe
 
     snap = sfe.record_analyzer_snapshot("BTC/USDT", {"signal": "BUY", "confidence": 0.9})
     assert snap["prep_signal"] == "BUY"
@@ -408,7 +408,7 @@ def test_standard_phase_output_phase_source_and_alias() -> None:
 def test_run_signal_fusion_phase_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
     import asyncio
 
-    import super_otonom.signal_fusion_engine as sfe
+    import super_otonom.signals.signal_fusion_engine as sfe
 
     analysis: dict = {}
     out: dict = {}

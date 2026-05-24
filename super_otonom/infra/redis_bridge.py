@@ -29,7 +29,7 @@ import os
 import time
 from typing import Any, Callable, Dict, Optional
 
-log = logging.getLogger("super_otonom.redis_bridge")
+log = logging.getLogger("super_otonom.infra.redis_bridge")
 
 try:
     import redis

@@ -28,7 +28,7 @@ import pytest
 
 
 def test_social_signal_helpers() -> None:
-    from super_otonom.social_signal import (
+    from super_otonom.signals.social_signal import (
         _aggregate_sentiment,
         _alpha_from_stage,
         _clamp01,
@@ -131,7 +131,7 @@ def test_social_signal_helpers() -> None:
 
 
 def test_social_signal_analyze_full() -> None:
-    from super_otonom.social_signal import (
+    from super_otonom.signals.social_signal import (
         analyze_social_signal,
         run_social_signal_phase,
     )
@@ -514,7 +514,7 @@ def test_order_book_intelligence_full() -> None:
 
 
 def test_hft_signal_engine_extra_branches() -> None:
-    from super_otonom.hft_signal_engine import (
+    from super_otonom.signals.hft_signal_engine import (
         _extract_ticks_from_dict,
         _normalize,
         _ohlcv_closes_volumes,
@@ -861,7 +861,7 @@ def test_rl_trading_agent_extra() -> None:
 
 
 def test_causal_alpha_extra() -> None:
-    from super_otonom.causal_alpha_engine import (
+    from super_otonom.signals.causal_alpha_engine import (
         analyze_causal_alpha,
         granger_causality_score,
         spurious_correlation_score,
@@ -893,7 +893,7 @@ def test_causal_alpha_extra() -> None:
 
 
 def test_news_event_extra_2() -> None:
-    from super_otonom.news_event_intelligence import (
+    from super_otonom.signals.news_event_intelligence import (
         _hours_until_unlock,
         analyze_news_event,
     )

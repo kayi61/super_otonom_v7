@@ -1,66 +1,10 @@
 [
   {
     "symbol": "BTC/USDT",
-    "active_from_ms": 1526688000000.0
+    "active_from_ms": 1.0
   },
   {
     "symbol": "ETH/USDT",
-    "active_from_ms": 1526688000000.0
-  },
-  {
-    "symbol": "BNB/USDT",
-    "active_from_ms": 1526688000000.0
-  },
-  {
-    "symbol": "SOL/USDT",
-    "active_from_ms": 1597104000000.0
-  },
-  {
-    "symbol": "XRP/USDT",
-    "active_from_ms": 1526688000000.0
-  },
-  {
-    "symbol": "USDC/USDT",
-    "active_from_ms": 1544832000000.0
-  },
-  {
-    "symbol": "TRX/USDT",
-    "active_from_ms": 1528675200000.0
-  },
-  {
-    "symbol": "LINK/USDT",
-    "active_from_ms": 1547596800000.0
-  },
-  {
-    "symbol": "ADA/USDT",
-    "active_from_ms": 1526688000000.0
-  },
-  {
-    "symbol": "LUNC/USDT",
-    "active_from_ms": 1662681600000.0
-  },
-  {
-    "symbol": "FTT/USDT",
-    "active_from_ms": 1576800000000.0
-  },
-  {
-    "symbol": "OCEAN/USDT",
-    "active_from_ms": 1597795200000.0,
-    "active_until_ms": 1719792000000.0
-  },
-  {
-    "symbol": "XEM/USDT",
-    "active_from_ms": 1606176000000.0,
-    "active_until_ms": 1718582400000.0
-  },
-  {
-    "symbol": "WAVES/USDT",
-    "active_from_ms": 1547769600000.0,
-    "active_until_ms": 1718582400000.0
-  },
-  {
-    "symbol": "OMG/USDT",
-    "active_from_ms": 1554249600000.0,
-    "active_until_ms": 1718582400000.0
+    "active_from_ms": 1.0
   }
 ]

@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 import pytest
-from super_otonom.secrets_audit import _scan_dotenv_key_names, run_audit
+from super_otonom.infra.secrets_audit import _scan_dotenv_key_names, run_audit
 
 pytestmark = pytest.mark.fastrun
 

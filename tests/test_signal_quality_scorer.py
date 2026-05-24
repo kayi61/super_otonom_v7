@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from super_otonom.signal_quality_scorer import compute_signal_quality
+from super_otonom.signals.signal_quality_scorer import compute_signal_quality
 
 
 def _base_analysis(**kw):
