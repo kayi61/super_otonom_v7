@@ -11,7 +11,7 @@ import json
 import logging
 from typing import Any, Dict, Optional
 
-log = logging.getLogger("super_otonom.signal_lineage")
+log = logging.getLogger("super_otonom.signals.signal_lineage")
 
 SCHEMA_VERSION = "a7/v1"
 

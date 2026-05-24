@@ -37,7 +37,7 @@ async def test_score_volatility_spike_low_ratio_uses_scaled_branch() -> None:
 
 @pytest.mark.asyncio
 async def test_discrete_mi_xy_returns_bounded() -> None:
-    from super_otonom.causal_alpha_engine import _discrete_mi_xy
+    from super_otonom.signals.causal_alpha_engine import _discrete_mi_xy
 
     rng = np.random.default_rng(5)
     x = rng.normal(0, 1.0, 40)
@@ -103,7 +103,7 @@ async def test_analyze_adversarial_extreme_crash_halts() -> None:
 
 @pytest.mark.asyncio
 async def test_try_ts_ms_large_epoch_ms_via_analyze() -> None:
-    from super_otonom.causal_alpha_engine import analyze_causal_alpha
+    from super_otonom.signals.causal_alpha_engine import analyze_causal_alpha
 
     n = 40
     a = [100.0 + 0.01 * math.sin(i / 3.0) for i in range(n)]
@@ -121,7 +121,7 @@ async def test_try_ts_ms_large_epoch_ms_via_analyze() -> None:
 
 @pytest.mark.asyncio
 async def test_granger_causality_score_continues_when_lag_matrix_none() -> None:
-    from super_otonom.causal_alpha_engine import granger_causality_score
+    from super_otonom.signals.causal_alpha_engine import granger_causality_score
 
     s, lag = granger_causality_score(np.ones(3), np.ones(3), max_lag=4)
     assert s == 0.0
@@ -130,7 +130,7 @@ async def test_granger_causality_score_continues_when_lag_matrix_none() -> None:
 
 @pytest.mark.asyncio
 async def test_transfer_entropy_proxy_returns_zero_when_m_below_10() -> None:
-    from super_otonom.causal_alpha_engine import transfer_entropy_proxy
+    from super_otonom.signals.causal_alpha_engine import transfer_entropy_proxy
 
     x = np.arange(25.0)
     assert transfer_entropy_proxy(x, x, lag=16) == 0.0
@@ -138,7 +138,7 @@ async def test_transfer_entropy_proxy_returns_zero_when_m_below_10() -> None:
 
 @pytest.mark.asyncio
 async def test_analyze_causal_bidirectional_and_risk_block() -> None:
-    from super_otonom.causal_alpha_engine import analyze_causal_alpha
+    from super_otonom.signals.causal_alpha_engine import analyze_causal_alpha
 
     n = 48
     t = np.arange(n, dtype=float)

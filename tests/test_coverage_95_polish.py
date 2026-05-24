@@ -25,7 +25,7 @@ import pytest
 
 def test_redis_bridge_subscribe_disconnected() -> None:
     """subscribe() with disconnected bridge → log warning, no exception."""
-    from super_otonom.redis_bridge import RedisBridge
+    from super_otonom.infra.redis_bridge import RedisBridge
 
     rb = RedisBridge.__new__(RedisBridge)
     rb._client = None
@@ -40,7 +40,7 @@ def test_redis_bridge_subscribe_disconnected() -> None:
 
 def test_redis_bridge_subscribe_error_path() -> None:
     """subscribe() raises in pubsub → handled gracefully."""
-    from super_otonom.redis_bridge import RedisBridge
+    from super_otonom.infra.redis_bridge import RedisBridge
 
     rb = RedisBridge.__new__(RedisBridge)
     rb._client = MagicMock()
@@ -54,7 +54,7 @@ def test_redis_bridge_subscribe_error_path() -> None:
 
 def test_redis_bridge_subscribe_callback_error() -> None:
     """subscribe() with callback raising exception → caught, loop continues briefly."""
-    from super_otonom.redis_bridge import RedisBridge
+    from super_otonom.infra.redis_bridge import RedisBridge
 
     fake_pubsub = MagicMock()
     fake_pubsub.listen.return_value = iter(
@@ -78,7 +78,7 @@ def test_redis_bridge_subscribe_callback_error() -> None:
 
 def test_redis_bridge_close_error_paths() -> None:
     """close() should swallow exceptions from pubsub/client close."""
-    from super_otonom.redis_bridge import RedisBridge
+    from super_otonom.infra.redis_bridge import RedisBridge
 
     rb = RedisBridge.__new__(RedisBridge)
     pubsub = MagicMock()
@@ -97,7 +97,7 @@ def test_redis_bridge_close_error_paths() -> None:
 
 
 def test_redis_bridge_get_kline_disconnected() -> None:
-    from super_otonom.redis_bridge import RedisBridge
+    from super_otonom.infra.redis_bridge import RedisBridge
 
     rb = RedisBridge.__new__(RedisBridge)
     rb._client = None
@@ -110,7 +110,7 @@ def test_redis_bridge_get_kline_disconnected() -> None:
 
 
 def test_redis_bridge_status_disconnected() -> None:
-    from super_otonom.redis_bridge import RedisBridge
+    from super_otonom.infra.redis_bridge import RedisBridge
 
     rb = RedisBridge.__new__(RedisBridge)
     rb._client = None
@@ -488,7 +488,7 @@ def test_analyzer_alt_tf_short_data() -> None:
 
 
 def test_causal_alpha_helpers_small() -> None:
-    from super_otonom.causal_alpha_engine import (
+    from super_otonom.signals.causal_alpha_engine import (
         _discrete_mi_xy,
         _pearson_corr,
         granger_causality_score,
@@ -522,7 +522,7 @@ def test_causal_alpha_helpers_small() -> None:
 
 
 def test_causal_alpha_zero_std_correlation() -> None:
-    from super_otonom.causal_alpha_engine import _pearson_corr
+    from super_otonom.signals.causal_alpha_engine import _pearson_corr
 
     a = np.zeros(10, dtype=float)
     b = np.ones(10, dtype=float)

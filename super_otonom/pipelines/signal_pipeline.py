@@ -130,7 +130,7 @@ async def apply_filters_phase(
         out["sentiment_status"] = "N/A"
         dctx.after_sentiment_signal = str(out["final_signal"])
 
-    from super_otonom.unified_alpha_core import run_unified_alpha_phase
+    from super_otonom.signals.unified_alpha_core import run_unified_alpha_phase
 
     run_unified_alpha_phase(engine, symbol, analysis, out, dctx)
 

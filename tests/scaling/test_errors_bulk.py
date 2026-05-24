@@ -6,13 +6,13 @@ import contextlib
 from unittest import mock
 
 import pytest
-import super_otonom.sentiment_layer as slm
+import super_otonom.signals.sentiment_layer as slm
 from super_otonom.ai_confidence_bridge import blend_omega_confidence
 from super_otonom.kill_switch import is_ratelimit_error
 from super_otonom.metrics_exporter import MetricsExporter
 from super_otonom.pre_trade_gate import merge_entry_notional
 from super_otonom.risk_manager import RiskManager
-from super_otonom.sentiment_layer import SentimentLayer
+from super_otonom.signals.sentiment_layer import SentimentLayer
 
 
 def _e429() -> BaseException:

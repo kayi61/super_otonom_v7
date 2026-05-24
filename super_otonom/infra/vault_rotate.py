@@ -1,8 +1,8 @@
 """
 Vault token/AppRole rotasyonu; root yerine sinirli admin token.
 
-  python -m super_otonom.vault_rotate --full
-  python -m super_otonom.vault_rotate --approle
+  python -m super_otonom.infra.vault_rotate --full
+  python -m super_otonom.infra.vault_rotate --approle
 
 Admin token: data/local/vault_admin_token.json (gitignore)
 Unseal:      data/local/vault_init.json (root_token kaldirilir / revoke)
@@ -54,7 +54,7 @@ def load_root_token() -> str:
 
 def load_admin_token() -> str:
     if not ADMIN_FILE.is_file():
-        raise RuntimeError(f"{ADMIN_FILE} yok — once: python -m super_otonom.vault_rotate --full")
+        raise RuntimeError(f"{ADMIN_FILE} yok — once: python -m super_otonom.infra.vault_rotate --full")
     return json.loads(ADMIN_FILE.read_text(encoding="utf-8"))["client_token"].strip()
 
 

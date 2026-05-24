@@ -40,7 +40,7 @@ from super_otonom.data_freshness import (
 from super_otonom.exchange_async import ohlcv_to_candles
 from super_otonom.wfa_manager import WFAManager
 
-log = logging.getLogger("super_otonom.edge_evidence")
+log = logging.getLogger("super_otonom.signals.edge_evidence")
 
 # edge_evidence / sentetik pencere: backtester min_bars=35'ten yüksek; yetersiz seri erken çıkış
 MIN_EDGE_CANDLES = 80

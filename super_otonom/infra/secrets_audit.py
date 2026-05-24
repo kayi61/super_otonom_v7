@@ -60,7 +60,7 @@ def _env_keys_set(names: Sequence[str]) -> List[str]:
 
 def _exchange_key_names() -> List[str]:
     """Borsa API anahtarlari (Telegram haric — canli emir yolu)."""
-    from super_otonom.vault_bridge import env_api_key_names
+    from super_otonom.infra.vault_bridge import env_api_key_names
 
     return [n for n in env_api_key_names() if not n.startswith("TELEGRAM_")]
 
@@ -103,7 +103,7 @@ def _run_deploy_env_check(extra_env: Optional[Dict[str, str]] = None) -> Tuple[i
 
 def run_audit(*, write_doc: bool = True, doc_path: Optional[Path] = None) -> int:
     from super_otonom.config import GENERAL
-    from super_otonom.vault_bridge import VaultBridge, secrets_vault_only_mode
+    from super_otonom.infra.vault_bridge import VaultBridge, secrets_vault_only_mode
 
     doc_path = doc_path or _DEFAULT_DOC
     verified_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")

@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
-from super_otonom.signal_quality_scorer import compute_signal_quality
+from super_otonom.signals.signal_quality_scorer import compute_signal_quality
 
 log = logging.getLogger("super_otonom.analyzer")
 

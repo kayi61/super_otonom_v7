@@ -6,12 +6,12 @@ import logging
 import time
 from typing import Any, Dict, Optional, Tuple
 
-from super_otonom.alpha_decay_realtime_monitor import monitor_alpha_decay
 from super_otonom.config import RISK
 from super_otonom.regime_detection_engine import run_regime_detection_phase
+from super_otonom.signals.alpha_decay_realtime_monitor import monitor_alpha_decay
 from super_otonom.standard_phase_output import attach_phase_alias, make_standard_phase_output
 
-log = logging.getLogger("super_otonom.unified_alpha_core")
+log = logging.getLogger("super_otonom.signals.unified_alpha_core")
 
 
 def run_unified_alpha_phase(

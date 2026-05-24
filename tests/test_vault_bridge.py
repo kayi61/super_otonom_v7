@@ -4,7 +4,7 @@ import json
 import os
 from unittest.mock import MagicMock, patch
 
-from super_otonom.vault_bridge import VaultBridge, env_api_key_names, secrets_vault_only_mode
+from super_otonom.infra.vault_bridge import VaultBridge, env_api_key_names, secrets_vault_only_mode
 
 
 def test_secrets_vault_only_explicit():

@@ -52,9 +52,11 @@ from super_otonom.self_feedback_guard import (
     attach_tick_frozen_mark,
     audit_intratick_frozen_core,
 )
-from super_otonom.sentiment_layer import SentimentLayer
-from super_otonom.signal_fusion_engine import run_signal_fusion_phase
-from super_otonom.signal_quality_scorer import compute_signal_quality  # noqa: F401 — test patch
+from super_otonom.signals.sentiment_layer import SentimentLayer
+from super_otonom.signals.signal_fusion_engine import run_signal_fusion_phase
+from super_otonom.signals.signal_quality_scorer import (
+    compute_signal_quality,  # noqa: F401 — test patch
+)
 from super_otonom.state_machine import compute_trading_state
 from super_otonom.tick_timing import span as _tick_span
 from super_otonom.unified_system_core import run_system_gate_phase
@@ -405,7 +407,7 @@ class BotEngine:
         journal_sink = None
         if os.getenv("TIMESCALE_JOURNAL_MIRROR", "").lower() in ("1", "true", "yes"):
             try:
-                from super_otonom.timescale_bridge import TimescaleBridge
+                from super_otonom.infra.timescale_bridge import TimescaleBridge
 
                 _tsb = TimescaleBridge()
                 if _tsb.status().get("available"):
@@ -764,7 +766,7 @@ class BotEngine:
         completion: str,
     ) -> None:
         """PROMPT-A7 — ``out['signal_lineage']`` + log + ``decision_context`` yenileme."""
-        from super_otonom.signal_lineage import build_signal_lineage, log_signal_lineage
+        from super_otonom.signals.signal_lineage import build_signal_lineage, log_signal_lineage
 
         tid = int(dctx.tick_id) if dctx is not None else int(self._tick_counter)
         payload = build_signal_lineage(

@@ -157,7 +157,7 @@ def test_main_loop_apply_ob_safe_size() -> None:
 
 
 def test_hft_signal_engine_edge_cases() -> None:
-    from super_otonom.hft_signal_engine import (
+    from super_otonom.signals.hft_signal_engine import (
         _extract_ticks_from_dict,
         _ohlcv_closes_volumes,
         _resolve_series,
@@ -364,7 +364,7 @@ def test_liquidity_games_edge_branches() -> None:
 
 
 def test_causal_alpha_extra_branches() -> None:
-    from super_otonom.causal_alpha_engine import (
+    from super_otonom.signals.causal_alpha_engine import (
         _build_lag_matrix,
         _discrete_mi_xy,
         granger_causality_score,
@@ -478,7 +478,7 @@ def test_mtf_consensus_entry_timing() -> None:
 
 
 def test_alternative_data_extra_2() -> None:
-    from super_otonom.alternative_data_engine import analyze_alternative_data
+    from super_otonom.signals.alternative_data_engine import analyze_alternative_data
 
     # HALT path - extreme inflation + critical
     res = analyze_alternative_data(
@@ -513,7 +513,7 @@ def test_alternative_data_extra_2() -> None:
 
 
 def test_news_event_extra_3() -> None:
-    from super_otonom.news_event_intelligence import analyze_news_event
+    from super_otonom.signals.news_event_intelligence import analyze_news_event
 
     # exchange listing - is_exchange_listing
     res = analyze_news_event(

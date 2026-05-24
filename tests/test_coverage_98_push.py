@@ -58,7 +58,7 @@ async def test_score_volatility_spike_long_window_branch() -> None:
 
 @pytest.mark.asyncio
 async def test_analyze_causal_with_level_returns_not_log() -> None:
-    from super_otonom.causal_alpha_engine import analyze_causal_alpha
+    from super_otonom.signals.causal_alpha_engine import analyze_causal_alpha
 
     n = 40
     t = np.arange(n, dtype=float)
@@ -168,9 +168,9 @@ async def test_infer_whale_intent_malformed_top_level_prices_lower_health() -> N
 async def test_run_unified_alpha_phase_decay_monitor_exception_sets_snap_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import super_otonom.unified_alpha_core as uac
+    import super_otonom.signals.unified_alpha_core as uac
     from super_otonom.decision_context import DecisionContext
-    from super_otonom.unified_alpha_core import run_unified_alpha_phase
+    from super_otonom.signals.unified_alpha_core import run_unified_alpha_phase
 
     def _boom(*_a: Any, **_k: Any) -> None:
         raise RuntimeError("decay monitor unavailable in test")

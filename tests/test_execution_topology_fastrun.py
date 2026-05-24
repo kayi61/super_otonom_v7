@@ -24,7 +24,7 @@ pytestmark = pytest.mark.fastrun
 
 def test_vwap_signal_module_present() -> None:
     mods = scan_vwap_signal_modules()
-    assert "hft_signal_engine.py" in mods
+    assert "signals/hft_signal_engine.py" in mods
 
 
 def test_disclosure_with_algo_execution() -> None:
@@ -66,7 +66,9 @@ def test_audit_cli_json() -> None:
 def test_write_manifest_roundtrip(tmp_path: Path) -> None:
     pkg = tmp_path / "super_otonom"
     pkg.mkdir()
-    (pkg / "hft_signal_engine.py").write_text("vwap_deviation\nvwap\n", encoding="utf-8")
+    signals_dir = pkg / "signals"
+    signals_dir.mkdir()
+    (signals_dir / "hft_signal_engine.py").write_text("vwap_deviation\nvwap\n", encoding="utf-8")
     (pkg / "engine_managers.py").write_text('order_type="limit"\n', encoding="utf-8")
     (pkg / "regime_adaptive_execution_engine.py").write_text("twap\n", encoding="utf-8")
     (pkg / "mm_whale_consensus_controller.py").write_text("execution_profile\n", encoding="utf-8")

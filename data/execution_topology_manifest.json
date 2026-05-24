@@ -3,7 +3,7 @@
   "schema_version": 1,
   "vwap_signal_present": true,
   "vwap_signal_modules": [
-    "hft_signal_engine.py"
+    "signals/hft_signal_engine.py"
   ],
   "twap_metadata_modules": [
     "autonomous_decision_core.py",

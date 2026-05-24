@@ -27,7 +27,7 @@ import urllib.request
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
-log = logging.getLogger("super_otonom.vault_bridge")
+log = logging.getLogger("super_otonom.infra.vault_bridge")
 
 _VAULT_ADDR = os.getenv("VAULT_ADDR", "http://vault:8200")
 

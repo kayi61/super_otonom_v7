@@ -5,7 +5,7 @@ import json
 from contextlib import redirect_stdout
 
 import pytest
-from super_otonom.edge_evidence import main
+from super_otonom.signals.edge_evidence import main
 
 pytestmark = pytest.mark.fastrun
 

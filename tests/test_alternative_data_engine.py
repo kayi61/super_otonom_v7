@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
-from super_otonom.alternative_data_engine import (
+from super_otonom.signals.alternative_data_engine import (
     analyze_alternative_data,
     run_alternative_data_phase,
 )

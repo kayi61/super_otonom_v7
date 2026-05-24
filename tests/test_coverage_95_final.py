@@ -800,7 +800,7 @@ def test_transformer_extra_paths() -> None:
 
 def test_hft_signal_extra_paths() -> None:
     import numpy as np
-    from super_otonom.hft_signal_engine import (
+    from super_otonom.signals.hft_signal_engine import (
         _float_list,
         _ohlcv_closes_volumes,
         _pick_score_type,
@@ -1891,7 +1891,7 @@ def test_meta_learning_engine_branches() -> None:
 
 def test_causal_alpha_engine_branches() -> None:
     import numpy as np
-    from super_otonom.causal_alpha_engine import (
+    from super_otonom.signals.causal_alpha_engine import (
         analyze_causal_alpha,
         granger_causality_score,
         spurious_correlation_score,

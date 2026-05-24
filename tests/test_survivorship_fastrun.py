@@ -18,7 +18,7 @@ from super_otonom.backtest_universe import (
     symbol_active_at,
     symbols_active_at,
 )
-from super_otonom.edge_evidence import main as edge_main
+from super_otonom.signals.edge_evidence import main as edge_main
 from super_otonom.survivorship_audit import audit_survivorship_claims
 from super_otonom.survivorship_audit import main as surv_audit_main
 
@@ -161,8 +161,8 @@ def test_survivorship_audit_cli() -> None:
 
 def test_synthetic_aligns_to_delist_schedule_window() -> None:
     from super_otonom.backtest_universe import SymbolScheduleEntry
-    from super_otonom.edge_evidence import _synthetic_ohlcv_rows
     from super_otonom.exchange_async import ohlcv_to_candles
+    from super_otonom.signals.edge_evidence import _synthetic_ohlcv_rows
 
     entry = SymbolScheduleEntry("OCEAN/USDT", active_from_ms=1_600_000_000_000.0, active_until_ms=1_700_000_000_000.0)
     raw = _synthetic_ohlcv_rows("OCEAN/USDT", 120, 7, bar_ms=300_000, schedule_entry=entry)
@@ -196,7 +196,7 @@ def test_edge_evidence_schedule_filters_before_min_bar_check(
         return outside
 
     monkeypatch.setattr(
-        "super_otonom.edge_evidence.fetch_ccxt_candles", _fake_fetch
+        "super_otonom.signals.edge_evidence.fetch_ccxt_candles", _fake_fetch
     )
     buf = io.StringIO()
     with redirect_stdout(buf):

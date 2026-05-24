@@ -18,7 +18,7 @@ from super_otonom.data_freshness import (
     resolve_periods_per_year,
     sharpe_annualize_factor_vs_legacy,
 )
-from super_otonom.edge_evidence import main as edge_main
+from super_otonom.signals.edge_evidence import main as edge_main
 
 pytestmark = pytest.mark.fastrun
 

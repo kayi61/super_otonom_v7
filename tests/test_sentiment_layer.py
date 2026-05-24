@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from super_otonom.sentiment_layer import SentimentLayer, _dynamic_fallback_score
+from super_otonom.signals.sentiment_layer import SentimentLayer, _dynamic_fallback_score
 
 
 def test_mock_bearish_status() -> None:

@@ -1,160 +1,34 @@
 {
-  "fetched_at_unix": 1778971298,
+  "fetched_at_unix": 1779655648,
   "source": "ccxt.binance.spot",
   "timeframe": "1d",
-  "symbol_count": 15,
+  "symbol_count": 3,
   "symbols": [
     "BTC/USDT",
     "ETH/USDT",
-    "BNB/USDT",
-    "SOL/USDT",
-    "XRP/USDT",
-    "USDC/USDT",
-    "TRX/USDT",
-    "LINK/USDT",
-    "ADA/USDT",
-    "LUNC/USDT",
-    "FTT/USDT",
-    "OCEAN/USDT",
-    "XEM/USDT",
-    "WAVES/USDT",
-    "OMG/USDT"
+    "ADA/USDT"
   ],
   "entries_full": [
     {
       "symbol": "BTC/USDT",
-      "active_from_ms": 1526688000000.0,
+      "active_from_ms": 1.0,
       "active_until_ms": null,
       "status": "active",
-      "market_active": true,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1778889600000.0
+      "market_active": true
     },
     {
       "symbol": "ETH/USDT",
-      "active_from_ms": 1526688000000.0,
+      "active_from_ms": 1.0,
       "active_until_ms": null,
       "status": "active",
-      "market_active": true,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1778889600000.0
-    },
-    {
-      "symbol": "BNB/USDT",
-      "active_from_ms": 1526688000000.0,
-      "active_until_ms": null,
-      "status": "active",
-      "market_active": true,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1778889600000.0
-    },
-    {
-      "symbol": "SOL/USDT",
-      "active_from_ms": 1597104000000.0,
-      "active_until_ms": null,
-      "status": "active",
-      "market_active": true,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1778889600000.0
-    },
-    {
-      "symbol": "XRP/USDT",
-      "active_from_ms": 1526688000000.0,
-      "active_until_ms": null,
-      "status": "active",
-      "market_active": true,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1778889600000.0
-    },
-    {
-      "symbol": "USDC/USDT",
-      "active_from_ms": 1544832000000.0,
-      "active_until_ms": null,
-      "status": "active",
-      "market_active": true,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1778889600000.0
-    },
-    {
-      "symbol": "TRX/USDT",
-      "active_from_ms": 1528675200000.0,
-      "active_until_ms": null,
-      "status": "active",
-      "market_active": true,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1778889600000.0
-    },
-    {
-      "symbol": "LINK/USDT",
-      "active_from_ms": 1547596800000.0,
-      "active_until_ms": null,
-      "status": "active",
-      "market_active": true,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1778889600000.0
+      "market_active": true
     },
     {
       "symbol": "ADA/USDT",
-      "active_from_ms": 1526688000000.0,
+      "active_from_ms": 1.0,
       "active_until_ms": null,
       "status": "active",
-      "market_active": true,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1778889600000.0
-    },
-    {
-      "symbol": "LUNC/USDT",
-      "active_from_ms": 1662681600000.0,
-      "active_until_ms": null,
-      "status": "active",
-      "market_active": true,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1778889600000.0
-    },
-    {
-      "symbol": "FTT/USDT",
-      "active_from_ms": 1576800000000.0,
-      "active_until_ms": null,
-      "status": "active",
-      "market_active": true,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1778889600000.0
-    },
-    {
-      "symbol": "OCEAN/USDT",
-      "active_from_ms": 1597795200000.0,
-      "active_until_ms": 1719792000000.0,
-      "status": "delisted_or_inactive",
-      "market_active": false,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1719792000000.0
-    },
-    {
-      "symbol": "XEM/USDT",
-      "active_from_ms": 1606176000000.0,
-      "active_until_ms": 1718582400000.0,
-      "status": "delisted_or_inactive",
-      "market_active": false,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1718582400000.0
-    },
-    {
-      "symbol": "WAVES/USDT",
-      "active_from_ms": 1547769600000.0,
-      "active_until_ms": 1718582400000.0,
-      "status": "delisted_or_inactive",
-      "market_active": false,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1718582400000.0
-    },
-    {
-      "symbol": "OMG/USDT",
-      "active_from_ms": 1554249600000.0,
-      "active_until_ms": 1718582400000.0,
-      "status": "delisted_or_inactive",
-      "market_active": false,
-      "ohlcv_bars_sampled": 1000,
-      "last_bar_ms": 1718582400000.0
+      "market_active": true
     }
   ],
   "disclaimer": "Takvim günlük OHLCV penceresinden türetildi; resmi delist duyuru tarihi değildir. Kurumsal survivorship kontrolü için delist tarihlerini harici kaynakla doğrulayın."

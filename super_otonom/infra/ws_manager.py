@@ -31,7 +31,7 @@ import os
 import time
 from typing import Any, Callable, Coroutine, Dict, List, Optional
 
-log = logging.getLogger("super_otonom.ws_manager")
+log = logging.getLogger("super_otonom.infra.ws_manager")
 
 try:
     import aiohttp

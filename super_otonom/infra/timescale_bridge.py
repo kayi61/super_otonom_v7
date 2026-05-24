@@ -35,7 +35,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
-log = logging.getLogger("super_otonom.timescale_bridge")
+log = logging.getLogger("super_otonom.infra.timescale_bridge")
 
 try:
     import psycopg2

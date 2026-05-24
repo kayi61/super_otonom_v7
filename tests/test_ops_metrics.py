@@ -6,8 +6,8 @@ import json
 import logging
 
 from super_otonom import ops_metrics
+from super_otonom.infra.structured_logging import JsonFormatter, configure_logging
 from super_otonom.metrics_exporter import MetricsExporter
-from super_otonom.structured_logging import JsonFormatter, configure_logging
 
 
 def test_ops_metrics_noop_without_bind() -> None:

@@ -178,7 +178,7 @@ except ImportError as e:
 section("TEST 2: SignalQualityScorer")
 
 try:
-    from super_otonom.signal_quality_scorer import compute_signal_quality
+    from super_otonom.signals.signal_quality_scorer import compute_signal_quality
 
     # T2.1 - trending iyi senaryo
     try:
@@ -260,7 +260,7 @@ except ImportError as e:
 section("TEST 3: SentimentLayer")
 
 try:
-    from super_otonom.sentiment_layer import SentimentLayer
+    from super_otonom.signals.sentiment_layer import SentimentLayer
 
     # T3.1 - mock bearish
     try:
@@ -954,7 +954,7 @@ except ImportError as e:
 section("TEST 13: RedisBridge (mock)")
 
 try:
-    from super_otonom.redis_bridge import RedisBridge
+    from super_otonom.infra.redis_bridge import RedisBridge
 
     # T13.1 - Redis yok → graceful
     try:

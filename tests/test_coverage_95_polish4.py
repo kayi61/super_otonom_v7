@@ -164,7 +164,7 @@ def test_portfolio_erc_and_blend_helpers() -> None:
 
 def test_hft_force_halt_branch() -> None:
     """force_halt=True → perm=HALT (line ~412-413)."""
-    from super_otonom.hft_signal_engine import analyze_hft_signal
+    from super_otonom.signals.hft_signal_engine import analyze_hft_signal
 
     rng = np.random.default_rng(0)
     closes = [100.0 + rng.normal(0, 0.1) for _ in range(120)]
@@ -176,7 +176,7 @@ def test_hft_force_halt_branch() -> None:
 
 
 def test_hft_session_fraction() -> None:
-    from super_otonom.hft_signal_engine import _session_fraction
+    from super_otonom.signals.hft_signal_engine import _session_fraction
 
     ts = np.array([1000.0, 2000.0, 3000.0, 4000.0], dtype=float)
     frac = _session_fraction(ts)
