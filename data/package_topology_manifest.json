@@ -2,13 +2,15 @@
   "audit": 7,
   "schema_version": 1,
   "flat_production_count": 125,
-  "flat_test_count": 29,
+  "flat_test_count": 0,
   "flat_production_ceiling": 125,
   "allowed_subpackages": [
+    "execution",
     "pipelines",
     "risk"
   ],
   "subpackages_observed": [
+    "execution",
     "pipelines",
     "risk"
   ],
