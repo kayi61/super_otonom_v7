@@ -27,14 +27,17 @@ def test_vwap_signal_module_present() -> None:
     assert "hft_signal_engine.py" in mods
 
 
-def test_disclosure_not_institutional() -> None:
+def test_disclosure_with_algo_execution() -> None:
     d = execution_disclosure()
-    assert d["institutional_twap_vwap_execution_claim_allowed"] is False
-    assert "vwap_signal_not_execution" in d["limitations"]
+    # Now algo execution is present via execution/ package
+    assert d["institutional_twap_vwap_execution_claim_allowed"] is True
+    assert "execution_topology_controlled" in d
 
 
-def test_no_algo_implementation_hits() -> None:
-    assert scan_algo_implementation_hits() == {}
+def test_algo_implementation_hits_present() -> None:
+    hits = scan_algo_implementation_hits()
+    # execution/ package modules should be detected
+    assert any("execution/" in k for k in hits)
 
 
 def test_validate_repo_contract() -> None:
