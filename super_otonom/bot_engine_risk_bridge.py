@@ -329,8 +329,8 @@ def tick_record_return_and_regime(engine: BotEngine) -> None:
                 elif engine._regime_fitted:
                     regime = engine._regime_detector.update(tick_ret)
                     engine._regime_var.record(tick_ret, regime)
-            except Exception:
-                pass
+            except Exception as exc:
+                log.debug("Regime detector tick hatasi: %s", exc)
 
     engine._prev_nav = cur_nav
 

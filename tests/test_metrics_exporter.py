@@ -81,7 +81,7 @@ def test_update_circuit_breakers_swallows_label_errors() -> None:
     """273-274: labels/set patlarsa yutulur."""
     m = MetricsExporter(port=0, namespace=f"cb_lbl_{uuid.uuid4().hex[:8]}")
     bad = MagicMock()
-    bad.labels.side_effect = RuntimeError("cb labels")
+    bad.labels.side_effect = KeyError("cb labels")
     m._gauges["circuit_breaker_open"] = bad
     m.update_circuit_breakers({"BTC/USDT": "CLOSED"})
 
@@ -111,7 +111,7 @@ def test_record_analysis_swallows_regime_label_errors() -> None:
     """231-232: regime gauge labels hata."""
     m = MetricsExporter(port=0, namespace=f"reg_ex_{uuid.uuid4().hex[:8]}")
     bad = MagicMock()
-    bad.labels.return_value.set.side_effect = RuntimeError("reg")
+    bad.labels.return_value.set.side_effect = TypeError("reg")
     m._gauges["regime"] = bad
     m.record_analysis({"symbol": "S", "regime": "TRENDING"})
 

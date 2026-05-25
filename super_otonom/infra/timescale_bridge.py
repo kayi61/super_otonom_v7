@@ -206,8 +206,8 @@ class TimescaleBridge:
             from super_otonom.ops_metrics import set_dependency_up
 
             set_dependency_up("timescale", self._available)
-        except Exception:
-            pass
+        except (ImportError, AttributeError) as exc:
+            log.debug("ops_metrics timescale availability atlandi: %s", exc)
 
     @contextmanager
     def _conn(self) -> Generator:

@@ -136,8 +136,8 @@ class RiskManager:
             try:
                 svar = StressedVaR.from_fixture()
                 stress_returns = svar._stress_periods
-            except Exception:
-                pass
+            except (FileNotFoundError, KeyError, ValueError, AttributeError) as exc:
+                log.debug("StressedVaR fixture yuklenemedi: %s", exc)
 
             metrics = self._risk_engine.compute(
                 self._returns_history,

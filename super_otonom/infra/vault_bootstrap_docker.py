@@ -62,8 +62,8 @@ def reset_vault() -> None:
             st = vault_status()
             if st.get("initialized") is not None:
                 break
-        except Exception:
-            pass
+        except (OSError, ConnectionError, ValueError):
+            pass  # Vault henüz hazır değil — döngü devam edecek
     else:
         raise RuntimeError("Vault container hazir degil")
     if INIT_FILE.is_file():

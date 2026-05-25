@@ -4,7 +4,10 @@ from __future__ import annotations
 Ops metrikleri — MetricsExporter'a gecikmeli baglama (Vault config import sirasi).
 """
 
+import logging
 from typing import Any, Optional
+
+log = logging.getLogger(__name__)
 
 _metrics: Optional[Any] = None
 
@@ -45,19 +48,22 @@ def refresh_dependencies() -> None:
         from super_otonom.config import _vault_bridge
 
         set_dependency_up("vault", bool(_vault_bridge().status().get("available")))
-    except Exception:
+    except (ImportError, OSError, AttributeError) as exc:
+        log.debug("Vault probe atlandi: %s", exc)
         set_dependency_up("vault", False)
 
     try:
         from super_otonom.infra.timescale_bridge import probe_timescale_available
 
         set_dependency_up("timescale", probe_timescale_available())
-    except Exception:
+    except (ImportError, OSError) as exc:
+        log.debug("Timescale probe atlandi: %s", exc)
         set_dependency_up("timescale", False)
 
     try:
         from super_otonom.clock_skew import probe_host_ntp_sync
 
         record_host_ntp(probe_host_ntp_sync())
-    except Exception:
+    except (ImportError, OSError) as exc:
+        log.debug("NTP probe atlandi: %s", exc)
         record_host_ntp(None)
