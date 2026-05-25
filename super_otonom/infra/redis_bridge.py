@@ -248,11 +248,11 @@ class RedisBridge:
             try:
                 self._pubsub.unsubscribe()
                 self._pubsub.close()
-            except Exception:
-                pass
+            except OSError as exc:
+                log.debug("Redis pubsub close hatasi: %s", exc)
         if self._client:
             try:
                 self._client.close()
-            except Exception:
-                pass
+            except OSError as exc:
+                log.debug("Redis client close hatasi: %s", exc)
         self._connected = False

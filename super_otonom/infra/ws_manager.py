@@ -336,8 +336,8 @@ class WebSocketManager:
                     from super_otonom.ops_metrics import inc_ws_reconnect
 
                     inc_ws_reconnect()
-                except Exception:
-                    pass
+                except (ImportError, AttributeError) as exc:
+                    log.debug("ops_metrics inc_ws_reconnect atlandi: %s", exc)
                 await asyncio.sleep(self._reconnect_delay)
                 self._reconnect_delay = min(
                     self._reconnect_delay * 2, _MAX_RECONNECT_DELAY
@@ -394,8 +394,8 @@ class WebSocketManager:
         if self.on_activity is not None:
             try:
                 self.on_activity()
-            except Exception:
-                pass
+            except Exception as exc:
+                log.debug("on_activity callback hatasi: %s", exc)
 
         symbol = parsed["symbol"]
         if symbol not in self._buffers:

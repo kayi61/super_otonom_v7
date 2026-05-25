@@ -206,8 +206,8 @@ def _apply_ob_safe_size(
                 redis_ts = float(_kline["updated_at"])
                 if redis_ts > last_ts:
                     last_ts = redis_ts
-        except Exception:
-            pass
+        except (ImportError, OSError, KeyError, TypeError, ValueError) as exc:
+            log.debug("Redis kline verisi alinamadi: %s", exc)
         safe_size = engine.sizer.validate_and_calculate(
             symbol=symbol,
             equity=engine.equity,
@@ -484,8 +484,8 @@ async def _run_loop_iteration(handler: Any, analyzer: Any, engine: Any) -> None:
         from super_otonom.ops_metrics import refresh_dependencies
 
         refresh_dependencies()
-    except Exception:
-        pass
+    except (ImportError, AttributeError) as exc:
+        log.debug("ops_metrics refresh atlandi: %s", exc)
 
     cb_status = handler.circuit_breaker_status()
     engine.metrics.update_circuit_breakers(cb_status)
@@ -801,5 +801,5 @@ if __name__ == "__main__":  # pragma: no cover
         log.warning("KeyboardInterrupt (ust seviye) — cikildi")
         try:
             _shutdown.set()
-        except Exception:
-            pass
+        except RuntimeError as exc:
+            log.debug("Shutdown event set hatasi: %s", exc)

@@ -1,5 +1,6 @@
-# TLS (self-signed dev / uretim sertifikanizi docker/tls/ altina koyun)
+# TLS — URETIMDE ZORUNLU (ic ag / nginx 443). Self-signed dev: scripts/gen_internal_tls.ps1
 # Kullanim: docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.tls.yml up -d
+# Uyari: Yalnizca docker-compose.yml (TLS olmadan) yalnizca yerel/dev icindir; canliya TLS olmadan cikmayin.
 services:
   grafana:
     environment:
@@ -10,6 +11,6 @@ services:
       - "127.0.0.1:80:80"
       - "127.0.0.1:443:443"
     volumes:
-      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx-tls.conf:/etc/nginx/conf.d/tls.conf:ro
       - ./docker/tls:/etc/nginx/tls:ro

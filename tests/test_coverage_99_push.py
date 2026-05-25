@@ -96,7 +96,7 @@ async def test_apply_ob_safe_size_redis_import_path_falls_back_on_exception(
     from super_otonom.main_loop import _apply_ob_safe_size
 
     def _bad_rb(*_a: Any, **_k: Any) -> None:
-        raise RuntimeError("redis bridge unavailable")
+        raise OSError("redis bridge unavailable")
 
     monkeypatch.setattr("super_otonom.infra.redis_bridge.RedisBridge", _bad_rb)
 

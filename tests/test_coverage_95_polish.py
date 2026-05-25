@@ -82,12 +82,12 @@ def test_redis_bridge_close_error_paths() -> None:
 
     rb = RedisBridge.__new__(RedisBridge)
     pubsub = MagicMock()
-    pubsub.unsubscribe.side_effect = RuntimeError("x")
-    pubsub.close.side_effect = RuntimeError("y")
+    pubsub.unsubscribe.side_effect = OSError("x")
+    pubsub.close.side_effect = OSError("y")
     rb._pubsub = pubsub
 
     client = MagicMock()
-    client.close.side_effect = RuntimeError("z")
+    client.close.side_effect = OSError("z")
     rb._client = client
     rb._connected = True
     rb.degraded_reason = None
