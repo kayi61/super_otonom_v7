@@ -309,8 +309,8 @@ class OrderEngine:
             from super_otonom.ops_metrics import inc_order_error
 
             inc_order_error("order")
-        except Exception:
-            pass
+        except (ImportError, AttributeError) as exc:
+            log.debug("ops_metrics inc_order_error atlandi: %s", exc)
         return True
 
     def cancel(self, order_id: str, reason: str = "") -> bool:

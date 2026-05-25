@@ -45,6 +45,19 @@ PAPER_MODE=false LIVE_CONFIRM=YES python -m super_otonom.main_loop
 
 Tüm anahtarlar: `super_otonom/config.py`.
 
+## Docker stack (güvenlik)
+
+| Konu | Yerel / dev | Üretim |
+|------|-------------|--------|
+| Compose | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` | Aynı + **TLS overlay zorunlu** |
+| TLS | İsteğe bağlı | **`docker-compose.tls.yml` zorunlu** — `scripts/gen_internal_tls.ps1` sonra `docker compose ... -f docker-compose.tls.yml up -d` |
+| Vault | `vault-init` (root, tek seferlik izin) → `vault` **UID/GID 100**, `cap_drop: ALL`, `cap_add: IPC_LOCK` | Aynı; `chmod 777` kaldırıldı |
+| Nginx | `docker/nginx/nginx.conf` — `limit_req_zone` / `limit_req` | TLS: `docker-compose.tls.yml` + `docker/nginx-tls.conf` |
+
+**Uyarı:** Yalnızca `docker-compose.yml` (TLS olmadan) HTTP üzerinden iç ağ trafiği içindir; internete açık veya kurumsal canlı ortamda TLS olmadan çalıştırmayın.
+
+Doğrulama: `docker compose config --quiet` ve `pytest tests/test_docker_compose_security.py -q`
+
 ## Mimari
 
 ```

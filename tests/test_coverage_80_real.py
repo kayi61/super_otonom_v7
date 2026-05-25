@@ -836,6 +836,9 @@ def test_redis_bridge_connection_fail(monkeypatch: pytest.MonkeyPatch) -> None:
         def ping(self) -> None:
             raise ConnectionError("nope")
 
+        def close(self) -> None:
+            pass
+
     monkeypatch.setattr(rb, "_REDIS_AVAILABLE", True)
     monkeypatch.setattr(rb.redis, "from_url", lambda *a, **k: _DeadClient())
     b = rb.RedisBridge(url="redis://localhost:0")

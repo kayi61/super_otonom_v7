@@ -623,8 +623,8 @@ class AsyncExchangeHandler:
                         from super_otonom.ops_metrics import record_clock_skew
 
                         record_clock_skew(self.exchange_id, int(skew_ms))
-                    except Exception:
-                        pass
+                    except (ImportError, AttributeError) as exc:
+                        log.debug("ops_metrics record_clock_skew atlandi: %s", exc)
             except Exception as exc:
                 log.warning("Binance load_time_difference atlandi: %s", exc)
 
