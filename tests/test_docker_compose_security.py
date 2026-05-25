@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -67,7 +68,40 @@ def test_tls_production_documented() -> None:
     assert "ZORUNLU" in tls or "zorunlu" in tls.lower()
 
 
+def _ensure_ci_env_file() -> bool:
+    """GitHub Actions'ta .env yok; compose env_file zorunlu. Geçici dosya oluştur."""
+    env_path = ROOT / ".env"
+    if env_path.is_file():
+        return False
+    for candidate in (ROOT / ".env.example", ROOT / ".env.template"):
+        if candidate.is_file():
+            text = candidate.read_text(encoding="utf-8")
+            text = re.sub(
+                r"^POSTGRES_PASSWORD=.*$",
+                "POSTGRES_PASSWORD=ci-compose-validate",
+                text,
+                flags=re.M,
+            )
+            text = re.sub(
+                r"^GRAFANA_PASSWORD=.*$",
+                "GRAFANA_PASSWORD=ci-compose-validate",
+                text,
+                flags=re.M,
+            )
+            env_path.write_text(text, encoding="utf-8")
+            return True
+    env_path.write_text(
+        "POSTGRES_PASSWORD=ci-compose-validate\nGRAFANA_PASSWORD=ci-compose-validate\n",
+        encoding="utf-8",
+    )
+    return True
+
+
 def test_docker_compose_config_quiet() -> None:
+    created_env = _ensure_ci_env_file()
+    run_env = os.environ.copy()
+    run_env.setdefault("POSTGRES_PASSWORD", "ci-compose-validate")
+    run_env.setdefault("GRAFANA_PASSWORD", "ci-compose-validate")
     try:
         subprocess.run(
             ["docker", "compose", "-f", str(COMPOSE), "config", "--quiet"],
@@ -76,8 +110,12 @@ def test_docker_compose_config_quiet() -> None:
             capture_output=True,
             text=True,
             timeout=60,
+            env=run_env,
         )
     except FileNotFoundError:
         pytest.skip("docker CLI not installed")
     except subprocess.CalledProcessError as exc:
         pytest.fail(f"docker compose config failed:\n{exc.stderr or exc.stdout}")
+    finally:
+        if created_env:
+            (ROOT / ".env").unlink(missing_ok=True)
