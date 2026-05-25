@@ -45,7 +45,7 @@ def test_metrics_record_analysis_regime_branch(monkeypatch: pytest.MonkeyPatch) 
     m.record_analysis({"symbol": "Z", "hurst": 0.5, "volatility": 0.1, "regime": "WEIRD_NEW"})
     gl = m._gauges.get("regime")
     if gl and hasattr(gl, "labels"):
-        with mock.patch.object(gl, "labels", side_effect=RuntimeError("x")):
+        with mock.patch.object(gl, "labels", side_effect=TypeError("x")):
             m.record_analysis({"symbol": "Z", "regime": "TRENDING"})
 
 

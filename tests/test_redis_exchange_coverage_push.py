@@ -391,9 +391,9 @@ def test_redis_bridge_close_pubsub_and_client_swallow_errors() -> None:
     pytest.importorskip("redis")
     ps = MagicMock()
     ps.unsubscribe.side_effect = None
-    ps.close.side_effect = RuntimeError("c")
+    ps.close.side_effect = OSError("c")
     cli = MagicMock()
-    cli.close.side_effect = RuntimeError("x")
+    cli.close.side_effect = OSError("x")
     bridge = rb.RedisBridge.__new__(rb.RedisBridge)
     bridge._connected = True
     bridge._pubsub = ps
