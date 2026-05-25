@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from phases.phase_48.realtime_pnl_attribution import analyze, validate_market_data
 
 

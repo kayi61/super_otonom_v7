@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from phases.phase_51.mm_prediction_engine import (
     analyze,
     expected_mm_direction_from_flow,

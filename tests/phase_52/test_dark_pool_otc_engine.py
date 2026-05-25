@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from phases.phase_52.dark_pool_otc_engine import analyze, validate_market_data
 
 
