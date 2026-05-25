@@ -653,7 +653,7 @@ class MetricsExporter:
         regime_val = _REGIME_MAP.get(str(regime).upper(), 0)
         try:
             self._gauges["regime"].labels(symbol=symbol).set(regime_val)
-        except Exception:
+        except (KeyError, TypeError, ValueError):
             pass
 
     # ── v5 YENİLİK: Slippage kaydı ───────────────────────────────────────────
@@ -693,7 +693,7 @@ class MetricsExporter:
             is_open = 1.0 if state.startswith("OPEN") else 0.0
             try:
                 self._gauges["circuit_breaker_open"].labels(symbol=symbol).set(is_open)
-            except Exception:
+            except (KeyError, TypeError, ValueError):
                 pass
 
     # ── İşlem kaydı ──────────────────────────────────────────────────────────
@@ -933,7 +933,7 @@ class MetricsExporter:
                     self._gauges["var_pct"].labels(
                         conf=conf, model=model, scope=scope,
                     ).set(float(val))
-                except Exception:
+                except (KeyError, TypeError, ValueError):
                     pass
 
         # ── Per-model CVaR ───────────────────────────────────────────────────
@@ -958,7 +958,7 @@ class MetricsExporter:
                     self._gauges["cvar_pct"].labels(
                         conf=conf, model=model, scope=scope,
                     ).set(float(val))
-                except Exception:
+                except (KeyError, TypeError, ValueError):
                     pass
 
         # ── Stressed VaR ─────────────────────────────────────────────────────
@@ -966,7 +966,7 @@ class MetricsExporter:
         if svar is not None:
             try:
                 self._gauges["stressed_var_pct"].set(float(svar))
-            except Exception:
+            except (KeyError, TypeError, ValueError):
                 pass
 
         # ── 10-day VaR/CVaR (Basel FRTB) ─────────────────────────────────────
@@ -978,7 +978,7 @@ class MetricsExporter:
             if val is not None:
                 try:
                     self._gauges[gauge_key].set(float(val))
-                except Exception:
+                except (KeyError, TypeError, ValueError):
                     pass
 
         # ── Model dispersion ─────────────────────────────────────────────────
@@ -986,7 +986,7 @@ class MetricsExporter:
         if disp is not None:
             try:
                 self._gauges["var_model_dispersion_pct"].set(float(disp))
-            except Exception:
+            except (KeyError, TypeError, ValueError):
                 pass
 
         # ── Component VaR per symbol ─────────────────────────────────────────
@@ -997,7 +997,7 @@ class MetricsExporter:
             ratio = abs(float(cv)) / abs(var_total) if abs(var_total) > 1e-12 else 0.0
             try:
                 self._gauges["component_var_pct"].labels(symbol=symbol).set(ratio)
-            except Exception:
+            except (KeyError, TypeError, ValueError):
                 pass
 
         # ── Limit utilisation ────────────────────────────────────────────────
@@ -1017,7 +1017,7 @@ class MetricsExporter:
                 util = current / limit if limit > 1e-12 else 0.0
                 try:
                     self._gauges["var_limit_utilisation"].labels(level=level).set(util)
-                except Exception:
+                except (KeyError, TypeError, ValueError):
                     pass
 
     # ── Durum sorgusu ─────────────────────────────────────────────────────────

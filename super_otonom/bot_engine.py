@@ -446,7 +446,10 @@ class BotEngine:
             self._regime_detector = _RD()
             self._regime_var = _RCV()
             self._regime_fitted = False
-        except Exception:
+        except Exception as exc:
+            log.warning(
+                "Risk engine init basarisiz — bot risk korumasiz calisacak: %s", exc,
+            )
             self._risk_engine = None
             self._regime_detector = None
             self._regime_var = None
@@ -491,8 +494,8 @@ class BotEngine:
 
             bind_metrics(self.metrics)
             refresh_dependencies()
-        except Exception:
-            pass
+        except (ImportError, AttributeError) as exc:
+            log.debug("ops_metrics bind atlandi: %s", exc)
 
         self.correlation_mgr = CorrelationManager(threshold=corr_threshold)
         self.sentiment_layer = SentimentLayer(mock_score=sentiment_mock_score)
