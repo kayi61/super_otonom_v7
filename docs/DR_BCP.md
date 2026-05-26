@@ -95,9 +95,19 @@ Manuel kayıt (tek satır örnek):
 schtasks /Create /TN "SuperOtonom_BackupDaily" /SC DAILY /ST 02:05 /RL LIMITED /F /TR "\"C:\tam\yol\super_otonom_v7\scripts\backup_daily.cmd\""
 ```
 
+### Linux / Docker (birleşik — PROMPT 7)
+
+```bash
+./scripts/backup.sh              # tam yedek (Timescale + Vault + Redis + data/)
+./scripts/backup.sh --dry-run
+docker compose --profile backup up -d backup   # cron 02:00 UTC
+```
+
+Retention: **7 günlük + 4 haftalık + 3 aylık** (GFS). Restore: [DR_RUNBOOK.md](DR_RUNBOOK.md).
+
 ### Linux / cron (referans)
 
-Windows dışı ortamda aynı dosya listesiyle `cp`/`rsync` yapın; `scripts/backup_daily.ps1` yerine eşdeğer kabuk betiği kullanın.
+Windows dışı ortamda `scripts/backup.sh` kullanın; eski `cp`/`rsync` yöntemi yerine tercih edilir.
 
 ---
 

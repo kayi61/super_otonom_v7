@@ -294,6 +294,47 @@ services:
     networks:
       - bot_network
 
+  # ───────────────────────────────────────────────────────
+  # BACKUP (cron sidecar) — profile: backup
+  # docker compose --profile backup up -d backup
+  # ───────────────────────────────────────────────────────
+  backup:
+    profiles:
+      - backup
+    build:
+      context: .
+      dockerfile: docker/backup/Dockerfile
+    container_name: super_otonom_backup
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - BACKUP_ROOT=/backup
+      - REPO_ROOT=/app
+      - BACKUP_CRON=${BACKUP_CRON:-0 2 * * *}
+      - TIMESCALE_HOST=timescaledb
+      - TIMESCALE_CONTAINER=super_otonom_timescaledb
+      - VAULT_CONTAINER=super_otonom_vault
+      - REDIS_CONTAINER=super_otonom_redis
+    volumes:
+      - .:/app:ro
+      - ./data/backup:/backup
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      vault:
+        condition: service_started
+    networks:
+      - bot_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 # ═══════════════════════════════════════════════════════
 volumes:
   redis_data:
