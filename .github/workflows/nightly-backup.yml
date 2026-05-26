@@ -1,0 +1,47 @@
+name: Nightly Backup (dry-run + verify)
+
+on:
+  schedule:
+    - cron: "15 2 * * *"
+  pull_request:
+    paths:
+      - "scripts/backup.sh"
+      - "scripts/restore.sh"
+      - ".github/workflows/nightly-backup.yml"
+      - "tests/test_backup_restore.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup_verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x scripts/backup.sh scripts/restore.sh
+
+      - name: backup.sh --dry-run
+        run: ./scripts/backup.sh --dry-run
+
+      - name: Create minimal backup fixture
+        run: |
+          set -euo pipefail
+          FIX="data/backup/ci-fixture-verify"
+          rm -rf "${FIX}"
+          mkdir -p "${FIX}/timescale" "${FIX}/data" "${FIX}/vault"
+          echo "backup_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${FIX}/BACKUP_MANIFEST.txt"
+          echo "fixture" > "${FIX}/data/capital_journal.jsonl"
+          touch "${FIX}/timescale/timescale.dump"
+          # minimal custom-format header for pg_restore -l (optional skip if no pg_restore)
+          if command -v pg_restore >/dev/null 2>&1; then
+            : > "${FIX}/timescale/timescale.dump"
+          fi
+          (cd "${FIX}" && find . -type f ! -name checksums.sha256 -print0 | xargs -0 sha256sum) \
+            > "${FIX}/checksums.sha256" || true
+
+      - name: restore.sh --verify
+        run: ./scripts/restore.sh --verify data/backup/ci-fixture-verify
