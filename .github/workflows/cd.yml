@@ -36,15 +36,17 @@ jobs:
             version="${tag#v}"
           fi
           if [[ -z "${version}" || "${version}" == "v" ]]; then
-            # If no tag exists yet, keep pipeline non-blocking.
             version="0.0.0"
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-      - name: Docker image name
+      - name: Docker image name (GHCR lowercase)
         id: meta
         shell: bash
-        run: echo "image=ghcr.io/${{ github.repository }}" >> "$GITHUB_OUTPUT"
+        run: |
+          repo_lc="$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          echo "image=ghcr.io/${repo_lc}" >> "$GITHUB_OUTPUT"
+          echo "repo=${repo_lc}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -67,27 +69,28 @@ jobs:
         run: |
           set -euo pipefail
           build_date="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          short_sha="${GITHUB_SHA:0:12}"
           docker buildx build \
             --push \
             --tag "${IMAGE}:${VERSION}" \
-            --tag "${IMAGE}:${GITHUB_SHA::12}" \
+            --tag "${IMAGE}:${short_sha}" \
             --build-arg BUILD_VERSION="${VERSION}" \
             --build-arg VCS_REF="${GITHUB_SHA}" \
             --build-arg BUILD_DATE="${build_date}" \
-            --build-arg BUILD_SOURCE="https://github.com/${{ github.repository }}" \
+            --build-arg BUILD_SOURCE="https://github.com/${GITHUB_REPOSITORY}" \
             .
 
   deploy_staging:
     needs: build_and_push
     runs-on: ubuntu-latest
     env:
-      BOT_IMAGE_REPO: ${{ github.repository }}
+      BOT_IMAGE_REPO: ${{ needs.build_and_push.outputs.image }}
       BOT_VERSION: ${{ needs.build_and_push.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Create CI .env (compose env_file fix)
+      - name: Create CI .env (compose env_file)
         shell: bash
         run: |
           set -euo pipefail
@@ -95,12 +98,24 @@ jobs:
           sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci-compose-validate/' .env
           sed -i 's/^GRAFANA_PASSWORD=.*/GRAFANA_PASSWORD=ci-compose-validate/' .env
 
-      - name: Deploy staging (docker-compose up --no-build)
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy staging (core: redis, vault, bot)
         shell: bash
+        env:
+          IMAGE: ${{ needs.build_and_push.outputs.image }}
+          VERSION: ${{ needs.build_and_push.outputs.version }}
         run: |
           set -euo pipefail
-          export BOT_IMAGE_REPO="${BOT_IMAGE_REPO}"
-          export BOT_VERSION="${BOT_VERSION}"
-          docker compose -f docker-compose.yml -f docker-compose.staging.yml pull || true
-          docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d --no-build --wait --timeout 180
-
+          repo_lc="$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          export BOT_IMAGE_REPO="${repo_lc}"
+          export BOT_VERSION="${VERSION}"
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml pull bot redis vault vault-init
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d redis vault-init
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d vault bot --no-build --wait --timeout 300

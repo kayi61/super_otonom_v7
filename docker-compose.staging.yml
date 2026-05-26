@@ -1,6 +1,6 @@
 # Staging overlay: production benzeri ama test network.
 # Beklenen environment:
-# - BOT_IMAGE_REPO: ghcr.io/<owner>/<repo>
+# - BOT_IMAGE_REPO: owner/repo (lowercase, GHCR path — ghcr.io prefix compose'da)
 # - BOT_VERSION: semver (örn: 7.0.0)
 
 services:

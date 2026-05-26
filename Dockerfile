@@ -20,6 +20,7 @@ RUN apt-get update && \
     pip install --upgrade pip --no-cache-dir
 
 COPY pyproject.toml .
+COPY _setup_build.py .
 COPY super_otonom/ ./super_otonom/
 
 RUN pip install --no-cache-dir -e ".[lstm]"
