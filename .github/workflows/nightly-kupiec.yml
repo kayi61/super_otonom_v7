@@ -37,7 +37,7 @@ jobs:
 
       - name: Check result and open issue on failure
         if: always() && steps.kupiec.outcome == 'failure'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
