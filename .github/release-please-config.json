@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/release-please.json",
+  "include-v-in-tag": true,
+  "packages": {
+    ".": {
+      "release-type": "python",
+      "package-name": "super_otonom",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}
+

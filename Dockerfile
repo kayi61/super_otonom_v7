@@ -2,6 +2,17 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Build metadata (used by CI/CD for traceability).
+ARG BUILD_VERSION=dev
+ARG VCS_REF=unknown
+ARG BUILD_DATE=unknown
+ARG BUILD_SOURCE=unknown
+
+LABEL org.opencontainers.image.version=$BUILD_VERSION
+LABEL org.opencontainers.image.revision=$VCS_REF
+LABEL org.opencontainers.image.created=$BUILD_DATE
+LABEL org.opencontainers.image.source=$BUILD_SOURCE
+
 # CI matrisi (3.10/3.12) ile hizali; torch opsiyonel lstm extra
 RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc && \
