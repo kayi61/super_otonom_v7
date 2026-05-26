@@ -1,3 +1,10 @@
+# Conventional commits → CHANGELOG + version bump PR.
+# Zorunlu repo ayarı (bir kez):
+#   Settings → Actions → General → Workflow permissions
+#   - "Read and write permissions"
+#   - "Allow GitHub Actions to create and approve pull requests" ✓
+# Alternatif: secrets.RELEASE_PLEASE_TOKEN (classic PAT, repo scope: contents + pull_requests)
+
 name: Release Please (Conventional Commits)
 
 on:
@@ -16,6 +23,6 @@ jobs:
       - name: Release Please
         uses: googleapis/release-please-action@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: .github/release-please-config.json
-
+          manifest-file: .release-please-manifest.json
