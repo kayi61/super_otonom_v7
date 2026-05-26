@@ -3,6 +3,12 @@ name: Nightly Backup (dry-run + verify)
 on:
   schedule:
     - cron: "15 2 * * *"
+  pull_request:
+    paths:
+      - "scripts/backup.sh"
+      - "scripts/restore.sh"
+      - ".github/workflows/nightly-backup.yml"
+      - "tests/test_backup_restore.py"
   workflow_dispatch:
 
 permissions:
