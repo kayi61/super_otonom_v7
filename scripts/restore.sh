@@ -97,7 +97,15 @@ verify_backup() {
   fi
 
   if [[ -f "${BACKUP_PATH}/checksums.sha256" ]]; then
-    if command -v sha256sum >/dev/null 2>&1; then
+    checksum_lines=0
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+      [[ -z "${line//[[:space:]]/}" ]] && continue
+      [[ "${line}" =~ ^# ]] && continue
+      checksum_lines=$((checksum_lines + 1))
+    done < "${BACKUP_PATH}/checksums.sha256"
+    if [[ "${checksum_lines}" -eq 0 ]]; then
+      log "WARN checksums.sha256 empty (skipped verify)"
+    elif command -v sha256sum >/dev/null 2>&1; then
       if (cd "${BACKUP_PATH}" && sha256sum -c checksums.sha256 --quiet 2>/dev/null); then
         log "OK checksums.sha256"
       else

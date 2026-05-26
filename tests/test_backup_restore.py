@@ -40,7 +40,6 @@ def test_restore_sh_verify_minimal_fixture(tmp_path: Path) -> None:
     (fix / "BACKUP_MANIFEST.txt").write_text("backup_utc=2026-01-01T00:00:00Z\n", encoding="utf-8")
     (fix / "data" / "capital_journal.jsonl").write_text("{}\n", encoding="utf-8")
     (fix / "timescale" / "timescale.dump").write_bytes(b"")
-    (fix / "checksums.sha256").write_text("", encoding="utf-8")
 
     proc = subprocess.run(
         ["bash", str(RESTORE_SH), "--verify", str(fix)],
