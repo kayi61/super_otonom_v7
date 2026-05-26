@@ -93,7 +93,7 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
@@ -127,7 +127,7 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
@@ -161,7 +161,7 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
@@ -195,7 +195,7 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
@@ -231,7 +231,7 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
@@ -265,7 +265,7 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
@@ -299,7 +299,7 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
@@ -333,7 +333,7 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
