@@ -1,0 +1,51 @@
+# Staging overlay: production benzeri ama test network.
+# Beklenen environment:
+# - BOT_IMAGE_REPO: ghcr.io/<owner>/<repo>
+# - BOT_VERSION: semver (örn: 7.0.0)
+
+services:
+  bot:
+    container_name: super_otonom_bot_staging
+    image: ghcr.io/${BOT_IMAGE_REPO}:${BOT_VERSION}
+    ports: []
+    environment:
+      - DRY_RUN=true
+      - PAPER_MODE=true
+      - LIVE_CONFIRM=
+
+  vault:
+    container_name: super_otonom_vault_staging
+    ports: []
+
+  nginx:
+    container_name: super_otonom_nginx_staging
+    ports: []
+
+  redis:
+    container_name: super_otonom_redis_staging
+    ports: []
+
+  prometheus:
+    container_name: super_otonom_prometheus_staging
+    ports: []
+
+  alertmanager:
+    container_name: super_otonom_alertmanager_staging
+    ports: []
+
+  alert_telegram:
+    container_name: super_otonom_alert_telegram_staging
+    ports: []
+
+  grafana:
+    container_name: super_otonom_grafana_staging
+    ports: []
+
+  timescaledb:
+    container_name: super_otonom_timescaledb_staging
+    ports: []
+
+networks:
+  bot_network:
+    name: super_otonom_v7_staging_bot_network
+

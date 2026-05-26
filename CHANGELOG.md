@@ -7,6 +7,41 @@
 - **`pyproject.toml` / `[project] version`:** `7.0.0` ile hizalı (paket yayımlama).
 - **`main_loop`:** log satırındaki yedek sürüm `__version__` ile uyumlu.
 
+### Kurumsal Risk Yol Haritası (VR-01 → VR-27)
+- VR-01 Unified RiskEngine
+- VR-02 VaR modelleri (Hist/Param/MC)
+- VR-03 Cornish-Fisher VaR genişlemesi
+- VR-04 CVaR / Expected Shortfall
+- VR-05 RiskConfig Basel uyumu
+- VR-06 EVT (POT Peaks Over Threshold)
+- VR-07 FHS (GARCH(1,1) Filtreli Tarihsel Sim)
+- VR-08 LVaR (BDSS + Time-To-Liquidate)
+- VR-09 VaR ayrıştırma (Component/Marginal/Incremental)
+- VR-10 Regime-Conditional VaR (koşullu VaR)
+- VR-11 Stressed VaR (Basel 2.5 rescaling)
+- VR-12 Stress Senaryo Kütüphanesi + Reverse Stress
+- VR-13 Kupiec POF backtest
+- VR-14 Christoffersen Independence + Conditional Coverage
+- VR-15 Basel Traffic Light backtest
+- VR-16 P&L Attribution + Unexplained PnL Drift
+- VR-17 Pre-trade Marginal VaR gate
+- VR-18 VaR-aware Position Sizing (Kelly + VaR Cap)
+- VR-19 Kill-switch (VaR/CVaR breach tetikleyici)
+- VR-20 VaR Limit Hierarchy (Strategy/Portfolio/Firm)
+- VR-21 Prometheus VaR/CVaR/Stressed suite
+- VR-22 Günlük Risk Raporu (otomatik üretim)
+- VR-23 Grafana Risk Dashboard
+- VR-24 Model Envanteri + Validasyon yönetişimi
+- VR-25 Risk Appetite + Escalation Matrisi
+- VR-26 Property-based VaR/CVaR invariants (Hypothesis)
+- VR-27 Regime Detection Engine (statistical)
+
+### Faz A → Faz D (Entegrasyon)
+- Faz A: Acil düzeltmeler + tracker/exports/polish stub’lar
+- Faz B: BotEngine ↔ RiskEngine tam entegrasyon (risk wiring)
+- Faz C: Basel 10-day VaR + CI workflows + model governance
+- Faz D: Polish & dokümantasyon iyileştirmeleri
+
 ---
 
 ## v6.1.0 (2026-04-24) — Hata Düzeltmeleri + Eksik Tamamlama
