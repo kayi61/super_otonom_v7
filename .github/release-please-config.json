@@ -1,11 +1,20 @@
 {
   "$schema": "https://json.schemastore.org/release-please.json",
   "include-v-in-tag": true,
+  "changelog-sections": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "perf", "section": "Performance" },
+    { "type": "revert", "section": "Reverts" },
+    { "type": "docs", "section": "Documentation", "hidden": true },
+    { "type": "chore", "section": "Miscellaneous", "hidden": true }
+  ],
   "packages": {
     ".": {
       "release-type": "python",
       "package-name": "super_otonom",
-      "changelog-path": "CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": ["pyproject.toml", "super_otonom/__init__.py"]
     }
   }
 }

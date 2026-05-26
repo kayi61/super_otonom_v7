@@ -1,8 +1,9 @@
-"""Hotfix: Dockerfile build context + release-please manifest."""
+"""Hotfix: Dockerfile build context + release-please manifest + CD workflow."""
 
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,3 +19,17 @@ def test_release_please_manifest_present() -> None:
     assert manifest.is_file()
     data = json.loads(manifest.read_text(encoding="utf-8"))
     assert data.get(".") == "7.0.0"
+
+
+def test_cd_workflow_tag_filter_valid() -> None:
+    text = (ROOT / ".github" / "workflows" / "cd.yml").read_text(encoding="utf-8")
+    assert 'tags: ["v*.*.*"]' not in text
+    assert re.search(r'tags:\s*\n\s*-\s+"v\*"', text) or 'tags:\n      - "v*"' in text
+
+
+def test_release_please_workflow_permissions() -> None:
+    text = (ROOT / ".github" / "workflows" / "release-please.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "pull-requests: write" in text
+    assert "contents: write" in text
