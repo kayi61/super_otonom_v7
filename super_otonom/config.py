@@ -1,2 +1,6 @@
-"""Backward-compatible shim — use ``super_otonom.core.config``."""
-from super_otonom.core.config import *  # noqa: F403
+"""Backward-compatible shim — ``super_otonom.core.config``."""
+import importlib
+import sys
+
+_impl = importlib.import_module("super_otonom.core.config")
+sys.modules[__name__] = _impl

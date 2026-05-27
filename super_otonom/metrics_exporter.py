@@ -1,2 +1,6 @@
-"""Backward-compatible shim — use ``super_otonom.monitoring.metrics_exporter``."""
-from super_otonom.monitoring.metrics_exporter import *  # noqa: F403
+"""Backward-compatible shim — ``super_otonom.monitoring.metrics_exporter``."""
+import importlib
+import sys
+
+_impl = importlib.import_module("super_otonom.monitoring.metrics_exporter")
+sys.modules[__name__] = _impl

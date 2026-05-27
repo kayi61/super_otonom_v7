@@ -1,2 +1,6 @@
-"""Backward-compatible shim — use ``super_otonom.audit.execution_topology``."""
-from super_otonom.audit.execution_topology import *  # noqa: F403
+"""Backward-compatible shim — ``super_otonom.audit.execution_topology``."""
+import importlib
+import sys
+
+_impl = importlib.import_module("super_otonom.audit.execution_topology")
+sys.modules[__name__] = _impl
