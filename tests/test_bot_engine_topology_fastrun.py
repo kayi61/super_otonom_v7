@@ -171,7 +171,7 @@ def test_audit_missing_institutional_flag(tmp_path: Path) -> None:
 
 def _minimal_audit8_tree(root: Path) -> None:
     (root / "docker-compose.yml").write_text("# audit 8\n", encoding="utf-8")
-    eng = root / "super_otonom" / "bot_engine.py"
+    eng = root / "super_otonom" / "core" / "bot_engine.py"
     eng.parent.mkdir(parents=True)
     eng.write_text(
         "class BotEngine:\n"

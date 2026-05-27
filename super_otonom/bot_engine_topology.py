@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 _REPO = Path(__file__).resolve().parents[1]
-_BOT_ENGINE = _REPO / "super_otonom" / "bot_engine.py"
+_BOT_ENGINE = _REPO / "super_otonom" / "core" / "bot_engine.py"
 _DEFAULT_MANIFEST = _REPO / "data" / "bot_engine_topology_manifest.json"
 _COMPOSE_MARKER = "audit 8"
 
@@ -270,7 +270,7 @@ def validate_bot_engine_topology_contract(repo_root: Optional[Path] = None) -> L
         )
         return issues
 
-    engine = root / "super_otonom" / "bot_engine.py"
+    engine = root / "super_otonom" / "core" / "bot_engine.py"
     if not engine.is_file():
         issues.append(f"{engine.as_posix()}: missing")
         return issues
