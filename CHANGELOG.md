@@ -1,5 +1,13 @@
 # CHANGELOG — super_otonom
 
+## [7.1.1](https://github.com/kayi61/super_otonom_v7/compare/super_otonom-v7.1.0...super_otonom-v7.1.1) (2026-05-27)
+
+
+### Bug Fixes
+
+* **ci:** handle missing nightly kupiec input files ([8f3b471](https://github.com/kayi61/super_otonom_v7/commit/8f3b4711b54c587895d84218f8f1ba6e6b810ab9))
+* **ci:** skip nightly kupiec when backtest input files missing ([6a10b5c](https://github.com/kayi61/super_otonom_v7/commit/6a10b5cf61215e9547a09147849d16f3245a737d))
+
 ## [7.1.0](https://github.com/kayi61/super_otonom_v7/compare/super_otonom-v7.0.0...super_otonom-v7.1.0) (2026-05-26)
 
 

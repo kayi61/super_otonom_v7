@@ -1,3 +1,3 @@
 """super_otonom — v7.0.0"""
 
-__version__ = "7.1.0"
+__version__ = "7.1.1"

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "super_otonom"
-version = "7.1.0"
+version = "7.1.1"
 description = "Kurumsal seviye kripto trading sistemi"
 requires-python = ">=3.10,<3.13"
 # Bağımlılık / tedarik zinciri taraması (çeyrek veya deploy öncesi): docs/AUDIT.md §2.2.1 — pip-audit; RCO kayıt tablosu.
