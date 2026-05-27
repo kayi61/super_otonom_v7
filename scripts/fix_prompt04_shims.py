@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Fix PROMPT-04 shims: full module alias (private names + __main__)."""
+"""Fix PROMPT-04 shims: PEP 562 __getattr__ alias (private names + python -m)."""
 from __future__ import annotations
 
-import importlib
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -35,11 +34,29 @@ SHIMS: dict[str, str] = {
 
 TEMPLATE = '''\
 """Backward-compatible shim — ``{target}``."""
-import importlib
-import sys
+from __future__ import annotations
 
-_impl = importlib.import_module("{target}")
-sys.modules[__name__] = _impl
+import importlib
+from typing import Any
+
+_mod = importlib.import_module("{target}")
+
+
+def __getattr__(name: str) -> Any:
+    return getattr(_mod, name)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(dir(_mod)))
+
+
+if __name__ == "__main__":
+    _main = getattr(_mod, "main", None)
+    if _main is not None:
+        raise SystemExit(_main())
+    import runpy
+
+    runpy.run_module("{target}", alter_sys=True)
 '''
 
 
