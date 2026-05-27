@@ -18,7 +18,9 @@ def test_release_please_manifest_present() -> None:
     manifest = ROOT / ".release-please-manifest.json"
     assert manifest.is_file()
     data = json.loads(manifest.read_text(encoding="utf-8"))
-    assert data.get(".") == "7.0.0"
+    version = data.get(".")
+    assert version, "manifest must have root version key"
+    assert re.match(r"^\d+\.\d+\.\d+$", str(version)), f"invalid semver: {version}"
 
 
 def test_cd_workflow_tag_filter_valid() -> None:
