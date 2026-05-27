@@ -260,9 +260,17 @@ def snapshot_active_limits(
     return {k: src.get(k) for k in keys if k in src}
 
 
+def _bot_engine_audit_path() -> Path:
+    """PROMPT-04: gerçek kaynak ``core/bot_engine.py``; kök dosya shim olabilir."""
+    core = _REPO_ROOT / "super_otonom" / "core" / "bot_engine.py"
+    if core.is_file():
+        return core
+    return _REPO_ROOT / "super_otonom" / "bot_engine.py"
+
+
 def audit_bot_engine_uses_contract() -> List[str]:
     """BotEngine doğrudan pre_trade_gate import etmemeli."""
-    path = _REPO_ROOT / "super_otonom" / "bot_engine.py"
+    path = _bot_engine_audit_path()
     try:
         src = path.read_text(encoding="utf-8")
     except OSError as exc:
