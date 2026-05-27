@@ -183,6 +183,14 @@ def clock_skew_disclosure(
     }
 
 
+def _source_module_path(root: Path, flat: str, impl_relative: str) -> Path:
+    """PROMPT-04: kök shim varsa alt paketteki gerçek kaynak dosyayı oku."""
+    impl = root / "super_otonom" / impl_relative
+    if impl.is_file():
+        return impl
+    return root / "super_otonom" / flat
+
+
 def validate_clock_skew_wiring(repo_root: Optional[Path] = None) -> List[str]:
     """Metrik, alarm ve compose işaretçisi — audit 6 sözleşmesi."""
     root = repo_root or _REPO
@@ -208,7 +216,9 @@ def validate_clock_skew_wiring(repo_root: Optional[Path] = None) -> List[str]:
         if "bot_clock_skew_abs_ms" not in at:
             issues.append(f"{alerts.as_posix()}: must reference bot_clock_skew_abs_ms")
 
-    metrics_py = root / "super_otonom" / "metrics_exporter.py"
+    metrics_py = _source_module_path(
+        root, "metrics_exporter.py", "monitoring/metrics_exporter.py"
+    )
     if metrics_py.is_file():
         mt = metrics_py.read_text(encoding="utf-8")
         for needle in ("clock_skew_abs_ms", "clock_skew_exchange_ms", "host_ntp_synchronized"):
@@ -217,7 +227,7 @@ def validate_clock_skew_wiring(repo_root: Optional[Path] = None) -> List[str]:
     else:
         issues.append(f"{metrics_py.as_posix()}: missing")
 
-    cfg = root / "super_otonom" / "config.py"
+    cfg = _source_module_path(root, "config.py", "core/config.py")
     if cfg.is_file() and "CLOCK_SKEW" not in cfg.read_text(encoding="utf-8"):
         issues.append(f"{cfg.as_posix()}: missing CLOCK_SKEW config block")
 
