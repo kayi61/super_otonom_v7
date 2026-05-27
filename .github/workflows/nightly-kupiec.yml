@@ -26,7 +26,13 @@ jobs:
 
       - name: Run Kupiec POF backtest
         id: kupiec
-        run: python -m super_otonom.risk.var_backtest --json > kupiec_result.json 2>&1
+        run: |
+          if [ ! -f "data/realized_pnl.json" ] || [ ! -f "data/predicted_var.json" ]; then
+            echo '{"skipped": true, "reason": "missing data/realized_pnl.json or data/predicted_var.json"}' > kupiec_result.json
+            echo "Kupiec backtest skipped: input files missing."
+            exit 0
+          fi
+          python -m super_otonom.risk.var_backtest --json > kupiec_result.json 2>&1
 
       - name: Upload backtest result
         if: always()
