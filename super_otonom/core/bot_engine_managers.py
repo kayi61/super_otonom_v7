@@ -538,7 +538,7 @@ class ExitManager:
             try:
                 pos = self._e.open_positions.get(symbol, {})
                 price = float(pos.get("entry", 0))
-                await self.close(
+                await self._e._close(
                     symbol,
                     price,
                     dummy_out,
@@ -612,5 +612,5 @@ class ExitManager:
             analysis.get("avg_volume") or self._e._avg_volume(candles)
         )
         analysis.setdefault("strategist", "trend")
-        await self.close(symbol, price, out, "STRATEGY_CHANGE", analysis)
+        await self._e._close(symbol, price, out, "STRATEGY_CHANGE", analysis)
         return out
