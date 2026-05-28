@@ -31,7 +31,14 @@ _TWAP_METADATA_MODULES = frozenset(
     }
 )
 _VENUE_ROUTING_MODULES = frozenset({"smart_order_router.py"})
-_ORDER_PLACEMENT_MODULES = frozenset({"engine_managers.py", "exchange_async.py", "order_engine.py"})
+_ORDER_PLACEMENT_MODULES = frozenset(
+    {
+        "engine_managers.py",
+        "exchange_async.py",
+        "order_engine.py",
+        "trading/order_engine.py",
+    }
+)
 
 # Gerçek algo yürütme işaretleri (manifest'te boş kalmalı)
 _ALGO_IMPLEMENTATION_MARKERS = (
@@ -86,7 +93,19 @@ class ExecutionTopology:
 
 
 def _pkg_file(rel: str) -> Path:
-    return _PKG.joinpath(*rel.split("/"))
+    p = _PKG.joinpath(*rel.split("/"))
+    if p.is_file():
+        return p
+    # PROMPT-04: kök modüller alt pakete taşındı (shim kökte kalır)
+    _alt = {
+        "order_engine.py": "trading/order_engine.py",
+    }
+    alt = _alt.get(rel.split("/")[-1])
+    if alt is not None:
+        q = _PKG.joinpath(*alt.split("/"))
+        if q.is_file():
+            return q
+    return p
 
 
 def _file_exists(rel: str) -> bool:
@@ -299,7 +318,9 @@ def validate_execution_topology_contract(repo_root: Optional[Path] = None) -> Li
     else:
         issues.append(f"{compose.as_posix()}: missing")
 
-    et = root / "super_otonom" / "execution_topology.py"
+    et = root / "super_otonom" / "audit" / "execution_topology.py"
+    if not et.is_file():
+        et = root / "super_otonom" / "execution_topology.py"
     if et.is_file() and "institutional_twap_vwap_execution_claim_allowed" not in et.read_text(
         encoding="utf-8"
     ):

@@ -81,7 +81,9 @@ def audit_execution_topology_claims(*, root: Optional[Path] = None) -> List[str]
     base = root or _REPO
     issues: List[str] = list(validate_execution_topology_contract(base))
 
-    et = base / "super_otonom" / "execution_topology.py"
+    et = base / "super_otonom" / "audit" / "execution_topology.py"
+    if not et.is_file():
+        et = base / "super_otonom" / "execution_topology.py"
     if et.is_file() and "institutional_twap_vwap_execution_claim_allowed" not in et.read_text(
         encoding="utf-8"
     ):
