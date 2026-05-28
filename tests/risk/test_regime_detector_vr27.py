@@ -19,6 +19,9 @@ from pathlib import Path
 import numpy as np
 
 _ROOT = Path(__file__).resolve().parents[2]
+from tests._prompt04_source import module_source_path
+
+_PKG = _ROOT / "super_otonom"
 sys.path.insert(0, str(_ROOT))
 
 from super_otonom.risk.regime_detector import (
@@ -409,16 +412,13 @@ class TestAuditAllowlist:
     """VR-27: var_topology_audit allowlist entries."""
 
     def test_test_file_in_allowlist(self):
-        src = _ROOT / "super_otonom" / "var_topology_audit.py"
-        text = src.read_text(encoding="utf-8")
+        text = module_source_path(_PKG, "var_topology_audit").read_text(encoding="utf-8")
         assert "test_regime_detector_vr27" in text
 
     def test_detector_module_in_allowlist(self):
-        src = _ROOT / "super_otonom" / "var_topology_audit.py"
-        text = src.read_text(encoding="utf-8")
+        text = module_source_path(_PKG, "var_topology_audit").read_text(encoding="utf-8")
         assert "regime_detector" in text
 
     def test_script_in_allowlist(self):
-        src = _ROOT / "super_otonom" / "var_topology_audit.py"
-        text = src.read_text(encoding="utf-8")
+        text = module_source_path(_PKG, "var_topology_audit").read_text(encoding="utf-8")
         assert "regime_detect" in text

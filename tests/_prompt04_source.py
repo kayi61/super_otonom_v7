@@ -13,7 +13,11 @@ _MOVED: dict[str, str] = {
     "bot_engine": "core/bot_engine.py",
     "config": "core/config.py",
     "metrics_exporter": "monitoring/metrics_exporter.py",
+    "var_topology_audit": "audit/var_topology_audit.py",
 }
+
+# pytest patch targets (impl module, not root shim)
+METRICS_EXPORTER_PATCH = "super_otonom.monitoring.metrics_exporter"
 
 
 def module_source_path(pkg_root: Path, name: str) -> Path:
