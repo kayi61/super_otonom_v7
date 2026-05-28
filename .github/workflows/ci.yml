@@ -148,6 +148,40 @@ jobs:
       - name: Pytest full suite
         run: python -m pytest tests/ -q -n auto --tb=short
 
+  # Integration tests — phase pipeline + risk chain + bot lifecycle
+  integration-test:
+    needs: [kanon-drift, ci-quick]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package (dev)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Integration tests
+        env:
+          PAPER_MODE: "true"
+          DRY_RUN: "true"
+          LOG_LEVEL: WARNING
+          SECRETS_VAULT_ONLY: "false"
+          SECRETS_VAULT_ONLY_AUTO: "false"
+        run: >
+          python -m pytest
+          tests/integration/
+          tests/phase_45/
+          tests/phase_47/
+          -v --tb=short -x
+
   # Tam suite + coverage esigi (Asama 5); pytest-full ile ayni kosu, cov raporu
   coverage:
     needs: [pytest-full]
