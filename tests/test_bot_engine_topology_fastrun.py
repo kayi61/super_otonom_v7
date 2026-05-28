@@ -23,17 +23,18 @@ pytestmark = pytest.mark.fastrun
 
 def test_inspect_god_class_on_repo() -> None:
     topo = inspect_bot_engine()
-    assert topo.file_line_count >= 1200
-    assert topo.bot_engine_class_line_count >= 800
-    assert topo.god_class is True
+    assert topo.file_line_count >= 800
+    assert topo.bot_engine_class_line_count < 500
+    assert topo.god_class is False
     assert topo.institutional_single_responsibility_claim_allowed is False
     assert {"tick", "entry", "exit", "risk", "state"}.issubset(set(topo.responsibility_domains))
+    assert "bot_engine_managers" in topo.partial_delegation_modules
 
 
 def test_disclosure() -> None:
     d = bot_engine_disclosure()
     assert d["institutional_single_responsibility_claim_allowed"] is False
-    assert d["topology"]["god_class"] is True
+    assert d["topology"]["god_class"] is False
 
 
 def test_validate_contract_repo() -> None:

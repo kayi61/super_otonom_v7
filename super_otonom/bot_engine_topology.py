@@ -21,7 +21,7 @@ _DEFAULT_MANIFEST = _REPO / "data" / "bot_engine_topology_manifest.json"
 _COMPOSE_MARKER = "audit 8"
 
 FILE_LINE_CEILING = int(os.getenv("BOT_ENGINE_FILE_LINE_CEILING", "1450"))
-CLASS_LINE_CEILING = int(os.getenv("BOT_ENGINE_CLASS_LINE_CEILING", "1100"))
+CLASS_LINE_CEILING = int(os.getenv("BOT_ENGINE_CLASS_LINE_CEILING", "500"))
 GOD_CLASS_MIN_LINES = int(os.getenv("BOT_ENGINE_GOD_CLASS_MIN_LINES", "800"))
 
 # Metot adı önekleri → sorumluluk alanı (çoklu eşleşme mümkün)
@@ -35,6 +35,7 @@ _RESPONSIBILITY_RULES: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
 
 _PARTIAL_DELEGATION_MODULES = (
     "engine_managers",
+    "bot_engine_managers",
     "pipelines.execution_pipeline",
     "pipelines.signal_pipeline",
     "hard_safety_contract",
@@ -107,6 +108,8 @@ def _detect_delegation_imports(text: str) -> List[str]:
     present: List[str] = []
     if "engine_managers" in text:
         present.append("engine_managers")
+    if "bot_engine_managers" in text:
+        present.append("bot_engine_managers")
     if "pipelines" in text and "super_otonom.pipelines" in text:
         present.append("pipelines")
     if "hard_safety_contract" in text:
@@ -159,9 +162,9 @@ def build_manifest_payload(topo: BotEngineTopology) -> Dict[str, Any]:
         "helper_classes_in_file": topo.helper_classes,
         "bot_engine_methods": topo.methods,
         "disclaimer_tr": (
-            "BotEngine tek sınıfta tick, giriş/çıkış, risk ve state taşır (~1000+ satır). "
-            "engine_managers ve pipelines kısmi delegasyondur; kurumsal tek-sorumluluk iddiası "
-            "bu yapı ile uyumlu değildir. LOC manifest ve tavan ile büyüme kontrol edilir."
+            "BotEngine compose katmanıdır; tick/giriş/çıkış bot_engine_managers, state/risk "
+            "engine_managers + pipelines ile ayrıştırılmıştır. Kurumsal tek-sorumluluk iddiası "
+            "kapalıdır; LOC manifest ve tavan ile büyüme kontrol edilir."
         ),
     }
 
