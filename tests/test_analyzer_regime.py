@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import List
 
 import pytest
-from super_otonom.analyzer import MarketAnalyzer, detect_market_regime
+from super_otonom.analysis.analyzer import MarketAnalyzer, detect_market_regime
 
 
 def _candle(
@@ -78,7 +78,7 @@ def test_analyze_v5_1_insufficient_4h_skips_mtf(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """4H < 22 bars → high_tf_trend UNKNOWN, no MTF override."""
-    monkeypatch.setattr("super_otonom.analyzer._calculate_hurst", lambda ts: 0.5)
+    monkeypatch.setattr("super_otonom.analysis.analyzer._calculate_hurst", lambda ts: 0.5)
     a = MarketAnalyzer()
     c1h = _series_closes_1h_uptrend(40)
     c4h = [_candle(i, 100.0) for i in range(10)]
@@ -93,8 +93,8 @@ def test_analyze_v5_1_mtf_downgrades_buy_when_4h_down(monkeypatch: pytest.Monkey
     1H would be BUY in TRENDING; 4H EMA trend DOWN → HOLD + mtf_filtered.
     Hurst/RSI patched to meet trend regime + buy band.
     """
-    monkeypatch.setattr("super_otonom.analyzer._calculate_hurst", lambda ts: 0.58)
-    monkeypatch.setattr("super_otonom.analyzer._rsi", lambda closes, period=14: 55.0)
+    monkeypatch.setattr("super_otonom.analysis.analyzer._calculate_hurst", lambda ts: 0.58)
+    monkeypatch.setattr("super_otonom.analysis.analyzer._rsi", lambda closes, period=14: 55.0)
 
     candles_1h = _series_closes_1h_uptrend(50)
     candles_4h = _series_closes_4h_downtrend(25)

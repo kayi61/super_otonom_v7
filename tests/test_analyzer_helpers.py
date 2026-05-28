@@ -6,7 +6,7 @@ from unittest import mock
 
 import numpy as np
 import pytest
-from super_otonom.analyzer import (
+from super_otonom.analysis.analyzer import (
     MarketAnalyzer,
     _atr,
     _bollinger,
@@ -87,7 +87,7 @@ def test_rsi_avg_loss_zero_returns_100() -> None:
 def test_calculate_hurst_exception_returns_half() -> None:
     """Hurst min uzunluk sonrası polyfit hatası → nötr."""
     ts = [float(i) for i in range(55)]
-    with mock.patch("super_otonom.analyzer.np.polyfit", side_effect=RuntimeError("x")):
+    with mock.patch("super_otonom.analysis.analyzer.np.polyfit", side_effect=RuntimeError("x")):
         assert _calculate_hurst(ts) == 0.5
 
 
@@ -144,17 +144,17 @@ def test_analyze_market_state_mean_reverting_and_sideways(
         for _ in range(50)
     ]
 
-    monkeypatch.setattr("super_otonom.analyzer._calculate_hurst", lambda ts: 0.40)
-    monkeypatch.setattr("super_otonom.analyzer._rsi", lambda c, p=14: 50.0)
+    monkeypatch.setattr("super_otonom.analysis.analyzer._calculate_hurst", lambda ts: 0.40)
+    monkeypatch.setattr("super_otonom.analysis.analyzer._rsi", lambda c, p=14: 50.0)
     r1 = MarketAnalyzer().analyze("S", flat)
     assert r1["market_state"] == "MEAN_REVERTING"
 
-    monkeypatch.setattr("super_otonom.analyzer._calculate_hurst", lambda ts: 0.50)
-    monkeypatch.setattr("super_otonom.analyzer._atr", lambda c, p=14: 0.00001)
+    monkeypatch.setattr("super_otonom.analysis.analyzer._calculate_hurst", lambda ts: 0.50)
+    monkeypatch.setattr("super_otonom.analysis.analyzer._atr", lambda c, p=14: 0.00001)
     r2 = MarketAnalyzer().analyze("S", flat)
     assert r2["market_state"] == "SIDEWAYS"
 
-    monkeypatch.setattr("super_otonom.analyzer._rsi", lambda c, p=14: 75.0)
+    monkeypatch.setattr("super_otonom.analysis.analyzer._rsi", lambda c, p=14: 75.0)
     r3 = MarketAnalyzer().analyze("S", flat)
     assert r3["market_state"] == "NEUTRAL"
 
@@ -166,7 +166,7 @@ def test_analyze_regime_mean_reverting_hold_copy() -> None:
         for _ in range(50)
     ]
 
-    with mock.patch("super_otonom.analyzer._calculate_hurst", return_value=0.40):
+    with mock.patch("super_otonom.analysis.analyzer._calculate_hurst", return_value=0.40):
         r = MarketAnalyzer().analyze("S", flat)
     assert r["regime"] == "MEAN_REVERTING"
     assert r["signal"] == "HOLD"
