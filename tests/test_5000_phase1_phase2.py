@@ -12,6 +12,8 @@ from typing import Callable, Dict
 import pytest
 from super_otonom.capital_engine import CapitalEngine
 
+from tests._prompt04_source import read_module_source
+
 pytestmark = pytest.mark.fastrun
 
 def _inv_ok(e: CapitalEngine, tol: float=0.01) -> bool:
@@ -24,7 +26,7 @@ def phase1_module_sources() -> Dict[str, str]:
     names = ['capital_engine', 'risk_ontology', 'risk_manager', 'order_engine', 'reconciliation_engine', 'pre_trade_gate', 'alert_manager', 'market_impact', 'concentration_risk', 'stress_test', 'audit_log']
     out: Dict[str, str] = {}
     for name in names:
-        out[name] = (root / f'{name}.py').read_text(encoding='utf-8')
+        out[name] = read_module_source(root, name)
     return out
 
 @pytest.fixture
