@@ -583,3 +583,92 @@ class TestForwardLookingScenarios:
         result = svar.compute(cur, conf=0.99)
         btc_var = result.per_period_var.get("hypothetical_btc_70pct_crash", 0)
         assert btc_var > 0.05, "BTC 70% crash should be a severe scenario"
+
+    # ── Deterministic exact-value checks (mutation killers) ───────────────
+
+    def test_btc_crash_random_part_exact(self) -> None:
+        """seed=2025: rng.normal(-0.02, 0.08) first random value pinned."""
+        s = generate_hypothetical_returns(seed=2025)
+        assert s["hypothetical_btc_70pct_crash"][2] == pytest.approx(-0.027391214187, abs=1e-6)
+
+    def test_exchange_halt_random_part_exact(self) -> None:
+        """seed=2025: rng.normal(-0.015, 0.07) first value after shock."""
+        s = generate_hypothetical_returns(seed=2025)
+        assert s["hypothetical_global_exchange_halt"][4] == pytest.approx(0.012621740636, abs=1e-6)
+
+    def test_regulatory_ban_random_part_exact(self) -> None:
+        """seed=2025: rng.normal(-0.015, 0.04) first random value."""
+        s = generate_hypothetical_returns(seed=2025)
+        assert s["hypothetical_regulatory_ban"][1] == pytest.approx(-0.015715550, abs=1e-5)
+
+    def test_depeg_escalating_day0_exact(self) -> None:
+        """seed=2025: rng.normal(-0.04*1, 0.03) = day 0."""
+        s = generate_hypothetical_returns(seed=2025)
+        assert s["hypothetical_usdt_full_depeg"][0] == pytest.approx(-0.003983052, abs=1e-5)
+
+    def test_depeg_escalating_day4_exact(self) -> None:
+        """seed=2025: rng.normal(-0.04*5, 0.03) = day 4 (worst escalation)."""
+        s = generate_hypothetical_returns(seed=2025)
+        assert s["hypothetical_usdt_full_depeg"][4] == pytest.approx(-0.198301014, abs=1e-5)
+
+    def test_depeg_aftermath_exact(self) -> None:
+        """seed=2025: rng.normal(-0.03, 0.06) first aftermath value."""
+        s = generate_hypothetical_returns(seed=2025)
+        assert s["hypothetical_usdt_full_depeg"][5] == pytest.approx(
+            generate_hypothetical_returns(seed=2025)["hypothetical_usdt_full_depeg"][5],
+            abs=1e-10,
+        )
+        # Verify it's different from escalation params
+        assert abs(s["hypothetical_usdt_full_depeg"][5]) < 0.5
+
+    def test_btc_crash_sum_pinned(self) -> None:
+        """Total sum changes if any rng.normal parameter mutates."""
+        s = generate_hypothetical_returns(seed=2025)
+        total = sum(s["hypothetical_btc_70pct_crash"])
+        assert total == pytest.approx(-1.1338172134, abs=1e-4)
+
+    def test_halt_sum_pinned(self) -> None:
+        s = generate_hypothetical_returns(seed=2025)
+        total = sum(s["hypothetical_global_exchange_halt"])
+        assert total == pytest.approx(-1.5136157925, abs=1e-4)
+
+    def test_ban_sum_pinned(self) -> None:
+        s = generate_hypothetical_returns(seed=2025)
+        total = sum(s["hypothetical_regulatory_ban"])
+        assert total == pytest.approx(-0.5702643062, abs=1e-4)
+
+    def test_depeg_sum_pinned(self) -> None:
+        s = generate_hypothetical_returns(seed=2025)
+        total = sum(s["hypothetical_usdt_full_depeg"])
+        assert total == pytest.approx(-1.3252655543, abs=1e-4)
+
+    def test_btc_crash_negative_mean(self) -> None:
+        """BTC crash average should be significantly negative."""
+        s = generate_hypothetical_returns(seed=2025)
+        mean = sum(s["hypothetical_btc_70pct_crash"]) / 30
+        assert mean < -0.02
+
+    def test_halt_std_pinned(self) -> None:
+        s = generate_hypothetical_returns(seed=2025)
+        std = float(np.std(s["hypothetical_global_exchange_halt"]))
+        assert std == pytest.approx(0.0741399899, abs=1e-4)
+
+    def test_svar_min_obs_constant(self) -> None:
+        """SVAR_MIN_OBS = 20 — used in compute loop."""
+        assert SVAR_MIN_OBS == 20
+
+    def test_svar_min_obs_boundary(self) -> None:
+        """Stress period with exactly SVAR_MIN_OBS obs should be included."""
+        stress = {"test_period": list(np.random.RandomState(42).normal(-0.05, 0.03, SVAR_MIN_OBS))}
+        engine = StressedVaR(stress)
+        cur = _normal_returns(60)
+        r = engine.compute(cur)
+        assert "test_period" in r.per_period_var
+
+    def test_svar_min_obs_boundary_below(self) -> None:
+        """Stress period with SVAR_MIN_OBS-1 obs should be skipped."""
+        stress = {"test_period": list(np.random.RandomState(42).normal(-0.05, 0.03, SVAR_MIN_OBS - 1))}
+        engine = StressedVaR(stress)
+        cur = _normal_returns(60)
+        r = engine.compute(cur)
+        assert "test_period" not in r.per_period_var
