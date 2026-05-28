@@ -100,6 +100,7 @@ jobs:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
         run: |
+          pip install "numpy<2"
           pip install "mutmut>=2.4,<3"
           pip install -e ".[dev]"
       - name: Hedef test listesi
@@ -134,6 +135,7 @@ jobs:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
         run: |
+          pip install "numpy<2"
           pip install "mutmut>=2.4,<3"
           pip install -e ".[dev]"
       - name: Hedef test listesi
@@ -168,6 +170,7 @@ jobs:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
         run: |
+          pip install "numpy<2"
           pip install "mutmut>=2.4,<3"
           pip install -e ".[dev]"
       - name: Hedef test listesi
@@ -202,6 +205,7 @@ jobs:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
         run: |
+          pip install "numpy<2"
           pip install "mutmut>=2.4,<3"
           pip install -e ".[dev]"
       - name: Hedef test listesi
@@ -238,6 +242,7 @@ jobs:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
         run: |
+          pip install "numpy<2"
           pip install "mutmut>=2.4,<3"
           pip install -e ".[dev]"
       - name: Hedef test listesi
@@ -272,6 +277,7 @@ jobs:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
         run: |
+          pip install "numpy<2"
           pip install "mutmut>=2.4,<3"
           pip install -e ".[dev]"
       - name: Hedef test listesi
@@ -306,6 +312,7 @@ jobs:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
         run: |
+          pip install "numpy<2"
           pip install "mutmut>=2.4,<3"
           pip install -e ".[dev]"
       - name: Hedef test listesi
@@ -340,6 +347,7 @@ jobs:
           python-version: "3.11"
       - name: Bağımlılıkları yükle
         run: |
+          pip install "numpy<2"
           pip install "mutmut>=2.4,<3"
           pip install -e ".[dev]"
       - name: Hedef test listesi
