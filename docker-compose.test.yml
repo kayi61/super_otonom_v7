@@ -1,0 +1,81 @@
+# ═══════════════════════════════════════════════════════
+#  SUPER OTONOM v7 — Integration Test Stack
+# ═══════════════════════════════════════════════════════
+# Kullanim:
+#   docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+#
+# Redis + TimescaleDB mock (ephemeral) ile e2e integration testleri.
+# CI pipeline (.github/workflows/ci.yml) bu dosyayi kullanir.
+# Volume yok — her run temiz baslar.
+
+services:
+
+  # ───────────────────────────────────────
+  # REDIS — ephemeral, no persistence
+  # ───────────────────────────────────────
+  redis-test:
+    image: redis:7-alpine
+    container_name: test_redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+    tmpfs:
+      - /data
+
+  # ───────────────────────────────────────
+  # TIMESCALEDB — ephemeral, minimal config
+  # ───────────────────────────────────────
+  timescaledb-test:
+    image: timescale/timescaledb:latest-pg16
+    container_name: test_timescaledb
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: test_trading
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d test_trading"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  # ───────────────────────────────────────
+  # TEST RUNNER — pytest
+  # ───────────────────────────────────────
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: test_runner
+    command: >
+      python -m pytest
+        tests/integration/
+        tests/phase_45/
+        tests/phase_47/
+        -v
+        --tb=short
+        --no-header
+        -x
+    environment:
+      - PAPER_MODE=true
+      - DRY_RUN=true
+      - LOG_LEVEL=WARNING
+      - SECRETS_VAULT_ONLY=false
+      - SECRETS_VAULT_ONLY_AUTO=false
+      - REDIS_URL=redis://redis-test:6379/0
+      - TIMESCALE_HOST=timescaledb-test
+      - TIMESCALE_USER=test_user
+      - TIMESCALE_PASSWORD=test_password
+      - TIMESCALE_DB=test_trading
+      - VAULT_ADDR=
+      - VAULT_ROLE_ID=
+      - VAULT_SECRET_ID=
+    depends_on:
+      redis-test:
+        condition: service_healthy
+      timescaledb-test:
+        condition: service_healthy
