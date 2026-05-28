@@ -1,5 +1,32 @@
 # CHANGELOG — super_otonom
 
+## [7.2.0](https://github.com/kayi61/super_otonom_v7/compare/super_otonom-v7.1.1...super_otonom-v7.2.0) (2026-05-28)
+
+
+### Features
+
+* **PROMPT-04:** flat package refactor — core/trading/analysis/monitoring/audit ([552c3d2](https://github.com/kayi61/super_otonom_v7/commit/552c3d25820642e4a4213ab4453034859d6d22c4))
+* **prompt-05:** BotEngine god-class decomposition ([c71cb54](https://github.com/kayi61/super_otonom_v7/commit/c71cb54ba1135d4b99856900df6082618fce824c))
+* **prompt-05:** decompose BotEngine into Entry/Exit/Tick managers ([0c796ce](https://github.com/kayi61/super_otonom_v7/commit/0c796cebcdd86f85ac4f6587446b811e2413cc1e))
+
+
+### Bug Fixes
+
+* **ci:** keep super_otonom.core in sys.modules for main_loop reload ([13500e5](https://github.com/kayi61/super_otonom_v7/commit/13500e543c2e0a25881233ab996e7e6eea2fdaa9))
+* **ci:** main_loop reload parent package under xdist ([ac4532e](https://github.com/kayi61/super_otonom_v7/commit/ac4532ef9b211b293107622eaa1bb14b5d8e2474))
+* **prompt-04:** alias shims to real modules for monkeypatch safety ([ba101e2](https://github.com/kayi61/super_otonom_v7/commit/ba101e262c30fab831cb42b82fb36a36b31d5834))
+* **prompt-04:** clock_skew audit reads impl modules not shims ([21403aa](https://github.com/kayi61/super_otonom_v7/commit/21403aa012f584bf00406506bbabc01e28ec15e8))
+* **prompt-04:** execution topology audit reads audit/ impl ([b9126d8](https://github.com/kayi61/super_otonom_v7/commit/b9126d8035568e7efd94c77c0ee2df1b2edc1383))
+* **prompt-04:** fastrun tests read impl modules not shims ([d344d20](https://github.com/kayi61/super_otonom_v7/commit/d344d203e04b5e8d77634cfaf4748d44877bb013))
+* **prompt-04:** hard_safety audit reads core/bot_engine.py ([c816c6a](https://github.com/kayi61/super_otonom_v7/commit/c816c6a9504eba99b1df8ac4b89aa990d73488be))
+* **prompt-04:** keep shim compat and stabilize pytest-full imports ([247a0b8](https://github.com/kayi61/super_otonom_v7/commit/247a0b84b7ad1372ecbd09e3d0df3e485795fbba))
+* **PROMPT-04:** module-alias shims export private names for tests ([f93b815](https://github.com/kayi61/super_otonom_v7/commit/f93b81576d13eab4456eb278e4cc8437e043f5b8))
+* **prompt-04:** PEP 562 shims for private imports and python -m ([31dd035](https://github.com/kayi61/super_otonom_v7/commit/31dd035f4e8dab62066e2088fc7a8e7a7711d8b5))
+* **prompt-04:** point analyzer/alert tests to impl packages ([5b74d81](https://github.com/kayi61/super_otonom_v7/commit/5b74d813247c8876235050f10b82ee5a53691760))
+* **prompt-04:** pytest-full patches and audit source paths ([a132bbd](https://github.com/kayi61/super_otonom_v7/commit/a132bbd68000b5a3a5fe1730973bf1ac997b8f04))
+* **prompt-04:** ruff import order in test_prometheus_var_suite_vr21 ([c1bc135](https://github.com/kayi61/super_otonom_v7/commit/c1bc135e57568f40d2dcd21e37b4aac25490dd30))
+* **prompt-05:** emergency_liquidate routes through engine._close ([0f1c0e4](https://github.com/kayi61/super_otonom_v7/commit/0f1c0e4a47652db767d09b8bebc9f6b44e8d4d25))
+
 ## [7.1.1](https://github.com/kayi61/super_otonom_v7/compare/super_otonom-v7.1.0...super_otonom-v7.1.1) (2026-05-27)
 
 
