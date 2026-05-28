@@ -530,9 +530,17 @@ async def _run_loop_iteration(handler: Any, analyzer: Any, engine: Any) -> None:
 
 
 async def main() -> None:
-    global _loop_counter
+    global _loop_counter, _shutdown, _ws_mtf_lock, _ws_mtf_raw, _ws_alt_raw, _ws_aux_cache_ts
     loop = asyncio.get_running_loop()
     _setup_signal_handlers(loop)
+
+    # Tekrarlı test/çalıştırmalarda loop-bound asyncio objeleri eski loop'a bağlı kalmasın.
+    _shutdown = asyncio.Event()
+    _loop_counter = 0
+    _ws_mtf_lock = None
+    _ws_mtf_raw = {}
+    _ws_alt_raw = {}
+    _ws_aux_cache_ts = 0.0
 
     # finally bloğu handler açılmadan patlarsa NameError olmasın
     _ws_manager: Any = None
