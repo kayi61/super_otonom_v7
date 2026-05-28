@@ -20,7 +20,6 @@ from typing import Dict, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from tests._prompt04_source import METRICS_EXPORTER_PATCH, module_source_path
 
 _PKG = Path(__file__).resolve().parents[2] / "super_otonom"
