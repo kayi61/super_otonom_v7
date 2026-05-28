@@ -9,17 +9,17 @@ import uuid
 from unittest.mock import MagicMock
 
 import pytest
-from super_otonom.metrics_exporter import _PROMETHEUS_AVAILABLE, MetricsExporter
+from super_otonom.monitoring.metrics_exporter import _PROMETHEUS_AVAILABLE, MetricsExporter
 
 
 def test_import_error_sets_no_prometheus_and_noops() -> None:
     """21-23 ImportError; 57-58 erken çıkış; update/record yolları 182,216,247,268,285."""
     saved_pc = sys.modules.get("prometheus_client")
-    saved_me = sys.modules.get("super_otonom.metrics_exporter")
+    saved_me = sys.modules.get("super_otonom.monitoring.metrics_exporter")
     try:
         sys.modules["prometheus_client"] = types.ModuleType("prometheus_client")
-        sys.modules.pop("super_otonom.metrics_exporter", None)
-        me = importlib.import_module("super_otonom.metrics_exporter")
+        sys.modules.pop("super_otonom.monitoring.metrics_exporter", None)
+        me = importlib.import_module("super_otonom.monitoring.metrics_exporter")
         assert me._PROMETHEUS_AVAILABLE is False
         m = me.MetricsExporter(port=8000, namespace=f"imp_err_{uuid.uuid4().hex[:8]}")
         assert m.is_active is False
@@ -33,10 +33,10 @@ def test_import_error_sets_no_prometheus_and_noops() -> None:
             sys.modules["prometheus_client"] = saved_pc
         else:
             sys.modules.pop("prometheus_client", None)
-        sys.modules.pop("super_otonom.metrics_exporter", None)
+        sys.modules.pop("super_otonom.monitoring.metrics_exporter", None)
         if saved_me is not None:
-            sys.modules["super_otonom.metrics_exporter"] = saved_me
-        importlib.import_module("super_otonom.metrics_exporter")
+            sys.modules["super_otonom.monitoring.metrics_exporter"] = saved_me
+        importlib.import_module("super_otonom.monitoring.metrics_exporter")
 
 
 def test_init_port_zero_no_server_bind() -> None:

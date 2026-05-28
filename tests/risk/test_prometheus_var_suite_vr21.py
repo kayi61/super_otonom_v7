@@ -20,6 +20,9 @@ from typing import Dict, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
+from tests._prompt04_source import METRICS_EXPORTER_PATCH, module_source_path
+
+_PKG = Path(__file__).resolve().parents[2] / "super_otonom"
 
 # ── Fake RiskMetrics for testing ─────────────────────────────────────────────
 
@@ -86,11 +89,11 @@ class FakeLimits:
 def exporter():
     """Create MetricsExporter with port=0 (no HTTP server)."""
     # Isolate prometheus registry per test
-    with patch("super_otonom.metrics_exporter._PROMETHEUS_AVAILABLE", True):
-        with patch("super_otonom.metrics_exporter.Gauge") as mock_gauge, \
-             patch("super_otonom.metrics_exporter.Counter") as mock_counter, \
-             patch("super_otonom.metrics_exporter.Histogram") as mock_histo, \
-             patch("super_otonom.metrics_exporter.start_http_server"):
+    with patch(f"{METRICS_EXPORTER_PATCH}._PROMETHEUS_AVAILABLE", True):
+        with patch(f"{METRICS_EXPORTER_PATCH}.Gauge") as mock_gauge, \
+             patch(f"{METRICS_EXPORTER_PATCH}.Counter") as mock_counter, \
+             patch(f"{METRICS_EXPORTER_PATCH}.Histogram") as mock_histo, \
+             patch(f"{METRICS_EXPORTER_PATCH}.start_http_server"):
 
             # Make mock gauges that track .set() and .labels().set()
             created_gauges = {}
@@ -360,7 +363,7 @@ class TestNoOp:
     """VR-21: No-op when prometheus_client not available."""
 
     def test_disabled_no_error(self, metrics):
-        with patch("super_otonom.metrics_exporter._PROMETHEUS_AVAILABLE", False):
+        with patch(f"{METRICS_EXPORTER_PATCH}._PROMETHEUS_AVAILABLE", False):
             from super_otonom.metrics_exporter import MetricsExporter
 
             exp = MetricsExporter(port=0)
@@ -447,8 +450,7 @@ class TestSentinel:
     """VR-21: var_topology sentinel."""
 
     def test_sentinel_in_metrics_exporter(self):
-        src = Path(__file__).resolve().parents[2] / "super_otonom" / "metrics_exporter.py"
-        text = src.read_text(encoding="utf-8")
+        text = module_source_path(_PKG, "metrics_exporter").read_text(encoding="utf-8")
         assert "prometheus_var_full_suite" in text
 
     def test_sentinel_set_on_instance(self, exporter):
@@ -461,21 +463,11 @@ class TestAuditAllowlist:
     """VR-21: Test file and substrings in audit allowlist."""
 
     def test_test_file_in_allowlist(self):
-        src = (
-            Path(__file__).resolve().parents[2]
-            / "super_otonom"
-            / "var_topology_audit.py"
-        )
-        text = src.read_text(encoding="utf-8")
+        text = module_source_path(_PKG, "var_topology_audit").read_text(encoding="utf-8")
         assert "test_prometheus_var_suite_vr21" in text
 
     def test_substrings_in_allowlist(self):
-        src = (
-            Path(__file__).resolve().parents[2]
-            / "super_otonom"
-            / "var_topology_audit.py"
-        )
-        text = src.read_text(encoding="utf-8")
+        text = module_source_path(_PKG, "var_topology_audit").read_text(encoding="utf-8")
         for s in (
             "prometheus_var_full_suite",
             "record_var_suite",

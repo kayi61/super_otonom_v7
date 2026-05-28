@@ -30,7 +30,19 @@ def test_scan_god_package_flat() -> None:
     assert topo.flat_production_count >= 80
     assert topo.god_package_flat is True
     assert topo.institutional_modular_boundary_claim_allowed is False
-    assert topo.subpackages == ["execution", "ha", "infra", "pipelines", "risk", "signals"]
+    assert topo.subpackages == [
+        "analysis",
+        "audit",
+        "core",
+        "execution",
+        "ha",
+        "infra",
+        "monitoring",
+        "pipelines",
+        "risk",
+        "signals",
+        "trading",
+    ]
 
 
 def test_disclosure_no_institutional_modular() -> None:
@@ -102,8 +114,8 @@ def test_write_manifest_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     pkg.mkdir()
     (pkg / "mod_a.py").write_text("", encoding="utf-8")
     out = tmp_path / "data" / "m.json"
-    monkeypatch.setattr("super_otonom.package_topology._PKG", pkg)
-    monkeypatch.setattr("super_otonom.package_topology._DEFAULT_MANIFEST", out)
+    monkeypatch.setattr("super_otonom.audit.package_topology._PKG", pkg)
+    monkeypatch.setattr("super_otonom.audit.package_topology._DEFAULT_MANIFEST", out)
     write_manifest(out, pkg_root=pkg)
     assert out.is_file()
 
@@ -225,16 +237,16 @@ def test_validate_missing_compose(tmp_path: Path) -> None:
 
 def test_disclosure_above_ceiling(monkeypatch: pytest.MonkeyPatch) -> None:
     topo = scan_package_topology()
-    monkeypatch.setattr("super_otonom.package_topology.FLAT_PROD_CEILING", 1)
+    monkeypatch.setattr("super_otonom.audit.package_topology.FLAT_PROD_CEILING", 1)
     d = package_disclosure(topo=topo)
     assert "flat_production_above_ceiling" in d["limitations"]
 
 
 def test_topology_main_fail(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-    from super_otonom.package_topology import main as topo_main
+    from super_otonom.audit.package_topology import main as topo_main
 
     monkeypatch.setattr(
-        "super_otonom.package_topology.validate_package_topology_contract",
+        "super_otonom.audit.package_topology.validate_package_topology_contract",
         lambda repo_root=None: ["fake fail"],
     )
     assert topo_main([]) == 1

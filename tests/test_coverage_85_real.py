@@ -439,7 +439,7 @@ def test_lgd_event_ts_and_half_life() -> None:
 
 
 def test_alert_manager_filters_below_min_level(monkeypatch: pytest.MonkeyPatch) -> None:
-    from super_otonom.alert_manager import AlertManager
+    from super_otonom.monitoring.alert_manager import AlertManager
 
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
@@ -449,7 +449,7 @@ def test_alert_manager_filters_below_min_level(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_alert_manager_cooldown(monkeypatch: pytest.MonkeyPatch) -> None:
-    from super_otonom.alert_manager import AlertManager
+    from super_otonom.monitoring.alert_manager import AlertManager
 
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
@@ -460,7 +460,7 @@ def test_alert_manager_cooldown(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_alert_manager_all_methods(monkeypatch: pytest.MonkeyPatch) -> None:
-    from super_otonom.alert_manager import AlertManager
+    from super_otonom.monitoring.alert_manager import AlertManager
 
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
@@ -483,7 +483,7 @@ def test_alert_manager_all_methods(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_alert_manager_webhook_post_success_and_fail(monkeypatch: pytest.MonkeyPatch) -> None:
-    import super_otonom.alert_manager as am
+    import super_otonom.monitoring.alert_manager as am
 
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
@@ -508,7 +508,7 @@ def test_alert_manager_webhook_post_success_and_fail(monkeypatch: pytest.MonkeyP
 
 
 def test_alert_manager_telegram_post(monkeypatch: pytest.MonkeyPatch) -> None:
-    import super_otonom.alert_manager as am
+    import super_otonom.monitoring.alert_manager as am
 
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "tok")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "chat")
@@ -547,7 +547,7 @@ def test_alert_manager_telegram_post(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_alert_manager_history_cap(monkeypatch: pytest.MonkeyPatch) -> None:
-    import super_otonom.alert_manager as am
+    import super_otonom.monitoring.alert_manager as am
 
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)

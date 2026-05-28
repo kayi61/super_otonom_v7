@@ -1,69 +1,24 @@
+"""Backward-compatible shim — ``super_otonom.monitoring.ops_metrics``."""
 from __future__ import annotations
 
-"""
-Ops metrikleri — MetricsExporter'a gecikmeli baglama (Vault config import sirasi).
-"""
+import importlib
+from typing import Any
 
-import logging
-from typing import Any, Optional
-
-log = logging.getLogger(__name__)
-
-_metrics: Optional[Any] = None
+_mod = importlib.import_module("super_otonom.monitoring.ops_metrics")
 
 
-def bind_metrics(exporter: Any) -> None:
-    global _metrics
-    _metrics = exporter
+def __getattr__(name: str) -> Any:
+    return getattr(_mod, name)
 
 
-def inc_order_error(err_type: str = "order") -> None:
-    if _metrics is not None:
-        _metrics.inc_order_error(err_type)
+def __dir__() -> list[str]:
+    return sorted(set(dir(_mod)))
 
 
-def inc_ws_reconnect() -> None:
-    if _metrics is not None:
-        _metrics.inc_ws_reconnect()
+if __name__ == "__main__":
+    _main = getattr(_mod, "main", None)
+    if _main is not None:
+        raise SystemExit(_main())
+    import runpy
 
-
-def set_dependency_up(name: str, up: bool) -> None:
-    if _metrics is not None:
-        _metrics.set_dependency_up(name, up)
-
-
-def record_clock_skew(exchange_id: str, skew_ms: int) -> None:
-    if _metrics is not None:
-        _metrics.record_clock_skew(exchange_id, skew_ms)
-
-
-def record_host_ntp(synced: Optional[bool]) -> None:
-    if _metrics is not None:
-        _metrics.record_host_ntp(synced)
-
-
-def refresh_dependencies() -> None:
-    """Vault + Timescale + host NTP sondası → Prometheus gauge."""
-    try:
-        from super_otonom.config import _vault_bridge
-
-        set_dependency_up("vault", bool(_vault_bridge().status().get("available")))
-    except (ImportError, OSError, AttributeError) as exc:
-        log.debug("Vault probe atlandi: %s", exc)
-        set_dependency_up("vault", False)
-
-    try:
-        from super_otonom.infra.timescale_bridge import probe_timescale_available
-
-        set_dependency_up("timescale", probe_timescale_available())
-    except (ImportError, OSError) as exc:
-        log.debug("Timescale probe atlandi: %s", exc)
-        set_dependency_up("timescale", False)
-
-    try:
-        from super_otonom.clock_skew import probe_host_ntp_sync
-
-        record_host_ntp(probe_host_ntp_sync())
-    except (ImportError, OSError) as exc:
-        log.debug("NTP probe atlandi: %s", exc)
-        record_host_ntp(None)
+    runpy.run_module("super_otonom.monitoring.ops_metrics", alter_sys=True)

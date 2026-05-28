@@ -9,6 +9,7 @@ on:
       - "super_otonom/risk_manager.py"
       - "super_otonom/capital_engine.py"
       - "super_otonom/risk_ontology.py"
+      - "super_otonom/analysis/risk_ontology.py"
       - "super_otonom/pre_trade_gate.py"
       - "super_otonom/risk/var_models.py"
       - "super_otonom/risk/cvar_models.py"
@@ -64,6 +65,7 @@ jobs:
               - 'super_otonom/capital_engine.py'
             risk_ontology:
               - 'super_otonom/risk_ontology.py'
+              - 'super_otonom/analysis/risk_ontology.py'
               - 'tests/test_risk_ontology_mutation.py'
               - 'tests/test_risk_mutation_targets.py'
               - 'scripts/mutmut_risk_targets.py'
@@ -174,13 +176,13 @@ jobs:
       - name: Coverage bağlamı (mutmut --use-coverage önkoşul)
         run: |
           python -m pytest ${{ steps.targets.outputs.paths }} -q \
-            --cov=super_otonom.risk_ontology \
+            --cov=super_otonom.analysis.risk_ontology \
             --cov-context=test \
             --cov-report=
       - name: Mutation testi çalıştır
         run: |
           mutmut run \
-            --paths-to-mutate super_otonom/risk_ontology.py \
+            --paths-to-mutate super_otonom/analysis/risk_ontology.py \
             --use-coverage \
             --disable-mutation-types=string \
             --runner "python -m pytest ${{ steps.targets.outputs.paths }} -x -q --tb=no" \

@@ -226,7 +226,7 @@ def test_package_topology_audit_cli_json_fail(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "super_otonom.package_topology_audit.audit_package_topology_claims",
+        "super_otonom.audit.package_topology_audit.audit_package_topology_claims",
         lambda root=None: ["fake: forbidden"],
     )
     assert pkg_topo_main(["--json"]) == 1
@@ -238,7 +238,7 @@ def test_package_topology_audit_cli_text_fail(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "super_otonom.package_topology_audit.audit_package_topology_claims",
+        "super_otonom.audit.package_topology_audit.audit_package_topology_claims",
         lambda root=None: ["fake: fail"],
     )
     assert pkg_topo_main([]) == 1
@@ -257,7 +257,7 @@ def test_bot_engine_audit_cli_json_fail(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "super_otonom.bot_engine_audit.audit_bot_engine_claims",
+        "super_otonom.audit.bot_engine_audit.audit_bot_engine_claims",
         lambda root=None: ["fake: forbidden"],
     )
     assert be_topo_main(["--json"]) == 1
@@ -269,7 +269,7 @@ def test_bot_engine_audit_cli_text_fail(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "super_otonom.bot_engine_audit.audit_bot_engine_claims",
+        "super_otonom.audit.bot_engine_audit.audit_bot_engine_claims",
         lambda root=None: ["fake: fail"],
     )
     assert be_topo_main([]) == 1
@@ -632,7 +632,7 @@ def test_var_topology_audit_cli_json_fail(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "super_otonom.var_topology_audit.audit_var_topology_claims",
+        "super_otonom.audit.var_topology_audit.audit_var_topology_claims",
         lambda root=None: ["fake: fail"],
     )
     assert var_topo_audit_main(["--json"]) == 1

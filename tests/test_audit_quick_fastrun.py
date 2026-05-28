@@ -8,9 +8,12 @@ from pathlib import Path
 import pytest
 from super_otonom.data_freshness import periods_per_year_from_timeframe
 
+from tests._prompt04_source import module_source_path
+
 pytestmark = pytest.mark.fastrun
 
 _ROOT = Path(__file__).resolve().parents[1]
+_PKG = _ROOT / "super_otonom"
 
 
 def test_periods_per_year_1h_crypto_24_7() -> None:
@@ -24,7 +27,7 @@ def test_periods_per_year_5m() -> None:
 
 
 def test_main_loop_finally_ws_vars_initialized_before_try() -> None:
-    src = (_ROOT / "super_otonom" / "main_loop.py").read_text(encoding="utf-8")
+    src = module_source_path(_PKG, "main_loop").read_text(encoding="utf-8")
     main_idx = src.index("async def main()")
     try_idx = src.index("    try:", main_idx)
     chunk = src[main_idx:try_idx]

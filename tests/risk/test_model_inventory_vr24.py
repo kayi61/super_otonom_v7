@@ -20,6 +20,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 _ROOT = Path(__file__).resolve().parents[2]
+from tests._prompt04_source import module_source_path
+
+_PKG = _ROOT / "super_otonom"
 
 sys.path.insert(0, str(_ROOT / "scripts"))
 
@@ -421,21 +424,17 @@ class TestAuditAllowlist:
     """VR-24: var_topology_audit allowlist entries."""
 
     def test_test_file_in_allowlist(self):
-        src = _ROOT / "super_otonom" / "var_topology_audit.py"
-        text = src.read_text(encoding="utf-8")
+        text = module_source_path(_PKG, "var_topology_audit").read_text(encoding="utf-8")
         assert "test_model_inventory_vr24" in text
 
     def test_inventory_doc_in_allowlist(self):
-        src = _ROOT / "super_otonom" / "var_topology_audit.py"
-        text = src.read_text(encoding="utf-8")
+        text = module_source_path(_PKG, "var_topology_audit").read_text(encoding="utf-8")
         assert "MODEL_INVENTORY.md" in text
 
     def test_template_doc_in_allowlist(self):
-        src = _ROOT / "super_otonom" / "var_topology_audit.py"
-        text = src.read_text(encoding="utf-8")
+        text = module_source_path(_PKG, "var_topology_audit").read_text(encoding="utf-8")
         assert "MODEL_VALIDATION_TEMPLATE.md" in text
 
     def test_script_in_allowlist(self):
-        src = _ROOT / "super_otonom" / "var_topology_audit.py"
-        text = src.read_text(encoding="utf-8")
+        text = module_source_path(_PKG, "var_topology_audit").read_text(encoding="utf-8")
         assert "check_model_validation_due" in text
