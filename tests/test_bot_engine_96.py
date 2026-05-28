@@ -543,7 +543,8 @@ def _reload_bot_engine_and_main_loop() -> None:
     for k in list(sys.modules):
         if k == "super_otonom.bot_engine" or k.startswith("super_otonom.bot_engine."):
             del sys.modules[k]
-    import super_otonom.main_loop as _ml
+    importlib.import_module("super_otonom.core")
+    import super_otonom.core.main_loop as _ml
 
     importlib.import_module("super_otonom.bot_engine")
     importlib.reload(_ml)

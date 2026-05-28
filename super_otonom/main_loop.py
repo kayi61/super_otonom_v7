@@ -4,10 +4,18 @@ from __future__ import annotations
 import importlib
 import sys
 
-_mod = importlib.import_module("super_otonom.core.main_loop")
+_PARENT = "super_otonom.core"
+_TARGET = "super_otonom.core.main_loop"
+
+# Parent paket zinciri reload/xdist için sys.modules'ta kalmalı (test_ai_layer_paths vb.).
+importlib.import_module("super_otonom")
+importlib.import_module(_PARENT)
+_mod = importlib.import_module(_TARGET)
 
 if __name__ != "__main__":
     # Import-time aliasing: monkeypatch/inspect doğrudan gerçek modüle gider.
+    sys.modules[_PARENT] = importlib.import_module(_PARENT)
+    sys.modules[_TARGET] = _mod
     sys.modules[__name__] = _mod
 else:
     _main = getattr(_mod, "main", None)
