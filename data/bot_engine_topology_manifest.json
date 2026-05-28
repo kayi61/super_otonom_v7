@@ -1,14 +1,14 @@
 {
   "audit": 8,
   "schema_version": 1,
-  "file_line_count": 1283,
-  "file_nonempty_line_count": 1088,
-  "bot_engine_class_line_count": 916,
+  "file_line_count": 831,
+  "file_nonempty_line_count": 696,
+  "bot_engine_class_line_count": 469,
   "bot_engine_method_count": 35,
   "file_line_ceiling": 1450,
-  "class_line_ceiling": 1100,
+  "class_line_ceiling": 500,
   "god_class_min_lines": 800,
-  "god_class": true,
+  "god_class": false,
   "institutional_single_responsibility_claim_allowed": false,
   "responsibility_domains": [
     "entry",
@@ -18,6 +18,7 @@
     "tick"
   ],
   "partial_delegation_modules": [
+    "bot_engine_managers",
     "engine_managers",
     "hard_safety_contract",
     "pipelines",
@@ -65,5 +66,5 @@
     "tick",
     "tick_async"
   ],
-  "disclaimer_tr": "BotEngine tek sınıfta tick, giriş/çıkış, risk ve state taşır (~1000+ satır). engine_managers ve pipelines kısmi delegasyondur; kurumsal tek-sorumluluk iddiası bu yapı ile uyumlu değildir. LOC manifest ve tavan ile büyüme kontrol edilir."
+  "disclaimer_tr": "BotEngine compose katmanıdır; tick/giriş/çıkış bot_engine_managers, state/risk engine_managers + pipelines ile ayrıştırılmıştır. Kurumsal tek-sorumluluk iddiası kapalıdır; LOC manifest ve tavan ile büyüme kontrol edilir."
 }
