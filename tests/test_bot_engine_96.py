@@ -567,7 +567,7 @@ def test_all_core_imports_fail_uses_stubs_in_process(
         return _orig(name, globals, locals, fromlist, level, **kwargs)
 
     for k in list(sys.modules):
-        if k == "super_otonom.bot_engine" or k.startswith("super_otonom.bot_engine."):
+        if k == "super_otonom.core.bot_engine" or k.startswith("super_otonom.core.bot_engine."):
             del sys.modules[k]
     for k in (
         "super_otonom.position_sizer",
@@ -578,7 +578,7 @@ def test_all_core_imports_fail_uses_stubs_in_process(
         sys.modules.pop(k, None)
     monkeypatch.setattr(builtins, "__import__", _h)
     try:
-        m = importlib.import_module("super_otonom.bot_engine")
+        m = importlib.import_module("super_otonom.core.bot_engine")
         assert m._CORE_AVAILABLE is False
         b = m.BotEngine(10.0, paper=True)
         p = b.slippage.adjusted_price("buy", 1.0, order_size=1.0, avg_volume=1.0, volatility=0.1)
@@ -606,6 +606,9 @@ def test_all_core_imports_fail_uses_stubs_in_process(
             "super_otonom.core.risk_manager",
         ):
             sys.modules.pop(k, None)
+        for k in list(sys.modules):
+            if k == "super_otonom.core.bot_engine" or k.startswith("super_otonom.core.bot_engine."):
+                del sys.modules[k]
         _reload_bot_engine_and_main_loop()
 
 

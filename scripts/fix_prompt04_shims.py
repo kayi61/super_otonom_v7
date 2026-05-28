@@ -32,7 +32,11 @@ SHIMS: dict[str, str] = {
     "kanon_drift_check.py": "super_otonom.audit.kanon_drift_check",
 }
 
-TEMPLATE = '''\
+ALIAS_ON_IMPORT = {
+    "main_loop.py",
+}
+
+TEMPLATE_ALIAS = '''\
 """Backward-compatible shim — ``{target}``."""
 from __future__ import annotations
 
@@ -53,10 +57,38 @@ else:
     runpy.run_module("{target}", alter_sys=True)
 '''
 
+TEMPLATE_GETATTR = '''\
+"""Backward-compatible shim — ``{target}``."""
+from __future__ import annotations
+
+import importlib
+from typing import Any
+
+_mod = importlib.import_module("{target}")
+
+
+def __getattr__(name: str) -> Any:
+    return getattr(_mod, name)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(dir(_mod)))
+
+
+if __name__ == "__main__":
+    _main = getattr(_mod, "main", None)
+    if _main is not None:
+        raise SystemExit(_main())
+    import runpy
+
+    runpy.run_module("{target}", alter_sys=True)
+'''
+
 
 def main() -> None:
     for flat, target in SHIMS.items():
-        (PKG / flat).write_text(TEMPLATE.format(target=target), encoding="utf-8")
+        template = TEMPLATE_ALIAS if flat in ALIAS_ON_IMPORT else TEMPLATE_GETATTR
+        (PKG / flat).write_text(template.format(target=target), encoding="utf-8")
         print(f"fixed {flat}")
 
 

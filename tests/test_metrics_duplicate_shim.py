@@ -60,12 +60,12 @@ def _build_shim_with_registry() -> types.ModuleType:
 
 def test_metrics_exporter_second_init_uses_registry_get() -> None:
     saved = sys.modules.get("prometheus_client")
-    saved_me = sys.modules.get("super_otonom.metrics_exporter")
+    saved_me = sys.modules.get("super_otonom.monitoring.metrics_exporter")
     try:
         sys.modules["prometheus_client"] = _build_shim_with_registry()
         if saved_me:
-            del sys.modules["super_otonom.metrics_exporter"]
-        me = importlib.import_module("super_otonom.metrics_exporter")
+            del sys.modules["super_otonom.monitoring.metrics_exporter"]
+        me = importlib.import_module("super_otonom.monitoring.metrics_exporter")
         ns = "mdup_shim"
         a = me.MetricsExporter(port=0, namespace=ns)
         b = me.MetricsExporter(port=0, namespace=ns)
@@ -76,20 +76,20 @@ def test_metrics_exporter_second_init_uses_registry_get() -> None:
         else:
             sys.modules.pop("prometheus_client", None)
         if saved_me is not None:
-            sys.modules["super_otonom.metrics_exporter"] = saved_me
+            sys.modules["super_otonom.monitoring.metrics_exporter"] = saved_me
         else:
-            sys.modules.pop("super_otonom.metrics_exporter", None)
-            importlib.import_module("super_otonom.metrics_exporter")
+            sys.modules.pop("super_otonom.monitoring.metrics_exporter", None)
+            importlib.import_module("super_otonom.monitoring.metrics_exporter")
 
 
 def test_metrics_exporter_update_and_record_paths_shim() -> None:
     saved = sys.modules.get("prometheus_client")
-    saved_me = sys.modules.get("super_otonom.metrics_exporter")
+    saved_me = sys.modules.get("super_otonom.monitoring.metrics_exporter")
     try:
         sys.modules["prometheus_client"] = _build_shim_with_registry()
         if saved_me:
-            del sys.modules["super_otonom.metrics_exporter"]
-        me = importlib.import_module("super_otonom.metrics_exporter")
+            del sys.modules["super_otonom.monitoring.metrics_exporter"]
+        me = importlib.import_module("super_otonom.monitoring.metrics_exporter")
         ex = me.MetricsExporter(port=0, namespace="path_shim")
         ex.update({"equity": "x", "open_positions": object()})
         ex.update({"equity": 1.0})
@@ -103,20 +103,20 @@ def test_metrics_exporter_update_and_record_paths_shim() -> None:
         else:
             sys.modules.pop("prometheus_client", None)
         if saved_me is not None:
-            sys.modules["super_otonom.metrics_exporter"] = saved_me
+            sys.modules["super_otonom.monitoring.metrics_exporter"] = saved_me
         else:
-            sys.modules.pop("super_otonom.metrics_exporter", None)
-            importlib.import_module("super_otonom.metrics_exporter")
+            sys.modules.pop("super_otonom.monitoring.metrics_exporter", None)
+            importlib.import_module("super_otonom.monitoring.metrics_exporter")
 
 
 def test_metrics_start_http_succeeds_in_shim() -> None:
     saved = sys.modules.get("prometheus_client")
-    saved_me = sys.modules.get("super_otonom.metrics_exporter")
+    saved_me = sys.modules.get("super_otonom.monitoring.metrics_exporter")
     try:
         sys.modules["prometheus_client"] = _build_shim_with_registry()
         if saved_me:
-            del sys.modules["super_otonom.metrics_exporter"]
-        me = importlib.import_module("super_otonom.metrics_exporter")
+            del sys.modules["super_otonom.monitoring.metrics_exporter"]
+        me = importlib.import_module("super_otonom.monitoring.metrics_exporter")
         me.MetricsExporter(port=1, namespace="http_ok_shim")
     finally:
         if saved is not None:
@@ -124,15 +124,15 @@ def test_metrics_start_http_succeeds_in_shim() -> None:
         else:
             sys.modules.pop("prometheus_client", None)
         if saved_me is not None:
-            sys.modules["super_otonom.metrics_exporter"] = saved_me
+            sys.modules["super_otonom.monitoring.metrics_exporter"] = saved_me
         else:
-            sys.modules.pop("super_otonom.metrics_exporter", None)
-            importlib.import_module("super_otonom.metrics_exporter")
+            sys.modules.pop("super_otonom.monitoring.metrics_exporter", None)
+            importlib.import_module("super_otonom.monitoring.metrics_exporter")
 
 
 def test_metrics_start_http_oserror_in_shim(caplog) -> None:
     saved = sys.modules.get("prometheus_client")
-    saved_me = sys.modules.get("super_otonom.metrics_exporter")
+    saved_me = sys.modules.get("super_otonom.monitoring.metrics_exporter")
     try:
         m = _build_shim_with_registry()
 
@@ -142,8 +142,8 @@ def test_metrics_start_http_oserror_in_shim(caplog) -> None:
         m.start_http_server = boom
         sys.modules["prometheus_client"] = m
         if saved_me:
-            del sys.modules["super_otonom.metrics_exporter"]
-        me_mod = importlib.import_module("super_otonom.metrics_exporter")
+            del sys.modules["super_otonom.monitoring.metrics_exporter"]
+        me_mod = importlib.import_module("super_otonom.monitoring.metrics_exporter")
         with caplog.at_level("ERROR", logger="super_otonom.metrics"):
             me_mod.MetricsExporter(port=9999, namespace="oserr_shim")
     finally:
@@ -152,7 +152,7 @@ def test_metrics_start_http_oserror_in_shim(caplog) -> None:
         else:
             sys.modules.pop("prometheus_client", None)
         if saved_me is not None:
-            sys.modules["super_otonom.metrics_exporter"] = saved_me
+            sys.modules["super_otonom.monitoring.metrics_exporter"] = saved_me
         else:
-            sys.modules.pop("super_otonom.metrics_exporter", None)
-            importlib.import_module("super_otonom.metrics_exporter")
+            sys.modules.pop("super_otonom.monitoring.metrics_exporter", None)
+            importlib.import_module("super_otonom.monitoring.metrics_exporter")
