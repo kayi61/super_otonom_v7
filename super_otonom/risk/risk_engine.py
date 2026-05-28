@@ -246,7 +246,11 @@ class RiskEngine:
         )
 
         # ── EVT Peaks Over Threshold (VR-06) ────────────────────────────────
-        evt_var99, evt_cvar99 = pot_var_cvar(ret, conf=0.99, threshold_quantile=0.95)
+        evt_var99, evt_cvar99 = pot_var_cvar(
+            ret, conf=0.99,
+            threshold_quantile=cfg.evt_threshold_quantile,
+            adaptive=getattr(cfg, "evt_adaptive", True),
+        )
 
         # ── Filtered Historical Simulation (VR-07) ──────────────────────────
         fhs_v95, fhs_cv95, fhs_v99, fhs_cv99 = None, None, None, None

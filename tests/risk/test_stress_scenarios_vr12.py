@@ -240,11 +240,14 @@ class TestStressGrid:
         assert grid.worst_scenario == worst_result.scenario_name
 
     def test_btc_crash_is_worst_for_btc_heavy(self) -> None:
-        """For a BTC-heavy portfolio, BTC crash should be the worst scenario."""
+        """For a BTC-heavy portfolio, a BTC crash scenario should be worst."""
         portfolio = {"BTC": 80000, "ETH": 10000, "SOL": 10000}
         scenarios = load_scenarios()
         grid = run_stress_grid(portfolio, scenarios)
-        assert grid.worst_scenario == "BTC_crash_30pct"
+        # With forward-looking scenarios, hypothetical_btc_70pct_crash
+        # is now worse than BTC_crash_30pct
+        assert "btc_crash" in grid.worst_scenario.lower() or \
+            "btc_70pct" in grid.worst_scenario.lower()
 
     def test_known_worst_value(self) -> None:
         """100% BTC, BTC_crash_30pct → -30% loss."""

@@ -430,16 +430,34 @@ def _section_6_stress(stress_results: List[Dict[str, Any]]) -> str:
     if not stress_results:
         return "## 6. Stres Senaryo Sonuçları\n\n> Senaryo verisi yok.\n"
 
+    # Split historical vs forward-looking
+    hist = [s for s in stress_results if not s["scenario"].startswith("hypothetical_")]
+    fwd = [s for s in stress_results if s["scenario"].startswith("hypothetical_")]
+
     lines = [
-        "## 6. Stres Senaryo Sonuçları (En Kötü 5)\n",
+        "## 6. Stres Senaryo Sonuçları\n",
+        "### 6a. Tarihsel Senaryolar\n",
         "| # | Senaryo | PnL (%) | Horizon |",
         "|---|---------|---------|---------|",
     ]
-    for i, sr in enumerate(stress_results, 1):
+    for i, sr in enumerate(hist or stress_results, 1):
         lines.append(
             f"| {i} | {sr['scenario']} | {sr['pnl_pct'] * 100:.2f}% | "
             f"{sr.get('horizon_h', '—')}h |"
         )
+
+    if fwd:
+        lines.extend([
+            "",
+            "### 6b. Forward-Looking Hipotetik Senaryolar\n",
+            "| # | Senaryo | PnL (%) | Horizon |",
+            "|---|---------|---------|---------|",
+        ])
+        for i, sr in enumerate(fwd, 1):
+            lines.append(
+                f"| {i} | {sr['scenario']} | {sr['pnl_pct'] * 100:.2f}% | "
+                f"{sr.get('horizon_h', '—')}h |"
+            )
 
     return "\n".join(lines) + "\n"
 
