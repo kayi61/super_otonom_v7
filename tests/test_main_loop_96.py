@@ -25,7 +25,8 @@ import super_otonom.config as _cfg
 
 
 def test_main_loop_reload_exits_on_live_without_confirm() -> None:
-    import super_otonom.main_loop as ml
+    importlib.import_module("super_otonom.core")
+    import super_otonom.core.main_loop as ml
 
     orig_pm = _cfg.GENERAL.get("paper_mode", True)
     orig_lc = _cfg.GENERAL.get("live_confirm", "")
