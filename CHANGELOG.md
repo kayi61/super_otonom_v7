@@ -1,5 +1,22 @@
 # CHANGELOG — super_otonom
 
+## [7.3.0](https://github.com/kayi61/super_otonom_v7/compare/super_otonom-v7.2.0...super_otonom-v7.3.0) (2026-05-29)
+
+
+### Features
+
+* **prompt-06:** integration tests + phase 45/47 coverage ([1148bda](https://github.com/kayi61/super_otonom_v7/commit/1148bda9b31be3d0014c7b7aa3b901b39c4ced25))
+* **prompt-06:** integration tests + phase 45/47 coverage (145 tests) ([8853c1e](https://github.com/kayi61/super_otonom_v7/commit/8853c1ee713e04e9bae996bcf4b31ecf12db37e3))
+* **prompt-07:** EVT adaptive threshold, forward-looking stress, MC 2000 draws ([af4f73f](https://github.com/kayi61/super_otonom_v7/commit/af4f73f2776d6b478386ecb15283d188f2e6ce9f))
+* **prompt-07:** EVT adaptive threshold, forward-looking stress, MC 2000 draws ([85aa222](https://github.com/kayi61/super_otonom_v7/commit/85aa222a7683a898bac57737f637cdc5fb17832a))
+
+
+### Bug Fixes
+
+* **ci:** pin numpy&lt;2 + scipy&lt;1.14 for mutmut compatibility ([996fe55](https://github.com/kayi61/super_otonom_v7/commit/996fe559e557e81aa7f075281dfd22f091bc892a))
+* **ci:** pin numpy&lt;2 in mutation testing to fix reimport crash ([a494417](https://github.com/kayi61/super_otonom_v7/commit/a494417867a3721edf618c9570e68f9840d227de))
+* **test:** increase Hypothesis deadline 12s→30s for MC 2000 draws ([eee50f6](https://github.com/kayi61/super_otonom_v7/commit/eee50f6ba0add786507daefe433bb5f3550dddf8))
+
 ## [7.2.0](https://github.com/kayi61/super_otonom_v7/compare/super_otonom-v7.1.1...super_otonom-v7.2.0) (2026-05-28)
 
 

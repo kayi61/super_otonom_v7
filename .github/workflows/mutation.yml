@@ -101,7 +101,7 @@ jobs:
       - name: Bağımlılıkları yükle
         run: |
           pip install "mutmut>=2.4,<3"
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" "numpy>=1.24,<2" "scipy>=1.11,<1.14"
       - name: Hedef test listesi
         id: targets
         run: echo "paths=$(python scripts/mutmut_risk_targets.py risk_manager)" >> "$GITHUB_OUTPUT"
@@ -135,7 +135,7 @@ jobs:
       - name: Bağımlılıkları yükle
         run: |
           pip install "mutmut>=2.4,<3"
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" "numpy>=1.24,<2" "scipy>=1.11,<1.14"
       - name: Hedef test listesi
         id: targets
         run: echo "paths=$(python scripts/mutmut_risk_targets.py capital_engine)" >> "$GITHUB_OUTPUT"
@@ -169,7 +169,7 @@ jobs:
       - name: Bağımlılıkları yükle
         run: |
           pip install "mutmut>=2.4,<3"
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" "numpy>=1.24,<2" "scipy>=1.11,<1.14"
       - name: Hedef test listesi
         id: targets
         run: echo "paths=$(python scripts/mutmut_risk_targets.py risk_ontology)" >> "$GITHUB_OUTPUT"
@@ -203,7 +203,7 @@ jobs:
       - name: Bağımlılıkları yükle
         run: |
           pip install "mutmut>=2.4,<3"
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" "numpy>=1.24,<2" "scipy>=1.11,<1.14"
       - name: Hedef test listesi
         id: targets
         run: echo "paths=$(python scripts/mutmut_risk_targets.py pre_trade_gate)" >> "$GITHUB_OUTPUT"
@@ -239,7 +239,7 @@ jobs:
       - name: Bağımlılıkları yükle
         run: |
           pip install "mutmut>=2.4,<3"
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" "numpy>=1.24,<2" "scipy>=1.11,<1.14"
       - name: Hedef test listesi
         id: targets
         run: echo "paths=$(python scripts/mutmut_risk_targets.py var_models)" >> "$GITHUB_OUTPUT"
@@ -273,7 +273,7 @@ jobs:
       - name: Bağımlılıkları yükle
         run: |
           pip install "mutmut>=2.4,<3"
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" "numpy>=1.24,<2" "scipy>=1.11,<1.14"
       - name: Hedef test listesi
         id: targets
         run: echo "paths=$(python scripts/mutmut_risk_targets.py cvar_models)" >> "$GITHUB_OUTPUT"
@@ -307,7 +307,7 @@ jobs:
       - name: Bağımlılıkları yükle
         run: |
           pip install "mutmut>=2.4,<3"
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" "numpy>=1.24,<2" "scipy>=1.11,<1.14"
       - name: Hedef test listesi
         id: targets
         run: echo "paths=$(python scripts/mutmut_risk_targets.py stressed_var)" >> "$GITHUB_OUTPUT"
@@ -341,7 +341,7 @@ jobs:
       - name: Bağımlılıkları yükle
         run: |
           pip install "mutmut>=2.4,<3"
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" "numpy>=1.24,<2" "scipy>=1.11,<1.14"
       - name: Hedef test listesi
         id: targets
         run: echo "paths=$(python scripts/mutmut_risk_targets.py var_backtest)" >> "$GITHUB_OUTPUT"

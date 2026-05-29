@@ -35,7 +35,7 @@ class RiskConfig:
     cvar_legacy_conf: float = 0.95
 
     # ── Monte Carlo ─────────────────────────────────────────────────────────
-    monte_carlo_draws: int = 600
+    monte_carlo_draws: int = 2000
     monte_carlo_seed: int = 42
 
     # ── Limit aggregation ───────────────────────────────────────────────────
@@ -53,8 +53,9 @@ class RiskConfig:
     student_t_df_estimator: Literal["mle"] = "mle"
 
     # ── EVT Peaks Over Threshold (VR-06) ──────────────────────────────────
-    evt_min_sample: int = 500
+    evt_min_sample: int = 200  # adaptive bootstrap (was 500)
     evt_threshold_quantile: float = 0.95
+    evt_adaptive: bool = True  # bootstrap-robust GPD for [200,500) samples
 
     # ── FHS GARCH(1,1) (VR-07) ────────────────────────────────────────────
     fhs_min_sample: int = 250
