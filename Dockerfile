@@ -1,4 +1,5 @@
-FROM python:3.14-slim
+# CI matrisi + pyproject requires-python (>=3.10,<3.13) ile hizali
+FROM python:3.12-slim
 
 WORKDIR /app
 

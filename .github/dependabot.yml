@@ -33,3 +33,10 @@ updates:
     labels:
       - dependencies
       - docker
+    # pyproject: requires-python <3.13 — 3.14+ image CD'de pip install'i kirar (PR #94)
+    ignore:
+      - dependency-name: "python"
+        versions:
+          - "3.13*"
+          - "3.14*"
+          - "3.15*"
