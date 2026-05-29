@@ -1,5 +1,12 @@
 # CHANGELOG — super_otonom
 
+## [7.3.1](https://github.com/kayi61/super_otonom_v7/compare/super_otonom-v7.3.0...super_otonom-v7.3.1) (2026-05-29)
+
+
+### Bug Fixes
+
+* **audit:** allowlist docs/api/ in var_topology_audit ([9af397a](https://github.com/kayi61/super_otonom_v7/commit/9af397ace644c70cb7febbdb00c3b8d3a27b013c))
+
 ## [7.3.0](https://github.com/kayi61/super_otonom_v7/compare/super_otonom-v7.2.0...super_otonom-v7.3.0) (2026-05-29)
 
 
