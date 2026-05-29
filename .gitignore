@@ -18,6 +18,9 @@ htmlcov/
 .idea/
 .vscode/
 
+# MkDocs build output
+site/
+
 # Yerel çalıştırma / derleme
 *.egg-info/
 build/
