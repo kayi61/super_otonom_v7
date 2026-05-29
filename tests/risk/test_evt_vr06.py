@@ -37,17 +37,24 @@ def _make_gpd_sample(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# §1  Graceful skip — sample < 500
+# §1  Graceful skip — sample < adaptive threshold (200) or legacy (500)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
 class TestEVTGracefulSkip:
     """EVT must return (None, None) when data is insufficient."""
 
-    def test_skip_small_sample(self) -> None:
-        var, cvar = pot_var_cvar(NORMAL_RETURNS_300, conf=0.99)
+    def test_skip_small_sample_legacy_mode(self) -> None:
+        """Legacy mode (adaptive=False): skip when < 500."""
+        var, cvar = pot_var_cvar(NORMAL_RETURNS_300, conf=0.99, adaptive=False)
         assert var is None
         assert cvar is None
+
+    def test_adaptive_active_at_300(self) -> None:
+        """Adaptive mode (default): 300 samples should work with bootstrap GPD."""
+        var, cvar = pot_var_cvar(NORMAL_RETURNS_300, conf=0.99)
+        assert var is not None
+        assert cvar is not None
 
     def test_skip_very_small(self) -> None:
         var, cvar = pot_var_cvar([0.01, -0.02, 0.005], conf=0.99)
@@ -59,12 +66,29 @@ class TestEVTGracefulSkip:
         assert var is None
         assert cvar is None
 
-    def test_skip_exactly_499(self) -> None:
+    def test_skip_below_adaptive_threshold(self) -> None:
+        """Even adaptive mode skips when < 200."""
         rng = np.random.default_rng(111)
-        ret = rng.normal(0.0, 0.02, size=499).tolist()
+        ret = rng.normal(0.0, 0.02, size=199).tolist()
         var, cvar = pot_var_cvar(ret, conf=0.99)
         assert var is None
         assert cvar is None
+
+    def test_skip_exactly_499_legacy(self) -> None:
+        """Legacy mode: 499 < 500 → skip."""
+        rng = np.random.default_rng(111)
+        ret = rng.normal(0.0, 0.02, size=499).tolist()
+        var, cvar = pot_var_cvar(ret, conf=0.99, adaptive=False)
+        assert var is None
+        assert cvar is None
+
+    def test_adaptive_active_at_200(self) -> None:
+        """Adaptive mode: exactly 200 should activate bootstrap GPD."""
+        rng = np.random.default_rng(333)
+        ret = rng.normal(0.0, 0.02, size=200).tolist()
+        var, cvar = pot_var_cvar(ret, conf=0.99)
+        assert var is not None
+        assert cvar is not None
 
     def test_active_at_500(self) -> None:
         rng = np.random.default_rng(222)
@@ -189,11 +213,20 @@ class TestRiskMetricsEVT:
         assert m.cvar_evt_99 >= m.var_evt_99
 
     def test_engine_skips_evt_small_sample(self) -> None:
+        """EVT skips when sample < 200 (adaptive threshold)."""
         rng = np.random.default_rng(909)
-        ret = rng.normal(0.0, 0.02, size=200).tolist()
+        ret = rng.normal(0.0, 0.02, size=150).tolist()
         m = RiskEngine().compute(ret)
         assert m.var_evt_99 is None
         assert m.cvar_evt_99 is None
+
+    def test_engine_activates_evt_at_200(self) -> None:
+        """EVT activates with adaptive bootstrap at 200+ samples."""
+        rng = np.random.default_rng(909)
+        ret = rng.normal(0.0, 0.02, size=250).tolist()
+        m = RiskEngine().compute(ret)
+        assert m.var_evt_99 is not None
+        assert m.cvar_evt_99 is not None
 
     def test_engine_evt_cvar_geq_var(self) -> None:
         rng = np.random.default_rng(1010)
@@ -214,8 +247,9 @@ class TestEVTConfig:
 
     def test_default_evt_config(self) -> None:
         cfg = RiskConfig()
-        assert cfg.evt_min_sample == 500
+        assert cfg.evt_min_sample == 200  # adaptive default
         assert cfg.evt_threshold_quantile == 0.95
+        assert cfg.evt_adaptive is True
         assert cfg.is_valid
 
     def test_evt_min_sample_too_low(self) -> None:

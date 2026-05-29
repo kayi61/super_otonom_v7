@@ -23,5 +23,25 @@
     "name": "flash_crash_10pct",
     "shocks": {"BTC": -0.10, "all": -0.15},
     "horizon_min": 5
+  },
+  {
+    "name": "hypothetical_btc_70pct_crash",
+    "shocks": {"BTC": -0.70, "ETH": -0.75, "alts": -0.85},
+    "horizon_h": 48
+  },
+  {
+    "name": "hypothetical_usdt_full_depeg",
+    "shocks": {"USDT_USD": -0.20, "BTC": -0.30, "ETH": -0.35, "alts": -0.50},
+    "horizon_h": 120
+  },
+  {
+    "name": "hypothetical_global_exchange_halt",
+    "shocks": {"BTC": -0.25, "ETH": -0.30, "alts": -0.40, "liquidity": 0.0},
+    "horizon_h": 72
+  },
+  {
+    "name": "hypothetical_regulatory_ban",
+    "shocks": {"BTC": -0.40, "ETH": -0.50, "alts": -0.65},
+    "horizon_h": 168
   }
 ]

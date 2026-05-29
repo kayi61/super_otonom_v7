@@ -54,7 +54,7 @@ pytestmark = pytest.mark.hypothesis
 
 # ── Custom Strategies ──────────────────────────────────────────────────────
 
-_HYP = settings(max_examples=80, deadline=12000, suppress_health_check=[HealthCheck.too_slow])
+_HYP = settings(max_examples=80, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
 
 CONFS = st.sampled_from([0.90, 0.95, 0.975, 0.99])
 

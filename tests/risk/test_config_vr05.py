@@ -42,7 +42,7 @@ class TestDefaultConfigValid:
 
     def test_default_monte_carlo(self) -> None:
         rc = RiskConfig()
-        assert rc.monte_carlo_draws == 600
+        assert rc.monte_carlo_draws == 2000  # upgraded from 600
         assert rc.monte_carlo_seed == 42
 
     def test_default_limit_aggregator(self) -> None:
