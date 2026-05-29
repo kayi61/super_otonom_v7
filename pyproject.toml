@@ -37,6 +37,10 @@ dev = [
     "pytest-xdist>=3.5",
     "ruff>=0.8.0",
 ]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.24",
+]
 lstm = ["torch>=2.0.0"]
 
 [project.scripts]

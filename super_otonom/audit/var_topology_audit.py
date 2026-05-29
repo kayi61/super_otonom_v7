@@ -80,6 +80,10 @@ _ALLOWLIST_FILES = (
     "RISK_METHODOLOGY.md",
     "CLAUDE.md",
     "CHANGELOG.md",
+    "docs/api/",
+    "docs/architecture.md",
+    "docs/onboarding.md",
+    "docs/CHANGELOG.md",
 )
 
 _ALLOW_SUBSTR = (
