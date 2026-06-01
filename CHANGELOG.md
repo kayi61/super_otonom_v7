@@ -1,5 +1,12 @@
 # CHANGELOG — super_otonom
 
+## [7.3.2](https://github.com/kayi61/super_otonom_v7/compare/super_otonom-v7.3.1...super_otonom-v7.3.2) (2026-06-01)
+
+
+### Bug Fixes
+
+* **docker:** revert Python 3.14 base image (PR [#94](https://github.com/kayi61/super_otonom_v7/issues/94) CD) ([be3be6d](https://github.com/kayi61/super_otonom_v7/commit/be3be6dd7a08fbee818a584a158ccae7e2fc197a))
+
 ## [7.3.1](https://github.com/kayi61/super_otonom_v7/compare/super_otonom-v7.3.0...super_otonom-v7.3.1) (2026-05-29)
 
 
