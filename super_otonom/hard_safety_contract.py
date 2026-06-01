@@ -268,20 +268,48 @@ def _bot_engine_audit_path() -> Path:
     return _REPO_ROOT / "super_otonom" / "bot_engine.py"
 
 
+def _registry_audit_path() -> Path:
+    """PROMPT-09: contract gate'leri ``bot_patch_registry`` içinde toplanır (test patch hedefi)."""
+    core = _REPO_ROOT / "super_otonom" / "core" / "bot_patch_registry.py"
+    if core.is_file():
+        return core
+    return _REPO_ROOT / "super_otonom" / "bot_patch_registry.py"
+
+
+def _entry_orchestrator_audit_path() -> Path:
+    """``EntryOrchestrator`` — registry gate'lerini çağıran gerçek giriş yolu."""
+    return _REPO_ROOT / "super_otonom" / "engine_managers.py"
+
+
 def audit_bot_engine_uses_contract() -> List[str]:
-    """BotEngine doğrudan pre_trade_gate import etmemeli."""
-    path = _bot_engine_audit_path()
+    """Giriş yolu hard_safety_contract gate'lerini kullanmalı (AI override edemez).
+
+    PROMPT-09 sonrası topoloji: gate'ler ``bot_patch_registry`` içinde toplanır
+    (explicit registry; ``bot_engine`` F401 re-export yok), ``EntryOrchestrator``
+    (``engine_managers``) registry üzerinden çağırır. ``bot_engine`` hiçbir zaman
+    doğrudan ``pre_trade_gate`` import etmemeli (gate bypass yasağı korunur).
+    """
+    issues: List[str] = []
     try:
-        src = path.read_text(encoding="utf-8")
+        be_src = _bot_engine_audit_path().read_text(encoding="utf-8")
     except OSError as exc:
         return [f"bot_engine: read error: {exc}"]
-    issues: List[str] = []
-    if "from super_otonom.hard_safety_contract import" not in src:
-        issues.append("bot_engine: must import gates from hard_safety_contract")
-    if "from super_otonom.pre_trade_gate import" in src:
+    if "from super_otonom.pre_trade_gate import" in be_src:
         issues.append("bot_engine: direct pre_trade_gate import forbidden")
-    if "enforce_entry_prechecks" not in src and "_entry_check_gates" in src:
-        issues.append("bot_engine: entry path should use enforce_entry_prechecks")
+    try:
+        reg_src = _registry_audit_path().read_text(encoding="utf-8")
+    except OSError as exc:
+        issues.append(f"bot_patch_registry: read error: {exc}")
+        reg_src = ""
+    if "from super_otonom.hard_safety_contract import" not in reg_src:
+        issues.append("bot_patch_registry: must import gates from hard_safety_contract")
+    try:
+        orch_src = _entry_orchestrator_audit_path().read_text(encoding="utf-8")
+    except OSError as exc:
+        issues.append(f"engine_managers: read error: {exc}")
+        orch_src = ""
+    if "enforce_entry_prechecks" not in orch_src:
+        issues.append("engine_managers: entry path should use enforce_entry_prechecks")
     return issues
 
 

@@ -106,7 +106,7 @@ class TestPhase45Schema:
 
     @patch("super_otonom.signals.unified_alpha_core.run_regime_detection_phase")
     @patch("super_otonom.signals.unified_alpha_core.monitor_alpha_decay")
-    @patch("super_otonom.bot_engine.compute_signal_quality")
+    @patch("super_otonom.bot_patch_registry.compute_signal_quality")
     def test_phase45_attached_to_analysis(
         self,
         mock_sq: MagicMock,
@@ -139,7 +139,7 @@ class TestPhase45Schema:
 
     @patch("super_otonom.signals.unified_alpha_core.run_regime_detection_phase")
     @patch("super_otonom.signals.unified_alpha_core.monitor_alpha_decay")
-    @patch("super_otonom.bot_engine.compute_signal_quality")
+    @patch("super_otonom.bot_patch_registry.compute_signal_quality")
     def test_trade_permission_values(
         self,
         mock_sq: MagicMock,
@@ -168,7 +168,7 @@ class TestPhase45Schema:
 
     @patch("super_otonom.signals.unified_alpha_core.run_regime_detection_phase")
     @patch("super_otonom.signals.unified_alpha_core.monitor_alpha_decay")
-    @patch("super_otonom.bot_engine.compute_signal_quality")
+    @patch("super_otonom.bot_patch_registry.compute_signal_quality")
     def test_alpha_risk_score_range(
         self,
         mock_sq: MagicMock,
@@ -209,7 +209,7 @@ class TestQualityReject:
 
     @patch("super_otonom.signals.unified_alpha_core.run_regime_detection_phase")
     @patch("super_otonom.signals.unified_alpha_core.monitor_alpha_decay")
-    @patch("super_otonom.bot_engine.compute_signal_quality")
+    @patch("super_otonom.bot_patch_registry.compute_signal_quality")
     def test_low_quality_rejects_buy(
         self,
         mock_sq: MagicMock,
@@ -241,7 +241,7 @@ class TestQualityReject:
 
     @patch("super_otonom.signals.unified_alpha_core.run_regime_detection_phase")
     @patch("super_otonom.signals.unified_alpha_core.monitor_alpha_decay")
-    @patch("super_otonom.bot_engine.compute_signal_quality")
+    @patch("super_otonom.bot_patch_registry.compute_signal_quality")
     def test_high_quality_allows_buy(
         self,
         mock_sq: MagicMock,
@@ -271,7 +271,7 @@ class TestQualityReject:
 
     @patch("super_otonom.signals.unified_alpha_core.run_regime_detection_phase")
     @patch("super_otonom.signals.unified_alpha_core.monitor_alpha_decay")
-    @patch("super_otonom.bot_engine.compute_signal_quality")
+    @patch("super_otonom.bot_patch_registry.compute_signal_quality")
     def test_hold_signal_not_rejected(
         self,
         mock_sq: MagicMock,
@@ -308,7 +308,7 @@ class TestQualityReject:
 class TestDecayIntegration:
     @patch("super_otonom.signals.unified_alpha_core.run_regime_detection_phase")
     @patch("super_otonom.signals.unified_alpha_core.monitor_alpha_decay")
-    @patch("super_otonom.bot_engine.compute_signal_quality")
+    @patch("super_otonom.bot_patch_registry.compute_signal_quality")
     def test_decay_snapshot_attached(
         self,
         mock_sq: MagicMock,
@@ -342,7 +342,7 @@ class TestDecayIntegration:
 
     @patch("super_otonom.signals.unified_alpha_core.run_regime_detection_phase")
     @patch("super_otonom.signals.unified_alpha_core.monitor_alpha_decay")
-    @patch("super_otonom.bot_engine.compute_signal_quality")
+    @patch("super_otonom.bot_patch_registry.compute_signal_quality")
     def test_decay_failure_graceful(
         self,
         mock_sq: MagicMock,
@@ -379,7 +379,7 @@ class TestDecayIntegration:
 class TestOmegaRegime:
     @patch("super_otonom.signals.unified_alpha_core.run_regime_detection_phase")
     @patch("super_otonom.signals.unified_alpha_core.monitor_alpha_decay")
-    @patch("super_otonom.bot_engine.compute_signal_quality")
+    @patch("super_otonom.bot_patch_registry.compute_signal_quality")
     def test_omega_regime_propagated_to_dctx(
         self,
         mock_sq: MagicMock,
@@ -411,7 +411,7 @@ class TestOmegaRegime:
 
     @patch("super_otonom.signals.unified_alpha_core.run_regime_detection_phase")
     @patch("super_otonom.signals.unified_alpha_core.monitor_alpha_decay")
-    @patch("super_otonom.bot_engine.compute_signal_quality")
+    @patch("super_otonom.bot_patch_registry.compute_signal_quality")
     def test_return_value_tuple(
         self,
         mock_sq: MagicMock,
@@ -446,7 +446,7 @@ class TestOmegaRegime:
 class TestEdgeCases:
     @patch("super_otonom.signals.unified_alpha_core.run_regime_detection_phase")
     @patch("super_otonom.signals.unified_alpha_core.monitor_alpha_decay")
-    @patch("super_otonom.bot_engine.compute_signal_quality")
+    @patch("super_otonom.bot_patch_registry.compute_signal_quality")
     def test_no_event_ts_uses_now(
         self,
         mock_sq: MagicMock,
@@ -474,7 +474,7 @@ class TestEdgeCases:
 
     @patch("super_otonom.signals.unified_alpha_core.run_regime_detection_phase")
     @patch("super_otonom.signals.unified_alpha_core.monitor_alpha_decay")
-    @patch("super_otonom.bot_engine.compute_signal_quality")
+    @patch("super_otonom.bot_patch_registry.compute_signal_quality")
     def test_phase26_ref_stored(
         self,
         mock_sq: MagicMock,

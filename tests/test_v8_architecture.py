@@ -6,7 +6,6 @@ import asyncio
 from unittest.mock import patch
 
 import pytest
-import super_otonom.bot_engine as bemod
 from super_otonom.bot_engine import BotEngine
 from super_otonom.pipelines import risk_pipeline, signal_pipeline
 from super_otonom.state_machine import TradingState, compute_trading_state
@@ -43,8 +42,8 @@ def test_force_all_close_open_position(tmp_path, monkeypatch: pytest.MonkeyPatch
     }
     c = [{"close": 1.0, "volume": 1.0}]
     with (
-        patch.object(bemod, "compute_signal_quality", return_value=(90, [], {}, "m")),
-        patch.object(bemod, "compute_omega_regime", return_value=("TRENDING", 1.0, 1.0, 90, "om")),
+        patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(90, [], {}, "m")),
+        patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("TRENDING", 1.0, 1.0, 90, "om")),
         patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")),
     ):
         out = asyncio.run(
@@ -61,8 +60,8 @@ def test_force_all_close_no_position_hold(tmp_path, monkeypatch: pytest.MonkeyPa
     e = BotEngine(1000.0, paper=True)
     c = [{"close": 1.0, "volume": 1.0}]
     with (
-        patch.object(bemod, "compute_signal_quality", return_value=(90, [], {}, "m")),
-        patch.object(bemod, "compute_omega_regime", return_value=("TRENDING", 1.0, 1.0, 90, "om")),
+        patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(90, [], {}, "m")),
+        patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("TRENDING", 1.0, 1.0, 90, "om")),
         patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")),
     ):
         out = asyncio.run(

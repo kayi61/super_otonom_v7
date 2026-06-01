@@ -9,6 +9,7 @@ __pycache__/
 .venv/
 venv/
 .ruff_cache/
+.mutmut-cache
 .pytest_cache/
 .pytest_basetemp/
 .coverage

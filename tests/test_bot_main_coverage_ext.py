@@ -152,8 +152,8 @@ def test_trend_follow_override(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Non
     def _om(_a, _q):
         return ("RANGING", 1.0, 0.5, 90, "log")
 
-    monkeypatch.setattr(be, "compute_signal_quality", _sq)
-    monkeypatch.setattr(be, "compute_omega_regime", _om)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_signal_quality", _sq)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_omega_regime", _om)
     monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "t.json"))
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "t.log"))
     e = BotEngine(1_000.0, paper=True)
@@ -185,8 +185,8 @@ def test_ai_validate_two_tuple(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Non
     def _om(_a, _q):
         return ("TRENDING", 1.0, 1.0, 95, "log")
 
-    monkeypatch.setattr(be, "compute_signal_quality", _sq)
-    monkeypatch.setattr(be, "compute_omega_regime", _om)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_signal_quality", _sq)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_omega_regime", _om)
     monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "2.json"))
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "2.log"))
     e = BotEngine(1_000.0, paper=True)
@@ -211,8 +211,8 @@ def test_low_quality_buy_reject(tmp_path, monkeypatch: pytest.MonkeyPatch) -> No
     def _om(_a, _q):
         return ("RANGING", 0.5, 0.3, 20, "log")
 
-    monkeypatch.setattr(be, "compute_signal_quality", _sq)
-    monkeypatch.setattr(be, "compute_omega_regime", _om)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_signal_quality", _sq)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_omega_regime", _om)
     monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "l.json"))
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "l.log"))
     e = BotEngine(1_000.0, paper=True)
@@ -242,8 +242,8 @@ def test_entry_merge_ob_zero_blocked(tmp_path, monkeypatch: pytest.MonkeyPatch) 
     def _om(_a, _q):
         return ("TRENDING", 1.0, 1.0, 95, "log")
 
-    monkeypatch.setattr(be, "compute_signal_quality", _sq)
-    monkeypatch.setattr(be, "compute_omega_regime", _om)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_signal_quality", _sq)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_omega_regime", _om)
     monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "b.json"))
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "b.log"))
     e = BotEngine(1_000.0, paper=True)
@@ -274,8 +274,8 @@ def test_entry_hard_limit_blocks_buy(tmp_path, monkeypatch: pytest.MonkeyPatch) 
     def _om(_a, _q):
         return ("TRENDING", 1.0, 1.0, 95, "log")
 
-    monkeypatch.setattr(be, "compute_signal_quality", _sq)
-    monkeypatch.setattr(be, "compute_omega_regime", _om)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_signal_quality", _sq)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_omega_regime", _om)
     monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "h.json"))
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "h.log"))
     e = BotEngine(1_000.0, paper=True)
@@ -329,8 +329,8 @@ def test_tick_async_order_check_on_10th_tick(tmp_path, monkeypatch: pytest.Monke
     def _om(_a, _q):
         return ("TRENDING", 1.0, 1.0, 95, "log")
 
-    monkeypatch.setattr(be, "compute_signal_quality", _sq)
-    monkeypatch.setattr(be, "compute_omega_regime", _om)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_signal_quality", _sq)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_omega_regime", _om)
     monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "a10.json"))
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "a10.log"))
     e = BotEngine(1_000.0, paper=True)
@@ -360,8 +360,8 @@ def test_live_mode_buy_uses_slippage_not_sim(tmp_path, monkeypatch: pytest.Monke
     def _om(_a, _q):
         return ("TRENDING", 1.0, 1.0, 95, "log")
 
-    monkeypatch.setattr(be, "compute_signal_quality", _sq)
-    monkeypatch.setattr(be, "compute_omega_regime", _om)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_signal_quality", _sq)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_omega_regime", _om)
     monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "v.json"))
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "v.log"))
     monkeypatch.setitem(CONFIG_RISK, "max_notional_per_order", 200_000.0)
