@@ -1,5 +1,15 @@
 # CHANGELOG — super_otonom
 
+## [7.4.0](https://github.com/kayi61/super_otonom_v7/compare/super_otonom-v7.3.2...super_otonom-v7.4.0) (2026-06-02)
+
+
+### Features
+
+* **prompt-1.1:** whale wallet tracker + Faz 17 feed ([b6c0bc7](https://github.com/kayi61/super_otonom_v7/commit/b6c0bc74e0291e03ec03653e5139287ff6ab42b4))
+* **prompt-1.1:** whale wallet tracker + Faz 17 feed bağlantısı ([4fe6441](https://github.com/kayi61/super_otonom_v7/commit/4fe644142b6cf50c7fd9ca6d7c353554132bc6c6))
+* **prompt-10:** profiling + memory + async critical path ([84da95b](https://github.com/kayi61/super_otonom_v7/commit/84da95b9fd76335c53c78224ff73e34f757d342e))
+* **prompt-10:** profiling + memory + async critical path ([6f3a660](https://github.com/kayi61/super_otonom_v7/commit/6f3a660f295af15291cc053d1f5e836d0fa26403))
+
 ## [7.3.2](https://github.com/kayi61/super_otonom_v7/compare/super_otonom-v7.3.1...super_otonom-v7.3.2) (2026-06-01)
 
 
