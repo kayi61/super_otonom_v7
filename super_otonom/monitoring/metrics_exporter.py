@@ -81,6 +81,8 @@ class MetricsExporter:
                 "host_ntp_synchronized",
                 "Host NTP: 1=sync, 0=not sync, -1=unknown",
             ),
+            ("memory_rss_bytes", "Süreç RSS bellek kullanımı (bytes) — PROMPT-10"),
+            ("tick_latency_ms", "Tick döngüsü gecikmesi (ms) — PROMPT-10"),
         ]
         for name, desc in gauge_defs:
             try:
@@ -883,6 +885,16 @@ class MetricsExporter:
             self._gauges["host_ntp_synchronized"].set(val)
         except Exception as exc:
             log.debug("MetricsExporter.record_host_ntp hata: %s", exc)
+
+    def record_performance(self, rss_bytes: float, tick_latency_ms: float) -> None:
+        """PROMPT-10: süreç RSS belleği + tick gecikmesi metrikleri."""
+        if not self._enabled:
+            return
+        try:
+            self._gauges["memory_rss_bytes"].set(float(rss_bytes))
+            self._gauges["tick_latency_ms"].set(float(tick_latency_ms))
+        except Exception as exc:
+            log.debug("MetricsExporter.record_performance hata: %s", exc)
 
     # ── VR-21: Comprehensive VaR suite recorder ──────────────────────────────
 

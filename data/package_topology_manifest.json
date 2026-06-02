@@ -1,7 +1,7 @@
 {
   "audit": 7,
   "schema_version": 1,
-  "flat_production_count": 103,
+  "flat_production_count": 105,
   "flat_test_count": 0,
   "flat_production_ceiling": 125,
   "allowed_subpackages": [
@@ -46,6 +46,7 @@
     "alert_manager.py",
     "alertmanager_telegram_bridge.py",
     "analyzer.py",
+    "async_io.py",
     "audit_log.py",
     "autonomous_decision_core.py",
     "backtest_leakage_guard.py",
@@ -114,6 +115,7 @@
     "portfolio_risk_engine.py",
     "position_sizer.py",
     "pre_trade_gate.py",
+    "profiling.py",
     "reconciliation_engine.py",
     "regime_adaptive_execution_engine.py",
     "regime_detection_engine.py",
