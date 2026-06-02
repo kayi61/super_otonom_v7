@@ -24,6 +24,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
 from super_otonom.ai_layer import AILayer
+from super_otonom.async_io import AsyncWriteBuffer
 from super_otonom.capital_engine import CapitalEngine
 from super_otonom.config import METRICS, RISK
 from super_otonom.core.bot_engine_managers import EntryManager, ExitManager, TickProcessor
@@ -39,6 +40,11 @@ from super_otonom.kill_switch import HardLimitTracker
 from super_otonom.metrics_exporter import MetricsExporter
 from super_otonom.order_engine import OrderEngine
 from super_otonom.pipelines import execution_pipeline, signal_pipeline
+from super_otonom.profiling import (
+    TickLatencyTracker,
+    measure_latency_ms,
+    record_tick_performance,
+)
 from super_otonom.risk_ontology import RiskOntology
 from super_otonom.self_feedback_guard import (
     audit_intratick_frozen_core,
@@ -297,19 +303,48 @@ class TradeLogger:
     Çift kayıt sistemi:
     - Her işlemde trades.log dosyasına satır ekler (bot çökse bile güvende)
     - BotEngine.trade_log bellek listesini de günceller
+
+    PROMPT-10: ``TRADE_LOG_ASYNC=1`` (veya ``async_buffer=True``) ile yazım, asyncio
+    event loop'unu bloke etmeyen arka plan thread'ine (``AsyncWriteBuffer``) devredilir.
+    Varsayılan davranış senkron kalır (geriye uyumluluk).
     """
 
-    def __init__(self, filepath: str = _TRADE_LOG_FILE):
+    def __init__(self, filepath: str = _TRADE_LOG_FILE, *, async_buffer: Optional[bool] = None):
         self.filepath = filepath
         os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
+        if async_buffer is None:
+            async_buffer = (os.getenv("TRADE_LOG_ASYNC", "") or "").strip().lower() in (
+                "1",
+                "true",
+                "yes",
+                "on",
+            )
+        self._buffer: Optional[AsyncWriteBuffer] = (
+            AsyncWriteBuffer(filepath) if async_buffer else None
+        )
 
     def log_trade(self, trade_data: Dict[str, Any]) -> None:
         trade_data.setdefault("logged_at", time.time())
         try:
-            with open(self.filepath, "a", encoding="utf-8") as f:
-                f.write(json.dumps(trade_data, ensure_ascii=False) + "\n")
+            line = json.dumps(trade_data, ensure_ascii=False)
+            if self._buffer is not None:
+                self._buffer.write(line)  # bloke etmeyen kuyruğa al
+            else:
+                with open(self.filepath, "a", encoding="utf-8") as f:
+                    f.write(line + "\n")
         except Exception as exc:
             log.error("TradeLogger: dosya yazma hatasi: %s", exc)
+
+    def flush(self) -> None:
+        """Async tampon varsa kuyruğu diske boşaltır (no-op sync modda)."""
+        if self._buffer is not None:
+            self._buffer.flush()
+
+    def close(self) -> None:
+        """Async tamponu güvenle kapatır (kalan satırları drain eder)."""
+        if self._buffer is not None:
+            self._buffer.close()
+            self._buffer = None
 
 
 # ── FIX 1 & 2: OrderTracker — async düzeltmesi + BotEngine entegrasyonu ──────
@@ -497,6 +532,7 @@ class BotEngine:
         self._today = date.today()
         self._trades_today = 0
         self._tick_counter = 0
+        self._latency_tracker = TickLatencyTracker()  # PROMPT-10: tick gecikmesi
         self._a11_tick_depth = 0  # PROMPT-A11 — tick() reentrancy (aynı engine)
         self._a11_audit_analysis: Optional[Dict[str, Any]] = None
         self._portfolio_risk_permission: str = "ALLOW"  # Faz 24: son portföy risk izni
@@ -547,6 +583,11 @@ class BotEngine:
     def shutdown(self) -> None:
         self.ai.stop()
         self._save_state()
+        # PROMPT-10: async trade-log tamponu varsa kalan satırları drain et.
+        try:
+            self.trade_logger.close()
+        except Exception as exc:
+            log.debug("TradeLogger.close shutdown hata: %s", exc)
 
     async def emergency_liquidate(self, reason: str = "emergency_stop") -> Dict[str, Any]:
         return await self._exit_mgr.emergency_liquidate(reason)
@@ -682,14 +723,22 @@ class BotEngine:
         self._tick_counter += 1
         self._a11_tick_depth += 1
         self._a11_audit_analysis = None
+        _perf = measure_latency_ms()
         try:
-            out = await self._tick_proc.tick_impl(symbol, analysis, candles, out)
+            with _perf:
+                out = await self._tick_proc.tick_impl(symbol, analysis, candles, out)
         finally:
             _a11_msg = audit_intratick_frozen_core(self._a11_audit_analysis)
             if _a11_msg:
                 log.error("PROMPT-A11 | %s | sym=%s", _a11_msg, symbol)
             self._a11_audit_analysis = None
             self._a11_tick_depth -= 1
+            # PROMPT-10: tick gecikmesi + RSS belleği (her 60 tick'te Prometheus'a yaz)
+            self._latency_tracker.record(_perf.elapsed_ms)
+            if self._tick_counter % 60 == 0:
+                record_tick_performance(
+                    getattr(self, "metrics", None), self._latency_tracker.p95
+                )
 
         return out
 

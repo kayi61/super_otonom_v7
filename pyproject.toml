@@ -33,6 +33,7 @@ dev = [
     "pip-audit>=2.7.0",
     "pytest>=8.0",
     "pytest-asyncio>=1.0",
+    "pytest-benchmark>=4.0",
     "pytest-cov>=4.0",
     "pytest-xdist>=3.5",
     "ruff>=0.8.0",
@@ -80,6 +81,7 @@ markers = [
     "fastrun: 5000 gate Python ayrık modülleri; Aşama 31 C++ hariç (pytest -m fastrun)",
     "cpp_optional: Aşama 31 C++ risk_engine/var_engine — pyd yoksa skip (pytest -m cpp_optional)",
     "testnet_ci: Binance testnet yapılandırma yolları (mock; gerçek API yok, CI)",
+    "benchmark: PROMPT-10 pytest-benchmark performans ölçümleri (xdist altında devre dışı)",
 ]
 
 [tool.ruff]
