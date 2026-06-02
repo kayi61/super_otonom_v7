@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import os
 from typing import Any
 
@@ -11,27 +10,29 @@ from super_otonom import __version__
 load_dotenv()
 
 
-def _env_trim(val: str | None) -> str:
-    """PowerShell / .env kopyasında sık görülen baş-son boşluk ve çift tırnak sarmalamasını kaldırır."""
-    if val is None:
-        return ""
-    s = str(val).strip()
-    if len(s) >= 2 and s[0] == s[-1] and s[0] in "\"'":
-        s = s[1:-1].strip()
-    return s
-
-
-def _env_pick(*keys: str, default: str = "") -> str:
-    for k in keys:
-        v = _env_trim(os.getenv(k, ""))
-        if v:
-            return v
-    return default
-
-
-def _env_truthy(name: str, default: str = "false") -> bool:
-    return _env_trim(os.getenv(name, default)).lower() in ("1", "true", "yes", "on")
-
+from super_otonom.core.config_env import (
+    effective_paper as _effective_paper,
+)
+from super_otonom.core.config_env import (
+    env_pick as _env_pick,
+)
+from super_otonom.core.config_env import (
+    env_trim as _env_trim,
+)
+from super_otonom.core.config_env import (
+    env_truthy as _env_truthy,
+)
+from super_otonom.core.config_meta import (
+    _log_meta_advisory_env_at_import,
+    ensure_meta_advisory_env_logged,
+)
+from super_otonom.core.risk_settings import (
+    RISK,
+    RiskSettings,
+    get_risk_settings,
+    reset_risk_settings_for_tests,
+    risk,
+)
 
 _VAULT_BRIDGE: Any = None
 
@@ -64,9 +65,7 @@ def _exchange_cfg(exchange_id: str, **non_api: Any) -> dict[str, Any]:
 
 # DRY_RUN=true → simülasyon: gerçek emir gönderilmez; paper zorlanır (runbook ilk aşama).
 # Canlı spot limit emirleri için: DRY_RUN=false, PAPER_MODE=false, LIVE_CONFIRM=YES, geçerli API anahtarları.
-_dry = os.getenv("DRY_RUN", "").strip().lower() in ("1", "true", "yes", "on")
-_paper = os.getenv("PAPER_MODE", "true").lower() == "true"
-_effective_paper = True if _dry else _paper
+_dry = _env_trim(os.getenv("DRY_RUN", "")).strip().lower() in ("1", "true", "yes", "on")
 
 # Varsayılan üretim yolu: Binance (testnet/canlı). Diğer anahtarlar deneysel — ccxt + exchange_async
 # ile tam doğrulanmadan canlı kullanılmamalıdır (minimum lot, rate limit, hata kodları farklıdır).
@@ -108,52 +107,7 @@ EXCHANGES = {
 
 PAIRS = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT"]
 
-RISK = {
-    # Pozisyon yonetimi — env ile calisma aninda degistirilebilir
-    "max_position_pct": float(os.getenv("MAX_POSITION_PCT", "0.12")),
-    "max_open_positions": int(
-        os.getenv("MAX_OPEN_POSITIONS", os.getenv("MAX_POSITION_COUNT", "1"))
-    ),
-    "min_notional": float(os.getenv("MIN_NOTIONAL", "10.0")),
-    # Tek emir üst notional (USDT) — fat finger; pre_trade_gate.fat_finger_check
-    "max_notional_per_order": max(
-        10.0,
-        min(float(os.getenv("MAX_NOTIONAL_PER_ORDER", "50000")), 50_000_000.0),
-    ),
-    # Kar/zarar seviyeleri (geriye uyum + kademeli çıkış üst sınırı)
-    "take_profit_pct": float(os.getenv("TAKE_PROFIT_PCT", "0.30")),
-    "stop_loss_pct": float(os.getenv("STOP_LOSS_PCT", "0.04")),
-    "trailing_stop_pct": float(os.getenv("TRAILING_STOP_PCT", "0.035")),
-    "trailing_stop_pct_strong": float(os.getenv("TRAILING_STOP_PCT_STRONG", "0.055")),
-    "trailing_stop_pct_weak": float(os.getenv("TRAILING_STOP_PCT_WEAK", "0.025")),
-    # Kayip/drawdown limitleri
-    "max_daily_loss_pct": float(os.getenv("MAX_DAILY_LOSS_PCT", "0.05")),
-    "max_weekly_loss_pct": float(os.getenv("MAX_WEEKLY_LOSS_PCT", "0.10")),
-    "max_total_drawdown": float(os.getenv("MAX_TOTAL_DRAWDOWN", "0.20")),
-    "max_exposure_pct": float(os.getenv("MAX_EXPOSURE_PCT", "0.12")),
-    # Kill-switch: limit üstü exposure acil durdurur (true = risk.trigger_emergency)
-    "exposure_breach_emergency": os.getenv("EXPOSURE_BREACH_EMERGENCY", "false").lower()
-    in ("1", "true", "yes", "on"),
-    # VR-19: VaR/CVaR breach kill-switch limitleri
-    "max_var_99_pct": float(os.getenv("MAX_VAR_99_PCT", "0.06")),
-    "max_cvar_975_pct": float(os.getenv("MAX_CVAR_975_PCT", "0.10")),
-    "max_model_dispersion_pct": float(os.getenv("MAX_MODEL_DISPERSION_PCT", "0.50")),
-    # Istatistiksel
-    "var_confidence": float(os.getenv("VAR_CONFIDENCE", "0.95")),
-    "entry_min_confidence": float(os.getenv("ENTRY_MIN_CONFIDENCE", "0.62")),
-    # Elite: sinyal kalite puanı — altındaki BUY reddi (SIGNAL_QUALITY_MIN)
-    "signal_quality_min": int(os.getenv("SIGNAL_QUALITY_MIN", "62")),
-    # Kaldıraç tavanı (PositionSizer + açık notional denetimi). Borsa margin ile uyum için env ile ayarlayın.
-    "max_leverage": max(
-        0.01,
-        min(float(os.getenv("MAX_LEVERAGE", "1.0")), 50.0),
-    ),
-    # Son başarılı girişten sonra minimum bekleme (s); 0 = kapalı (geriye uyum)
-    "min_entry_cooldown_sec": max(
-        0.0,
-        min(float(os.getenv("MIN_ENTRY_COOLDOWN_SEC", "0.0")), 86_400.0),
-    ),
-}
+# PROMPT-09: frozen RiskSettings + deprecated RISK dict view (super_otonom.core.risk_settings)
 
 STAGED_EXIT = {
     "take_profit_1": float(os.getenv("TAKE_PROFIT_1", "0.15")),
@@ -249,45 +203,32 @@ MTF = {
 }
 
 
-def _log_meta_advisory_env_at_import() -> None:
-    """Canlı/paper ile A9 env uyumu — import anında tek sefer (runbook: META_ORCHESTRATOR_A9)."""
-    mode = (os.getenv("META_REGIME_MODE") or "shadow").strip().lower()
-    if mode != "advisory":
-        return
-    loose = (os.getenv("META_ADVISORY_LOOSE") or "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-        "on",
-    )
-    log = logging.getLogger("super_otonom.config")
-    live_like = not _effective_paper
-    if live_like and loose:
-        log.warning(
-            "META_ADVISORY_LOOSE etkin ve paper/dry-run kapalı — A9 ölçüm kilidi devre dışı. "
-            "Üretimde kaldırın; geliştirici .env kopyalamayın. Bkz. docs/META_ORCHESTRATOR_A9.md"
-        )
-        return
-    if not live_like:
-        return
-    from super_otonom.meta_regime_orchestrator import advisory_ack_path_for_gate
-
-    path = advisory_ack_path_for_gate("advisory")
-    if path is None:
-        return
-    try:
-        ok = os.path.isfile(path) and os.path.getsize(path) > 0
-    except OSError:
-        ok = False
-    if not ok:
-        log.warning(
-            "META_REGIME_MODE=advisory, ölçüm ACK yok veya boş (%s) — güven çarpanı uygulanmaz. "
-            'python -m super_otonom.meta_regime_orchestrator --message "…" veya '
-            "scripts/write_meta_advisory_ack.ps1",
-            path,
-        )
-    else:
-        log.info("META_REGIME_MODE=advisory, ölçüm ACK mevcut: %s", path)
-
-
-_log_meta_advisory_env_at_import()
+__all__ = [
+    "AI",
+    "ALT_TF",
+    "ASYNC_EXCHANGE",
+    "BOT_ENGINE_TOPOLOGY",
+    "CLOCK_SKEW",
+    "EXCHANGES",
+    "GENERAL",
+    "METRICS",
+    "MTF",
+    "PACKAGE_TOPOLOGY",
+    "PAIRS",
+    "RISK",
+    "RiskSettings",
+    "STAGED_EXIT",
+    "STRATEGY",
+    "TEST_LAYOUT",
+    "WFA",
+    "_effective_paper",
+    "_env_pick",
+    "_env_trim",
+    "_env_truthy",
+    "_log_meta_advisory_env_at_import",
+    "_vault_bridge",
+    "ensure_meta_advisory_env_logged",
+    "get_risk_settings",
+    "reset_risk_settings_for_tests",
+    "risk",
+]

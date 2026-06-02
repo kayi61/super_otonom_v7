@@ -27,7 +27,7 @@ def run_unified_alpha_phase(
     Ham kalite + rejim (faz 26) + decay monitör; dctx/analysis alanlarını doldurur (apply_filters ile uyumlu).
     Dönüş: (adj_quality, omega_tuple)
     """
-    import super_otonom.bot_engine as be_mod
+    import super_otonom.bot_patch_registry as be_mod
 
     fs = str(out.get("final_signal", "HOLD"))
     _eff = dict(analysis, signal=fs)

@@ -239,8 +239,8 @@ def test_bot_handle_exit_triggers_take_profit(
     def _reg(_a, _q) -> tuple:
         return ("TRENDING", 1.0, 1.0, 90, "log")
 
-    monkeypatch.setattr(be, "compute_signal_quality", _hi_q)
-    monkeypatch.setattr(be, "compute_omega_regime", _reg)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_signal_quality", _hi_q)
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_omega_regime", _reg)
     monkeypatch.setattr(be, "_STATE_FILE", str(tmp_path / "s.json"))
     monkeypatch.setattr(be, "_TRADE_LOG_FILE", str(tmp_path / "t" / "tr.log"))
     e = BotEngine(100_000.0, paper=True)

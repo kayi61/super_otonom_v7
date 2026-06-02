@@ -35,14 +35,9 @@ def test_tick_updates_peak_equity(tmp_path, monkeypatch: pytest.MonkeyPatch) -> 
     e.equity = 2000.0
     from unittest.mock import patch as p2
 
-    from super_otonom import bot_engine as bmod
-
-    async def _hi(*a, **k) -> None:
-        pass
-
     with (
-        p2.object(bmod, "compute_signal_quality", return_value=(50, [], {}, "m")),
-        p2.object(bmod, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        p2("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(50, [], {}, "m")),
+        p2("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
         p2.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")),
     ):
         asyncio.run(
@@ -69,8 +64,8 @@ def test_risk_deny_emergency_with_reason(tmp_path, monkeypatch: pytest.MonkeyPat
     e.risk.emergency_reason = "y"
     c = [{"close": 1.0, "volume": 1.0}]
     with (
-        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
-        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
         patch.object(e.ai, "validate_signal", return_value=("BUY", 0.8, "ok")),
     ):
         out = asyncio.run(e.tick("Z", {"signal": "BUY", "volatility": 0.01, "regime": "R"}, c))
@@ -86,8 +81,8 @@ def test_risk_deny_emergency_no_reason(tmp_path, monkeypatch: pytest.MonkeyPatch
     e.risk.emergency_reason = None
     c = [{"close": 1.0, "volume": 1.0}]
     with (
-        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
-        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
         patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")),
     ):
         out = asyncio.run(e.tick("Z2", {"signal": "HOLD", "volatility": 0.01, "regime": "R"}, c))
@@ -104,8 +99,8 @@ def test_risk_deny_no_emergency_info_log(
     e.risk.emergency_stop = False
     c = [{"close": 1.0, "volume": 1.0}]
     with (
-        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
-        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
         patch.object(e.ai, "validate_signal", return_value=("BUY", 0.8, "ok")),
     ):
         with caplog.at_level("INFO", logger="super_otonom.engine"):
@@ -139,8 +134,8 @@ def test_sentiment_veto_with_open_position_exits(tmp_path, monkeypatch: pytest.M
     e.sentiment_layer.get_market_sentiment = lambda: {"status": "N", "score": 0.5, "source": "t"}
 
     with (
-        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
-        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
         patch.object(e.ai, "validate_signal", return_value=("BUY", 0.8, "ok")),
     ):
         out = asyncio.run(e.tick("V", {"signal": "BUY", "volatility": 0.01, "regime": "R"}, c))
@@ -166,8 +161,8 @@ def test_entry_gate_closed_no_slots(tmp_path, monkeypatch: pytest.MonkeyPatch) -
         "ob_safe_size": 5_000.0,
     }
     with (
-        patch.object(be, "compute_signal_quality", return_value=(90, [], {}, "m")),
-        patch.object(be, "compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")),
+        patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(90, [], {}, "m")),
+        patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")),
         patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")),
     ):
         out = asyncio.run(e.tick("Sym", a, c))
@@ -187,8 +182,8 @@ def test_entry_ob_safe_size_invalid_parses_none(tmp_path, monkeypatch: pytest.Mo
     }
     c = [{"close": 100.0, "volume": 1e3}]
     with (
-        patch.object(be, "compute_signal_quality", return_value=(90, [], {}, "m")),
-        patch.object(be, "compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")),
+        patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(90, [], {}, "m")),
+        patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")),
         patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")),
     ):
         out = asyncio.run(e.tick("ObBad", a, c))
@@ -210,8 +205,8 @@ def test_entry_ob_merge_blocks_zero(
     }
     c = [{"close": 10.0, "volume": 1e3}]
     with (
-        patch.object(be, "compute_signal_quality", return_value=(90, [], {}, "m")),
-        patch.object(be, "compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")),
+        patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(90, [], {}, "m")),
+        patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")),
         patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")),
     ):
         with caplog.at_level("INFO", logger="super_otonom.engine"):
@@ -231,8 +226,8 @@ def test_entry_size_gate_fails(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Non
     }
     c = [{"close": 1.0, "volume": 1e3}]
     with (
-        patch.object(be, "compute_signal_quality", return_value=(90, [], {}, "m")),
-        patch.object(be, "compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")),
+        patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(90, [], {}, "m")),
+        patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("T", 1.0, 1.0, 90, "l")),
         patch.object(e.ai, "validate_signal", return_value=("BUY", 0.9, "ok")),
     ):
         out = asyncio.run(e.tick("Sz", a, c))
@@ -254,8 +249,9 @@ def _handle_entry_dctx_base(tmp_path, monkeypatch: pytest.MonkeyPatch):
 def test_handle_entry_dctx_none_gate_no_slots(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     be, e, a = _handle_entry_dctx_base(tmp_path, monkeypatch)
     out: dict = {"actions": []}
-    with patch.object(
-        be, "enforce_entry_prechecks", return_value=(False, 0.0, "max_open_positions")
+    with patch(
+        "super_otonom.bot_patch_registry.enforce_entry_prechecks",
+        return_value=(False, 0.0, "max_open_positions"),
     ):
         asyncio.run(e._handle_entry("D0", 1.0, a, "BUY", 0.9, out, corr_multiplier=1.0, dctx=None))
 
@@ -266,8 +262,8 @@ def test_handle_entry_dctx_none_ob_block(
     be, e, a = _handle_entry_dctx_base(tmp_path, monkeypatch)
     out: dict = {"actions": []}
     with (
-        patch.object(be, "enforce_entry_prechecks", return_value=(True, 0.0, "")),
-        patch.object(be, "merge_entry_notional", return_value=(0.0, "ob", "ob_safe_size_zero")),
+        patch("super_otonom.bot_patch_registry.enforce_entry_prechecks", return_value=(True, 0.0, "")),
+        patch("super_otonom.bot_patch_registry.merge_entry_notional", return_value=(0.0, "ob", "ob_safe_size_zero")),
     ):
         with caplog.at_level("INFO", logger="super_otonom.engine"):
             asyncio.run(
@@ -280,10 +276,11 @@ def test_handle_entry_dctx_none_size_gate(tmp_path, monkeypatch: pytest.MonkeyPa
     be, e, a = _handle_entry_dctx_base(tmp_path, monkeypatch)
     out: dict = {"actions": []}
     with (
-        patch.object(be, "enforce_entry_prechecks", return_value=(True, 0.0, "")),
-        patch.object(be, "merge_entry_notional", return_value=(8_000.0, "m", "")),
-        patch.object(
-            be, "enforce_entry_size_safety", return_value=(False, "insufficient_free_capital")
+        patch("super_otonom.bot_patch_registry.enforce_entry_prechecks", return_value=(True, 0.0, "")),
+        patch("super_otonom.bot_patch_registry.merge_entry_notional", return_value=(8_000.0, "m", "")),
+        patch(
+            "super_otonom.bot_patch_registry.enforce_entry_size_safety",
+            return_value=(False, "insufficient_free_capital"),
         ),
     ):
         asyncio.run(e._handle_entry("D2", 1.0, a, "BUY", 0.9, out, corr_multiplier=1.0, dctx=None))
@@ -297,9 +294,9 @@ def test_handle_entry_dctx_none_hard_limit(
     # Notional, ``gate_leverage_notional`` tavanının altında olmalı (10k * 0.05 * 1.0 ≈ 500);
     # aksi halde kill switch öncesi leverage kapısında kesilir ve CRITICAL hiç üretilmez.
     with (
-        patch.object(be, "enforce_entry_prechecks", return_value=(True, 0.0, "")),
-        patch.object(be, "merge_entry_notional", return_value=(400.0, "m", "")),
-        patch.object(be, "enforce_entry_size_safety", return_value=(True, "")),
+        patch("super_otonom.bot_patch_registry.enforce_entry_prechecks", return_value=(True, 0.0, "")),
+        patch("super_otonom.bot_patch_registry.merge_entry_notional", return_value=(400.0, "m", "")),
+        patch("super_otonom.bot_patch_registry.enforce_entry_size_safety", return_value=(True, "")),
         patch.object(e._hard_limits, "can_submit_order", return_value="order_rate_exceeded"),
     ):
         with caplog.at_level("CRITICAL", logger="super_otonom.engine"):
@@ -339,8 +336,8 @@ def test_handle_exit_stop_loss(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Non
         assert "actions" in out
 
     with (
-        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
-        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
         patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")),
     ):
         asyncio.run(_r())
@@ -358,8 +355,8 @@ def test_handle_exit_trailing_and_signal_sell(tmp_path, monkeypatch: pytest.Monk
     }
     c1 = [{"close": 100.0, "volume": 1.0}]
     with (
-        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
-        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
         patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")),
         patch.object(e.risk, "should_trailing_stop", return_value=True),
         patch.object(
@@ -379,8 +376,8 @@ def test_handle_exit_trailing_and_signal_sell(tmp_path, monkeypatch: pytest.Monk
     }
     c2 = [{"close": 100.0, "volume": 1.0}]
     with (
-        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
-        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
         patch.object(e.ai, "validate_signal", return_value=("SELL", 0.8, "s")),
         patch.object(e.risk, "should_trailing_stop", return_value=False),
         patch.object(
@@ -424,8 +421,8 @@ def test_live_sell_uses_slippage_not_sim(tmp_path, monkeypatch: pytest.MonkeyPat
 
     async def _r() -> None:
         with (
-            patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
-            patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+            patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(50, [], {}, "m")),
+            patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
             patch.object(e.risk, "check_risk", return_value=True),
             patch.object(e.risk, "should_trailing_stop", return_value=False),
             patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")),
@@ -436,8 +433,8 @@ def test_live_sell_uses_slippage_not_sim(tmp_path, monkeypatch: pytest.MonkeyPat
         assert out is not None
 
     with (
-        patch.object(be, "compute_signal_quality", return_value=(50, [], {}, "m")),
-        patch.object(be, "compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
+        patch("super_otonom.bot_patch_registry.compute_signal_quality", return_value=(50, [], {}, "m")),
+        patch("super_otonom.bot_patch_registry.compute_omega_regime", return_value=("R", 1.0, 1.0, 50, "l")),
         patch.object(e.ai, "validate_signal", return_value=("HOLD", 0.5, "")),
         patch.object(e.risk, "check_risk", return_value=True),
         patch.object(e.risk, "should_trailing_stop", return_value=True),

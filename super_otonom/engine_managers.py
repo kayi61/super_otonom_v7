@@ -277,10 +277,10 @@ class EntryOrchestrator:
         dctx: Any,
     ) -> tuple:
         """Hard safety: same-bar, BUY slot, cooldown. (ok, bar_ts) döner."""
-        import super_otonom.bot_engine as _be
+        import super_otonom.bot_patch_registry as _patch
         from super_otonom.decision_context import DecisionStage
 
-        ok, bar_ts, block = _be.enforce_entry_prechecks(
+        ok, bar_ts, block = _patch.enforce_entry_prechecks(
             symbol,
             signal,
             confidence,
@@ -307,7 +307,7 @@ class EntryOrchestrator:
         dctx: Any,
     ) -> tuple:
         """Pozisyon boyutu hesabı. (size, raw_size, ok) döner."""
-        import super_otonom.bot_engine as _be
+        import super_otonom.bot_patch_registry as _patch
         from super_otonom.decision_context import DecisionStage
 
         self._e.sizer.set_trade_log(self._e.trade_log)
@@ -332,7 +332,7 @@ class EntryOrchestrator:
                 dctx.ob_safe_size_input = None
             dctx.notional_technical = round(float(technical), 6)
 
-        raw_merged, sizing_src, ob_block = _be.merge_entry_notional(technical, ob_in)
+        raw_merged, sizing_src, ob_block = _patch.merge_entry_notional(technical, ob_in)
         if dctx is not None:
             dctx.sizing_source = sizing_src
         if ob_block:
@@ -361,11 +361,11 @@ class EntryOrchestrator:
         dctx: Any,
     ) -> bool:
         """Hard safety: fat-finger, spread, OB depth, exposure."""
-        import super_otonom.bot_engine as _be
+        import super_otonom.bot_patch_registry as _patch
         from super_otonom.decision_context import DecisionStage
 
         _ob = analysis.get("order_book") or {}
-        ok, block = _be.enforce_entry_size_safety(
+        ok, block = _patch.enforce_entry_size_safety(
             self._e.sizer,
             symbol,
             self._e.equity,

@@ -56,13 +56,11 @@ def test_paper_buy_then_take_profit(tmp_path, monkeypatch: pytest.MonkeyPatch) -
     e.apply_filters = _filters_ok
 
     monkeypatch.setattr(
-        be,
-        "compute_signal_quality",
+        "super_otonom.bot_patch_registry.compute_signal_quality",
         lambda a: (75, [], {"x": 1.0}, "none"),
     )
     monkeypatch.setattr(
-        be,
-        "compute_omega_regime",
+        "super_otonom.bot_patch_registry.compute_omega_regime",
         lambda a, b: ("TRENDING", 1.0, 1.0, 80, "ok"),
     )
     monkeypatch.setattr(
@@ -133,8 +131,8 @@ def test_tick_trend_follow_override(tmp_path, monkeypatch: pytest.MonkeyPatch) -
     e._hard_limits.can_submit_order = MagicMock(return_value=None)
     e._hard_limits.record_order = MagicMock()
     e.risk.get_omega_effective_qmin = MagicMock(return_value=20)
-    monkeypatch.setattr(be, "compute_signal_quality", lambda a: (90, [], {}, "n"))
-    monkeypatch.setattr(be, "compute_omega_regime", lambda a, b: ("TRENDING", 1.0, 1.0, 90, "x"))
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_signal_quality", lambda a: (90, [], {}, "n"))
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_omega_regime", lambda a, b: ("TRENDING", 1.0, 1.0, 90, "x"))
     e.exec_sim.simulate_order = AsyncMock(
         return_value={
             "executed_price": 1.0,
@@ -164,8 +162,8 @@ def test_sentiment_veto_blocks_buy(tmp_path, monkeypatch: pytest.MonkeyPatch) ->
     e = BotEngine(50_000.0, paper=True, sentiment_mock_score=0.1)
     e._hard_limits.check_price_tick = MagicMock(return_value=None)
     e.risk.get_omega_effective_qmin = MagicMock(return_value=20)
-    monkeypatch.setattr(be, "compute_signal_quality", lambda a: (80, [], {}, "n"))
-    monkeypatch.setattr(be, "compute_omega_regime", lambda a, b: ("TRENDING", 1.0, 1.0, 80, "x"))
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_signal_quality", lambda a: (80, [], {}, "n"))
+    monkeypatch.setattr("super_otonom.bot_patch_registry.compute_omega_regime", lambda a, b: ("TRENDING", 1.0, 1.0, 80, "x"))
     monkeypatch.setattr(e.ai, "validate_signal", lambda *a: ("BUY", 0.9, "b"))
 
     async def go():

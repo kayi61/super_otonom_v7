@@ -1,0 +1,28 @@
+{
+  "audit": "prompt-09",
+  "generated": "2026-05-29",
+  "risk_dict_mutators": {
+    "production_modules": [],
+    "test_modules": [
+      "tests/test_5000_phase3_phase5.py",
+      "tests/test_5000_phase6_phase10.py",
+      "tests/test_5000_phase11_phase21.py",
+      "tests/test_5000_phase22_phase30.py",
+      "tests/test_5000_phase32_phase38.py",
+      "tests/test_bot_main_coverage_ext.py",
+      "tests/risk/test_var_breach_kill_switch_vr19.py"
+    ],
+    "notes": "Production code reads RISK/get_risk_settings only; mutations are test overrides via deprecated RISK dict proxy."
+  },
+  "config_import_side_effects_removed": [
+    "_log_meta_advisory_env_at_import at import time"
+  ],
+  "lazy_init_triggers": [
+    "get_risk_settings()",
+    "RISK[...]",
+    "RISK.get(...)",
+    "config.risk.<field>"
+  ],
+  "bot_engine_f401_removed": true,
+  "patch_registry_module": "super_otonom.bot_patch_registry"
+}
