@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "description": "Bilinen whale / exchange / fund cüzdan etiketleri (PROMPT-1.1).",
+    "schema": "address(lower) -> {label, entity, type, chain}",
+    "types": ["exchange", "exchange_cold", "fund", "miner", "defi"],
+    "provenance": "Etherscan/BSCScan public labels + blockchain.com bilinen borsa adresleri.",
+    "note": "Append-only; yeni etiketler için label/entity/type/chain alanları zorunlu."
+  },
+  "wallets": {
+    "0x28c6c06298d514db089934071355e5743bf21d60": {"label": "Binance 14", "entity": "Binance", "type": "exchange", "chain": "ethereum"},
+    "0x21a31ee1afc51d94c2efccaa2092ad1028285549": {"label": "Binance 15", "entity": "Binance", "type": "exchange", "chain": "ethereum"},
+    "0xdfd5293d8e347dfe59e90efd55b2956a1343963d": {"label": "Binance 16", "entity": "Binance", "type": "exchange", "chain": "ethereum"},
+    "0x56eddb7aa87536c09ccc2793473599fd21a8b17f": {"label": "Binance 17", "entity": "Binance", "type": "exchange", "chain": "ethereum"},
+    "0xf977814e90da44bfa03b6295a0616a897441acec": {"label": "Binance 8 (cold)", "entity": "Binance", "type": "exchange_cold", "chain": "ethereum"},
+    "0x71660c4005ba85c37ccec55d0c4493e66fe775d3": {"label": "Coinbase 1", "entity": "Coinbase", "type": "exchange", "chain": "ethereum"},
+    "0x503828976d22510aad0201ac7ec88293211d23da": {"label": "Coinbase 2", "entity": "Coinbase", "type": "exchange", "chain": "ethereum"},
+    "0xddfabcdc4d8ffc6d5beaf154f18b778f892a0740": {"label": "Coinbase 3", "entity": "Coinbase", "type": "exchange", "chain": "ethereum"},
+    "0x3cd751e6b0078be393132286c442345e5dc49699": {"label": "Coinbase 4", "entity": "Coinbase", "type": "exchange", "chain": "ethereum"},
+    "0x2910543af39aba0cd09dbb2d50200b3e800a63d2": {"label": "Kraken 1", "entity": "Kraken", "type": "exchange", "chain": "ethereum"},
+    "0x1151314c646ce4e0efd76d1af4760ae66a9fe30f": {"label": "Bitfinex 1", "entity": "Bitfinex", "type": "exchange", "chain": "ethereum"},
+    "0x876eabf441b2ee5b5b0554fd502a8e0600950cfa": {"label": "Bitfinex 2", "entity": "Bitfinex", "type": "exchange", "chain": "ethereum"},
+    "0x742d35cc6634c0532925a3b844bc454e4438f44e": {"label": "Bitfinex (cold)", "entity": "Bitfinex", "type": "exchange_cold", "chain": "ethereum"},
+    "0x6cc5f688a315f3dc28a7781717a9a798a59fda7b": {"label": "OKX 1", "entity": "OKX", "type": "exchange", "chain": "ethereum"},
+    "0x98ec059dc3adfbdd63429454aeb0c990fba4a128": {"label": "OKX 2", "entity": "OKX", "type": "exchange", "chain": "ethereum"},
+    "0xf89d7b9c864f589bbf53a82105107622b35eaa40": {"label": "Bybit Hot", "entity": "Bybit", "type": "exchange", "chain": "ethereum"},
+    "0xa910f92acdaf488fa6ef02174fb86208ad7722ba": {"label": "Poloniex Cold", "entity": "Poloniex", "type": "exchange_cold", "chain": "ethereum"},
+    "0xd793281182a0e3e023116004778f45c29fc14f19": {"label": "Jump Trading", "entity": "Jump Trading", "type": "fund", "chain": "ethereum"},
+    "0x4f3a120e72c76c22ae802d129f599bfdbc31cb81": {"label": "Wintermute", "entity": "Wintermute", "type": "fund", "chain": "ethereum"},
+    "0xe92d1a43df510f82c66382592a047d288f85226f": {"label": "Galaxy Digital", "entity": "Galaxy Digital", "type": "fund", "chain": "ethereum"},
+    "34xp4vrocgjym3xr7ycvpfhocnxv4twseo": {"label": "Binance Cold (BTC)", "entity": "Binance", "type": "exchange_cold", "chain": "bitcoin"},
+    "3d2oetdnuzuqqhpjmcmddhyoqkynvsfk9r": {"label": "Bitfinex (BTC)", "entity": "Bitfinex", "type": "exchange", "chain": "bitcoin"}
+  }
+}
