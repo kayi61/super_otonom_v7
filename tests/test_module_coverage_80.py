@@ -337,7 +337,7 @@ def test_tick_price_spike_with_open_ignores() -> None:
 
     with (
         patch.object(e._hard_limits, "check_price_tick", return_value="PRICE_BOMB"),
-        patch("super_otonom.bot_engine.gate_global_trade_disable", return_value=(True, "")),
+        patch("super_otonom.bot_patch_registry.gate_global_trade_disable", return_value=(True, "")),
     ):
 
         async def _run() -> None:

@@ -15,10 +15,10 @@ def run_regime_detection_phase(
 ) -> Tuple[Dict[str, Any], Tuple[str, float, float, int, str]]:
     """
     Omega rejim motorunu çalıştırır; phase26 / faz26 yazar.
-    bot_engine.compute_omega_regime kullanılır (test patch uyumu).
+    bot_engine.compute_omega_regime kullanılır (test patch: bot_patch_registry).
     Dönüş: (standart çıktı, compute_omega_regime ham tuple)
     """
-    import super_otonom.bot_engine as be_mod
+    import super_otonom.bot_patch_registry as be_mod
 
     oreg, qm, sf, adj, omlog = be_mod.compute_omega_regime(analysis, int(base_quality))
 

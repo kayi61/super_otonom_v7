@@ -35,15 +35,8 @@ from super_otonom.engine_managers import (
     StateManager,
     TradeExecutor,
 )
-from super_otonom.hard_safety_contract import (
-    enforce_entry_prechecks,  # noqa: F401 — test patch target
-    enforce_entry_size_safety,  # noqa: F401 — test patch target
-    gate_global_trade_disable,  # noqa: F401 — test patch
-    merge_entry_notional,  # noqa: F401 — test patch target
-)
 from super_otonom.kill_switch import HardLimitTracker
 from super_otonom.metrics_exporter import MetricsExporter
-from super_otonom.omega_regime import compute_omega_regime  # noqa: F401 — test patch hedefi
 from super_otonom.order_engine import OrderEngine
 from super_otonom.pipelines import execution_pipeline, signal_pipeline
 from super_otonom.risk_ontology import RiskOntology
@@ -52,9 +45,6 @@ from super_otonom.self_feedback_guard import (
 )
 from super_otonom.signals.sentiment_layer import SentimentLayer
 from super_otonom.signals.signal_fusion_engine import run_signal_fusion_phase
-from super_otonom.signals.signal_quality_scorer import (
-    compute_signal_quality,  # noqa: F401 — test patch
-)
 
 log = logging.getLogger("super_otonom.engine")
 

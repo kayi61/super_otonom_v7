@@ -1,7 +1,7 @@
 {
   "audit": 7,
   "schema_version": 1,
-  "flat_production_count": 102,
+  "flat_production_count": 103,
   "flat_test_count": 0,
   "flat_production_ceiling": 125,
   "allowed_subpackages": [
@@ -58,6 +58,7 @@
     "bot_engine_risk_bridge.py",
     "bot_engine_status.py",
     "bot_engine_topology.py",
+    "bot_patch_registry.py",
     "capital_engine.py",
     "clock_skew.py",
     "clock_skew_audit.py",
