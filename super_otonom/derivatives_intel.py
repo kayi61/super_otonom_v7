@@ -248,6 +248,19 @@ def analyze_derivatives_intel(
 
     risk_01 = _clamp01(0.24 * crowd_fr + 0.26 * ls_risk + 0.26 * basis_r + 0.24 * liq_score)
 
+    # ── PROMPT-3.1: derinlemesine funding analizi ───────────────────────────
+    funding_an = _deep_funding_analysis(d, funding)
+    if funding_an is not None:
+        # Aşırılık riski toplam riske eklenir; kontraryan alpha bias yansıtılır.
+        risk_01 = _clamp01(max(risk_01, funding_an.risk_score))
+        alpha_01 = _clamp01(alpha_01 + 0.10 * funding_an.alpha_bias)
+
+    # ── PROMPT-3.2: OI rejim + liquidation map + L/S + basis derinlik ────────
+    market_an = _deep_market_structure(d, oi_raw, ls_ratio, ref_px)
+    if market_an is not None:
+        risk_01 = _clamp01(max(risk_01, market_an.risk_score))
+        alpha_01 = _clamp01(alpha_01 + 0.10 * market_an.alpha_bias)
+
     fields_ok = sum(
         1
         for v in (funding, oi, ls_ratio, spot, mark)
@@ -263,6 +276,9 @@ def analyze_derivatives_intel(
     elif risk_01 >= 0.88 or liq_score >= 0.88:
         perm = "BLOCK"
     elif risk_01 >= 0.72:
+        perm = "BLOCK"
+    # PROMPT-3.1: funding z-score aşırılığı (|z| > 2.5) → BLOCK
+    if funding_an is not None and funding_an.block and perm == "ALLOW":
         perm = "BLOCK"
 
     st = _pick_score_type(dh, risk_01)
@@ -293,10 +309,123 @@ def analyze_derivatives_intel(
         },
     }
 
+    if funding_an is not None:
+        payload["derivatives"]["funding_analysis"] = funding_an.to_dict()
+    if market_an is not None:
+        payload["derivatives"]["market_structure"] = market_an.to_dict()
+
     if attach_to_analysis:
         attach_phase_alias(a, "18", payload)
 
     return payload
+
+
+def _deep_market_structure(
+    d: Dict[str, Any],
+    oi_change_pct: Optional[float],
+    ls_ratio: Optional[float],
+    ref_px: float,
+) -> Any:
+    """PROMPT-3.2 — OI rejim + liquidation map + L/S + basis. Veri yoksa None.
+
+    Girdi alanları (opsiyonel): ``price_change_pct``, ``oi_velocity_1h/4h/24h``
+    (veya ``oi_history`` [(ts,oi)]), ``liquidation_levels``, ``top_trader_ls_ratio``,
+    ``global_ls_ratio``, ``long_pct``, ``perp_price``, ``quarterly_price``.
+    """
+    price_chg = _get_num(d, "price_change_pct", "price_chg_pct", "pct_change")
+    liq_levels = d.get("liquidation_levels") or d.get("liq_levels") or d.get("liquidations")
+    top_ls = _get_num(d, "top_trader_ls_ratio", "top_trader_long_short", "top_ls_ratio")
+    global_ls = _get_num(d, "global_ls_ratio", "global_long_short")
+    long_pct = _get_num(d, "long_pct", "long_account_pct")
+    perp = _get_num(d, "perp_price", "mark_price", "futures_price")
+    quarterly = _get_num(d, "quarterly_price", "quarterly_future_price", "next_quarter_price")
+    spot = _get_num(d, "spot_price", "spot", "index_spot")
+
+    has_oi = oi_change_pct is not None and price_chg is not None
+    has_liq = isinstance(liq_levels, (list, tuple)) and len(liq_levels) > 0
+    has_ls = any(v is not None for v in (top_ls, global_ls, long_pct))
+    has_basis = spot is not None and (perp is not None or quarterly is not None)
+    if not (has_oi or has_liq or has_ls or has_basis):
+        return None
+
+    from super_otonom.signals.liquidation_intelligence import (
+        analyze_basis,
+        analyze_liquidation_map,
+        analyze_long_short,
+        analyze_market_structure,
+        analyze_oi,
+        velocities_from_history,
+    )
+
+    try:
+        oi_res = None
+        if has_oi:
+            vel = {"1h": None, "4h": None, "24h": None}
+            hist = d.get("oi_history")
+            if isinstance(hist, (list, tuple)) and hist:
+                vel = velocities_from_history(
+                    [(int(t), float(v)) for t, v in hist if v is not None]
+                )
+            oi_res = analyze_oi(
+                float(oi_change_pct),
+                float(price_chg),
+                velocity_1h=_get_num(d, "oi_velocity_1h") if vel["1h"] is None else vel["1h"],
+                velocity_4h=_get_num(d, "oi_velocity_4h") if vel["4h"] is None else vel["4h"],
+                velocity_24h=_get_num(d, "oi_velocity_24h") if vel["24h"] is None else vel["24h"],
+            )
+        liq_res = analyze_liquidation_map(liq_levels, ref_px) if has_liq else None
+        ls_res = (
+            analyze_long_short(
+                top_trader_ratio=top_ls,
+                global_ratio=global_ls if global_ls is not None else ls_ratio,
+                long_pct=long_pct,
+            )
+            if (has_ls or ls_ratio is not None)
+            else None
+        )
+        basis_res = (
+            analyze_basis(spot=spot, perp_price=perp, quarterly_price=quarterly)
+            if has_basis
+            else None
+        )
+        return analyze_market_structure(
+            oi=oi_res, liquidation=liq_res, long_short=ls_res, basis=basis_res
+        )
+    except Exception:  # derinlik analizi asla Faz 18'i bozmamalı
+        return None
+
+
+def _deep_funding_analysis(d: Dict[str, Any], funding: Optional[float]) -> Any:
+    """PROMPT-3.1 — funding history varsa derinlemesine analiz; yoksa None.
+
+    Girdi alanları (hepsi opsiyonel): ``funding_history`` (8h ondalık liste),
+    ``cross_exchange_funding`` ({borsa: rate}), ``order_book_imbalance`` (-1..1),
+    ``funding_premium_pct``, ``position_notional``, ``prev_funding_cross_spread``.
+    """
+    history = d.get("funding_history") or d.get("funding_rate_history")
+    per_exchange = d.get("cross_exchange_funding") or d.get("funding_by_exchange")
+    if not isinstance(history, (list, tuple)):
+        history = []
+    if not (history or isinstance(per_exchange, dict)):
+        return None
+    from super_otonom.signals.funding_rate_alpha import analyze_funding
+
+    ob_imb = _get_num(d, "order_book_imbalance", "ob_imbalance")
+    premium = _get_num(d, "funding_premium_pct", "premium_pct")
+    notional = _get_num(d, "position_notional", "notional", default=0.0) or 0.0
+    prev_spread = _get_num(d, "prev_funding_cross_spread")
+    try:
+        return analyze_funding(
+            list(history),
+            current=funding,
+            per_exchange=per_exchange if isinstance(per_exchange, dict) else None,
+            order_book_imbalance=ob_imb,
+            premium_pct=premium,
+            notional=float(notional),
+            prev_cross_spread=prev_spread,
+        )
+    except Exception:  # funding analizi asla Faz 18'i bozmamalı
+        return None
 
 
 def run_derivatives_phase(
