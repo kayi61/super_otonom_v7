@@ -45,7 +45,7 @@ def test_funding_stats_insufficient() -> None:
 
 def test_funding_stats_zero_std() -> None:
     st = funding_stats([0.0001] * 10)
-    assert st.std_30d == 0.0 and st.z_score == 0.0
+    assert st.std_30d == pytest.approx(0.0, abs=1e-12) and st.z_score == 0.0
 
 
 def test_funding_stats_ignores_nan() -> None:

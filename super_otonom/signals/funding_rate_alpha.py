@@ -83,7 +83,8 @@ def funding_stats(history: Sequence[float], *, current: Optional[float] = None) 
         return FundingStats(cur, cur if n else 0.0, 0.0, 0.0, n, classify_extremity(cur))
     mean = sum(vals) / n
     var = sum((v - mean) ** 2 for v in vals) / n
-    std = math.sqrt(var)
+    # Tüm-eşit değerlerde float yuvarlama ~1e-20 std verir → 0'a sabitle (3.10/3.12 uyumu).
+    std = math.sqrt(var) if var > 1e-24 else 0.0
     z = (cur - mean) / std if std > 1e-12 else 0.0
     return FundingStats(cur, float(mean), float(std), float(z), n, classify_extremity(cur))
 
