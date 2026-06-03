@@ -262,6 +262,7 @@ def analyze_alternative_data(
 
     sections = _merge_sections(d)
     opt_risk, opt_detail = _put_call_risk(sections)
+    options_an = _deep_options_analysis(d, sections)  # PROMPT-3.3
     dev_act, dev_conf_pen, dev_detail = _developer_scores(sections)
     adop, adop_detail = _adoption_scores(sections)
     tok_block, tok_risk, tok_reason, tok_detail = _tokenomics_eval(sections)
@@ -296,6 +297,11 @@ def analyze_alternative_data(
     )
     if adop > 0.62:
         alpha_01 = _clamp01(min(1.0, alpha_01 * 1.08 + 0.03))
+
+    # PROMPT-3.3: derinlemesine options flow (PCR/whale/max pain/IV)
+    if options_an is not None:
+        risk_01 = _clamp01(max(risk_01, options_an.risk_score))
+        alpha_01 = _clamp01(alpha_01 + 0.10 * options_an.alpha_bias)
 
     conf_base = _clamp01(0.22 + 0.42 * cov01 + 0.24 * dev_act + 0.12 * (1.0 - opt_risk))
     conf = _clamp01(conf_base * (1.0 - 0.55 * dev_conf_pen))
@@ -336,10 +342,78 @@ def analyze_alternative_data(
         },
     }
 
+    if options_an is not None:
+        payload["alternative_data"]["options_flow_deep"] = options_an.to_dict()
+
     if attach_to_analysis:
         attach_phase_alias(a, "27", payload)
 
     return payload
+
+
+def _deep_options_analysis(d: Dict[str, Any], sections: Dict[str, Dict[str, Any]]) -> Any:
+    """PROMPT-3.3 — derinlemesine options flow. İlgili veri yoksa None.
+
+    Girdi (opsiyonel): ``options_flow``/``options`` altında ``pcr_history``,
+    ``whale_trades``, ``option_chain`` ([{strike,call_oi,put_oi}]), ``spot``,
+    ``hours_to_expiry``, ``put_iv``/``call_iv``/``short_iv``/``long_iv``,
+    ``realized_vol``, ``current_volume``/``avg_volume``.
+    """
+    o = sections.get("options", {})
+    pcr_hist = o.get("pcr_history") or d.get("pcr_history")
+    whale_trades = o.get("whale_trades") or d.get("whale_trades")
+    chain = o.get("option_chain") or d.get("option_chain")
+    put_iv = _get_float(o, "put_iv", default=float("nan"))
+    call_iv = _get_float(o, "call_iv", default=float("nan"))
+    short_iv = _get_float(o, "short_iv", "iv_short", default=float("nan"))
+    long_iv = _get_float(o, "long_iv", "iv_long", default=float("nan"))
+
+    pv = _get_float(o, "put_volume", "puts", default=float("nan"))
+    cv = _get_float(o, "call_volume", "calls", default=float("nan"))
+    pcr_val = _get_float(o, "put_call_ratio", "put_to_call", default=float("nan"))
+
+    has_pcr = pcr_val == pcr_val or (pv == pv and cv == cv) or bool(pcr_hist)
+    has_whale = isinstance(whale_trades, (list, tuple)) and len(whale_trades) > 0
+    has_chain = isinstance(chain, (list, tuple)) and len(chain) > 0
+    has_iv = any(x == x for x in (put_iv, call_iv, short_iv, long_iv))
+    if not (has_pcr or has_whale or has_chain or has_iv):
+        return None
+
+    from super_otonom.signals.options_flow_intelligence import (
+        analyze_iv,
+        analyze_max_pain,
+        analyze_options_flow,
+        analyze_pcr,
+        detect_whale_options,
+    )
+
+    def _opt(x: float) -> Optional[float]:
+        return x if x == x else None
+
+    try:
+        pcr_sig = analyze_pcr(
+            put_volume=_opt(pv), call_volume=_opt(cv), pcr=_opt(pcr_val),
+            pcr_history=pcr_hist if isinstance(pcr_hist, (list, tuple)) else None,
+        ) if has_pcr else None
+        whale_sig = detect_whale_options(
+            whale_trades,
+            current_volume=_get_float(o, "current_volume", default=float("nan")) or None,
+            avg_volume=_get_float(o, "avg_volume", default=float("nan")) or None,
+        ) if has_whale else None
+        mp_sig = analyze_max_pain(
+            chain,
+            spot=_get_float(o, "spot", "underlying_price", default=float("nan")) or None,
+            hours_to_expiry=_get_float(o, "hours_to_expiry", default=float("nan")) or None,
+        ) if has_chain else None
+        iv_sig = analyze_iv(
+            put_iv=_opt(put_iv), call_iv=_opt(call_iv),
+            short_iv=_opt(short_iv), long_iv=_opt(long_iv),
+            realized_vol=_get_float(o, "realized_vol", default=float("nan")) or None,
+            hours_to_expiry=_get_float(o, "hours_to_expiry", default=float("nan")) or None,
+        ) if has_iv else None
+        return analyze_options_flow(pcr=pcr_sig, whale=whale_sig, max_pain=mp_sig, iv=iv_sig)
+    except Exception:  # options analizi asla Faz 27'yi bozmamalı
+        return None
 
 
 def run_alternative_data_phase(
