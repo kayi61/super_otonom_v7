@@ -248,6 +248,13 @@ def analyze_derivatives_intel(
 
     risk_01 = _clamp01(0.24 * crowd_fr + 0.26 * ls_risk + 0.26 * basis_r + 0.24 * liq_score)
 
+    # ── PROMPT-3.1: derinlemesine funding analizi ───────────────────────────
+    funding_an = _deep_funding_analysis(d, funding)
+    if funding_an is not None:
+        # Aşırılık riski toplam riske eklenir; kontraryan alpha bias yansıtılır.
+        risk_01 = _clamp01(max(risk_01, funding_an.risk_score))
+        alpha_01 = _clamp01(alpha_01 + 0.10 * funding_an.alpha_bias)
+
     fields_ok = sum(
         1
         for v in (funding, oi, ls_ratio, spot, mark)
@@ -263,6 +270,9 @@ def analyze_derivatives_intel(
     elif risk_01 >= 0.88 or liq_score >= 0.88:
         perm = "BLOCK"
     elif risk_01 >= 0.72:
+        perm = "BLOCK"
+    # PROMPT-3.1: funding z-score aşırılığı (|z| > 2.5) → BLOCK
+    if funding_an is not None and funding_an.block and perm == "ALLOW":
         perm = "BLOCK"
 
     st = _pick_score_type(dh, risk_01)
@@ -293,10 +303,46 @@ def analyze_derivatives_intel(
         },
     }
 
+    if funding_an is not None:
+        payload["derivatives"]["funding_analysis"] = funding_an.to_dict()
+
     if attach_to_analysis:
         attach_phase_alias(a, "18", payload)
 
     return payload
+
+
+def _deep_funding_analysis(d: Dict[str, Any], funding: Optional[float]) -> Any:
+    """PROMPT-3.1 — funding history varsa derinlemesine analiz; yoksa None.
+
+    Girdi alanları (hepsi opsiyonel): ``funding_history`` (8h ondalık liste),
+    ``cross_exchange_funding`` ({borsa: rate}), ``order_book_imbalance`` (-1..1),
+    ``funding_premium_pct``, ``position_notional``, ``prev_funding_cross_spread``.
+    """
+    history = d.get("funding_history") or d.get("funding_rate_history")
+    per_exchange = d.get("cross_exchange_funding") or d.get("funding_by_exchange")
+    if not isinstance(history, (list, tuple)):
+        history = []
+    if not (history or isinstance(per_exchange, dict)):
+        return None
+    from super_otonom.signals.funding_rate_alpha import analyze_funding
+
+    ob_imb = _get_num(d, "order_book_imbalance", "ob_imbalance")
+    premium = _get_num(d, "funding_premium_pct", "premium_pct")
+    notional = _get_num(d, "position_notional", "notional", default=0.0) or 0.0
+    prev_spread = _get_num(d, "prev_funding_cross_spread")
+    try:
+        return analyze_funding(
+            list(history),
+            current=funding,
+            per_exchange=per_exchange if isinstance(per_exchange, dict) else None,
+            order_book_imbalance=ob_imb,
+            premium_pct=premium,
+            notional=float(notional),
+            prev_cross_spread=prev_spread,
+        )
+    except Exception:  # funding analizi asla Faz 18'i bozmamalı
+        return None
 
 
 def run_derivatives_phase(
