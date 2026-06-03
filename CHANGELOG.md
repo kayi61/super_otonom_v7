@@ -1,5 +1,15 @@
 # CHANGELOG — super_otonom
 
+## [7.5.0](https://github.com/kayi61/super_otonom_v7/compare/super_otonom-v7.4.0...super_otonom-v7.5.0) (2026-06-03)
+
+
+### Features
+
+* **prompt-1.2:** exchange flow intelligence + Faz 17 institutional_flow_usd ([5b44d67](https://github.com/kayi61/super_otonom_v7/commit/5b44d67f5a133c39d30fffb0217b5b349640c0e7))
+* **prompt-1.2:** exchange flow intelligence + Faz 17 institutional_flow_usd ([9ab0da2](https://github.com/kayi61/super_otonom_v7/commit/9ab0da26cb4dd445dbfd80fa8173f700488aea4c))
+* **prompt-1.3:** VC & fund wallet tracker + Faz 17 vc_net_flow_usd ([9cda4f6](https://github.com/kayi61/super_otonom_v7/commit/9cda4f6b538f19e60f74684545b63e98adea2930))
+* **prompt-1.3:** VC & fund wallet tracker + Faz 17 vc_net_flow_usd ([078235b](https://github.com/kayi61/super_otonom_v7/commit/078235b07691d7d44c172fdd6fd8d00b505748cc))
+
 ## [7.4.0](https://github.com/kayi61/super_otonom_v7/compare/super_otonom-v7.3.2...super_otonom-v7.4.0) (2026-06-02)
 
 
