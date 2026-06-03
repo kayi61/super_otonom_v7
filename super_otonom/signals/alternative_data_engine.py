@@ -265,6 +265,10 @@ def analyze_alternative_data(
     options_an = _deep_options_analysis(d, sections)  # PROMPT-3.3
     dev_act, dev_conf_pen, dev_detail = _developer_scores(sections)
     adop, adop_detail = _adoption_scores(sections)
+    onchain_an = _deep_onchain_analysis(d)  # PROMPT-2.1
+    if onchain_an is not None:
+        # On-chain adoption skoru mevcut adoption skoruyla harmanlanır.
+        adop = _clamp01(0.55 * adop + 0.45 * onchain_an.adoption_score)
     tok_block, tok_risk, tok_reason, tok_detail = _tokenomics_eval(sections)
 
     coverage = sum(
@@ -302,6 +306,11 @@ def analyze_alternative_data(
     if options_an is not None:
         risk_01 = _clamp01(max(risk_01, options_an.risk_score))
         alpha_01 = _clamp01(alpha_01 + 0.10 * options_an.alpha_bias)
+
+    # PROMPT-2.1: on-chain metrics (network/holder/miner/MVRV)
+    if onchain_an is not None:
+        risk_01 = _clamp01(max(risk_01, onchain_an.risk_score))
+        alpha_01 = _clamp01(alpha_01 + 0.12 * onchain_an.alpha_bias)
 
     conf_base = _clamp01(0.22 + 0.42 * cov01 + 0.24 * dev_act + 0.12 * (1.0 - opt_risk))
     conf = _clamp01(conf_base * (1.0 - 0.55 * dev_conf_pen))
@@ -344,11 +353,79 @@ def analyze_alternative_data(
 
     if options_an is not None:
         payload["alternative_data"]["options_flow_deep"] = options_an.to_dict()
+    if onchain_an is not None:
+        payload["alternative_data"]["onchain"] = onchain_an.to_dict()
 
     if attach_to_analysis:
         attach_phase_alias(a, "27", payload)
 
     return payload
+
+
+def _deep_onchain_analysis(d: Dict[str, Any]) -> Any:
+    """PROMPT-2.1 — on-chain metrics (network/holder/miner/MVRV). Veri yoksa None.
+
+    Girdi: ``onchain`` alt dict (veya düz alt_data) içinde ``active_addresses``,
+    ``tx_count``, ``tx_volume_usd``, ``new_address_rate``, ``avg_tx_fee_usd``,
+    ``top10_pct``/``top100_pct``/``top1000_pct``, ``holder_count_change_pct``,
+    ``lth_ratio``, ``accumulation_trend_30d``, ``miner_outflow_usd``,
+    ``staking_ratio_change``, ``hash_rate_change_pct``, ``mvrv``,
+    ``market_price``, ``realized_price``.
+    """
+    oc = d.get("onchain") if isinstance(d.get("onchain"), dict) else {}
+    src = {**d, **oc}
+
+    def _g(*keys: str) -> Optional[float]:
+        v = _get_float(src, *keys, default=float("nan"))
+        return v if v == v else None
+
+    has_net = any(
+        _g(k) is not None
+        for k in ("active_addresses", "tx_count", "tx_volume_usd", "new_address_rate", "avg_tx_fee_usd")
+    )
+    has_hold = any(
+        _g(k) is not None
+        for k in ("top10_pct", "holder_count_change_pct", "lth_ratio", "accumulation_trend_30d")
+    )
+    has_miner = any(
+        _g(k) is not None for k in ("miner_outflow_usd", "staking_ratio_change", "hash_rate_change_pct")
+    )
+    has_mvrv = _g("mvrv") is not None or (
+        _g("market_price") is not None and _g("realized_price") is not None
+    )
+    if not (has_net or has_hold or has_miner or has_mvrv):
+        return None
+
+    from super_otonom.signals.onchain_intelligence import (
+        analyze_holders,
+        analyze_miner_metrics,
+        analyze_mvrv,
+        analyze_network_activity,
+        analyze_onchain,
+    )
+
+    try:
+        net = analyze_network_activity(
+            active_addresses=_g("active_addresses"), tx_count=_g("tx_count"),
+            tx_volume_usd=_g("tx_volume_usd"), new_address_rate=_g("new_address_rate"),
+            avg_tx_fee_usd=_g("avg_tx_fee_usd"),
+        ) if has_net else None
+        hold = analyze_holders(
+            top10_pct=_g("top10_pct"), top100_pct=_g("top100_pct"), top1000_pct=_g("top1000_pct"),
+            holder_count_change_pct=_g("holder_count_change_pct"), lth_ratio=_g("lth_ratio"),
+            accumulation_trend_30d=_g("accumulation_trend_30d"),
+        ) if has_hold else None
+        miner = analyze_miner_metrics(
+            miner_outflow_usd=_g("miner_outflow_usd"),
+            staking_ratio_change=_g("staking_ratio_change"),
+            hash_rate_change_pct=_g("hash_rate_change_pct"),
+        ) if has_miner else None
+        mvrv = analyze_mvrv(
+            mvrv=_g("mvrv"), market_price=_g("market_price"), realized_price=_g("realized_price"),
+        ) if has_mvrv else None
+        return analyze_onchain(network=net, holders=hold, miner=miner, mvrv=mvrv)
+    except Exception:  # on-chain analizi asla Faz 27'yi bozmamalı
+        return None
 
 
 def _deep_options_analysis(d: Dict[str, Any], sections: Dict[str, Dict[str, Any]]) -> Any:
