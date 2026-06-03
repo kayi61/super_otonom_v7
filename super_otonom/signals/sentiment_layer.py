@@ -157,6 +157,31 @@ class SentimentLayer:
         reason = f"SENTIMENT_OK: status={status} score={score:.2f}"
         return signal, reason
 
+    def analyze_community_sentiment(
+        self, community_data: Optional[Dict] = None
+    ) -> Optional[Dict]:
+        """PROMPT-4.2 — community_sentiment_scanner köprüsü.
+
+        Reddit/Telegram/Fear&Greed/Google Trends topluluk sinyalini üretir.
+        ``community_data`` içinde ``fear_greed`` yoksa bu katmanın kendi piyasa
+        skoru (0..1) F&G değerine (0..100) çevrilerek tohumlanır. İlgili veri
+        yoksa ``None`` (geriye uyumlu: mevcut davranış değişmez).
+        """
+        try:
+            from super_otonom.signals.community_sentiment_scanner import (
+                analyze_community_data,
+            )
+        except ImportError:
+            return None
+
+        data = dict(community_data) if isinstance(community_data, dict) else {}
+        if "fear_greed" not in data and "fng" not in data:
+            market = self.get_market_sentiment()
+            data["fear_greed"] = {"value": float(market.get("score", 0.5)) * 100.0}
+
+        sig = analyze_community_data(data)
+        return sig.to_dict() if sig is not None else None
+
     def set_mock_score(self, score: float) -> None:
         self._mock_score = max(0.0, min(1.0, float(score)))
         self._cache = None
