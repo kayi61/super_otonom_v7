@@ -12,11 +12,14 @@ CAPITULATION → contrarian alpha fırsatı proxy (yüksek alpha_score eğilimi)
 
 from __future__ import annotations
 
+import logging
 import math
 import time
 from typing import Any, Dict, Literal, Optional
 
 from super_otonom.standard_phase_output import attach_phase_alias
+
+log = logging.getLogger("super_otonom.social")
 
 ScoreType = Literal["ALPHA", "RISK", "QUALITY"]
 TradePermission = Literal["ALLOW", "BLOCK", "HALT"]
@@ -246,6 +249,12 @@ def analyze_social_signal(
     alpha_01 = _alpha_from_stage(stage, composite, signal_hint)
     risk_01 = _risk_from_social(composite, mom_01, engagement, stage)
 
+    # PROMPT-4.1: KOL (Twitter/X) konsensüsü — varsa alpha/risk'i ayarlar.
+    kol_sig = _deep_kol_analysis(d, symbol, ts)
+    if kol_sig is not None:
+        alpha_01 = _clamp01(alpha_01 + 0.15 * kol_sig.alpha_bias)
+        risk_01 = _clamp01(max(risk_01, kol_sig.risk_score))
+
     fields_ok = sum(
         1
         for v in (
@@ -294,10 +303,48 @@ def analyze_social_signal(
         },
     }
 
+    if kol_sig is not None:
+        payload["social"]["kol"] = kol_sig.to_dict()
+
     if attach_to_analysis:
         attach_phase_alias(a, "16", payload)
 
     return payload
+
+
+def _deep_kol_analysis(d: Dict[str, Any], symbol: str, now_ms: float) -> Any:
+    """PROMPT-4.1 — KOL tweet konsensüsü. İlgili veri yoksa None.
+
+    Girdi: ``kol`` alt dict (``tweets`` listesi + opsiyonel ``token``,
+    ``timing_events``, ``window_hours``) veya düz ``kol_tweets`` listesi.
+    """
+    block = d.get("kol") if isinstance(d.get("kol"), dict) else {}
+    tweets = block.get("tweets")
+    if not isinstance(tweets, list):
+        tweets = d.get("kol_tweets")
+    if not isinstance(tweets, list) or not tweets:
+        return None
+
+    token = block.get("token") or d.get("kol_token") or symbol
+    timing_events = block.get("timing_events") or d.get("kol_timing_events")
+    try:
+        window_hours = float(block.get("window_hours", 24.0))
+    except (TypeError, ValueError):
+        window_hours = 24.0
+
+    try:
+        from super_otonom.signals.kol_tracker import analyze_kol
+
+        return analyze_kol(
+            tweets,
+            token,
+            now_ms=now_ms,
+            window_hours=window_hours,
+            timing_events=timing_events,
+        )
+    except Exception:  # KOL analizi asla Faz 16'yı bozmamalı
+        log.debug("kol analiz hata", exc_info=True)
+        return None
 
 
 def run_social_signal_phase(
