@@ -255,6 +255,12 @@ def analyze_social_signal(
         alpha_01 = _clamp01(alpha_01 + 0.15 * kol_sig.alpha_bias)
         risk_01 = _clamp01(max(risk_01, kol_sig.risk_score))
 
+    # PROMPT-4.2: Reddit/Telegram + Fear&Greed + Google Trends topluluk taraması.
+    comm_sig = _deep_community_analysis(d)
+    if comm_sig is not None:
+        alpha_01 = _clamp01(alpha_01 + 0.15 * comm_sig.alpha_bias)
+        risk_01 = _clamp01(max(risk_01, comm_sig.risk_score))
+
     fields_ok = sum(
         1
         for v in (
@@ -306,10 +312,36 @@ def analyze_social_signal(
     if kol_sig is not None:
         payload["social"]["kol"] = kol_sig.to_dict()
 
+    if comm_sig is not None:
+        payload["social"]["community"] = comm_sig.to_dict()
+
     if attach_to_analysis:
         attach_phase_alias(a, "16", payload)
 
     return payload
+
+
+def _deep_community_analysis(d: Dict[str, Any]) -> Any:
+    """PROMPT-4.2 — Reddit/Telegram/Fear&Greed/Trends topluluk taraması. Veri yoksa None.
+
+    Girdi: ``community`` alt dict (``reddit`` / ``telegram`` / ``fear_greed`` /
+    ``google_trends`` + ``whale_accumulation``) veya düz aynı anahtarlar.
+    """
+    block = d.get("community") if isinstance(d.get("community"), dict) else None
+    if block is None:
+        # Düz anahtarlar: reddit/telegram/fear_greed/google_trends doğrudan d içinde mi?
+        flat_keys = ("reddit", "telegram", "fear_greed", "fng", "google_trends", "trends")
+        if not any(k in d for k in flat_keys):
+            return None
+        block = d
+
+    try:
+        from super_otonom.signals.community_sentiment_scanner import analyze_community_data
+
+        return analyze_community_data(block)
+    except Exception:  # topluluk analizi asla Faz 16'yı bozmamalı
+        log.debug("community analiz hata", exc_info=True)
+        return None
 
 
 def _deep_kol_analysis(d: Dict[str, Any], symbol: str, now_ms: float) -> Any:
