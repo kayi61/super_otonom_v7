@@ -327,6 +327,9 @@ def analyze_news_event(
     if unlock_sig is not None:
         unlock_risk = _clamp01(max(unlock_risk, unlock_sig.risk_score))
 
+    # PROMPT-5.2: borsa listing/delisting erken tespiti (varsa alpha/risk ayarlar).
+    listing_sig = _deep_listing_analysis(d)
+
     listing_boost = 0.72 if listing else 0.0
 
     signal_hint = str(a.get("signal", "HOLD")).upper()
@@ -346,6 +349,11 @@ def analyze_news_event(
         + 0.13 * (1.0 if hack_txt or hack_cat else 0.35)
     )
 
+    # PROMPT-5.2: listing → alpha (buy the rumor), delisting → risk.
+    if listing_sig is not None:
+        alpha_01 = _clamp01(alpha_01 + 0.12 * listing_sig.alpha_bias)
+        risk_01 = _clamp01(max(risk_01, listing_sig.risk_score))
+
     stale_f = _freshness_confidence_factor(age_h)
     base_conf = _clamp01(0.26 + 0.55 * sent_01 + 0.14 * (1.0 - macro_r * 0.3))
     conf = _clamp01(base_conf * stale_f)
@@ -360,6 +368,10 @@ def analyze_news_event(
     elif unlock_sig is not None and unlock_sig.trade_permission == "HALT":
         perm = "HALT"
     elif unlock_sig is not None and unlock_sig.trade_permission == "BLOCK":
+        perm = "BLOCK"
+    elif listing_sig is not None and listing_sig.trade_permission == "HALT":
+        perm = "HALT"
+    elif listing_sig is not None and listing_sig.trade_permission == "BLOCK":
         perm = "BLOCK"
     elif hu_unlock is not None and 0 < hu_unlock <= 72.0:
         perm = "BLOCK"
@@ -401,6 +413,9 @@ def analyze_news_event(
     if unlock_sig is not None:
         payload["news"]["unlock_tracker"] = unlock_sig.to_dict()
 
+    if listing_sig is not None:
+        payload["news"]["listing_intelligence"] = listing_sig.to_dict()
+
     if attach_to_analysis:
         attach_phase_alias(a, "23", payload)
 
@@ -417,6 +432,19 @@ def _deep_unlock_analysis(d: Dict[str, Any]) -> Any:
 
         return analyze_unlock_data(d)
     except Exception:  # unlock analizi asla Faz 23'ü bozmamalı
+        return None
+
+
+def _deep_listing_analysis(d: Dict[str, Any]) -> Any:
+    """PROMPT-5.2 — borsa listing/delisting erken tespiti. İlgili veri yoksa None.
+
+    Girdi: ``listing`` / ``delisting`` alt dict'leri veya düz sinyal anahtarları.
+    """
+    try:
+        from super_otonom.signals.listing_intelligence import analyze_listing_data
+
+        return analyze_listing_data(d)
+    except Exception:  # listing analizi asla Faz 23'ü bozmamalı
         return None
 
 
