@@ -44,5 +44,23 @@ def run_regime_detection_phase(
     snap["size_factor"] = float(sf)
     snap["log_line"] = str(omlog)
 
+    # PROMPT-6.1: makro ortam — varsa rejim riskini/iznini zenginleştirir (geriye uyumlu).
+    macro_sig = _deep_macro_analysis(analysis)
+    if macro_sig is not None:
+        snap["risk_score"] = max(float(snap["risk_score"]), macro_sig.risk_score * 100.0)
+        if macro_sig.trade_permission == "BLOCK" and snap["trade_permission"] == "ALLOW":
+            snap["trade_permission"] = "BLOCK"
+        snap["macro"] = macro_sig.to_dict()
+
     attach_phase_alias(analysis, "26", snap)
     return snap, (oreg, qm, sf, adj, omlog)
+
+
+def _deep_macro_analysis(analysis: Dict[str, Any]) -> Any:
+    """PROMPT-6.1 — makro ortam sinyali. İlgili veri yoksa None."""
+    try:
+        from super_otonom.signals.macro_event_intelligence import analyze_macro_data
+
+        return analyze_macro_data(analysis)
+    except Exception:  # makro analizi asla Faz 26'yı bozmamalı
+        return None
