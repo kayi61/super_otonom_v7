@@ -1,10 +1,11 @@
-"""PROMPT-2.2 — DeFi Protocol Intelligence (standalone modül testleri)."""
+"""PROMPT-2.2 — DeFi Protocol Intelligence + Faz 27 entegrasyonu."""
 
 from __future__ import annotations
 
 import json
 
 import pytest
+from super_otonom.signals.alternative_data_engine import analyze_alternative_data
 from super_otonom.signals.defi_protocol_intelligence import (
     DefiCollector,
     analyze_bridge,
@@ -207,3 +208,45 @@ def test_collector_none_graceful() -> None:
     col = DefiCollector(http_get=lambda u, t: None)
     assert col.fetch_protocol("x") == {}
     assert col.fetch_chains() == {}
+
+
+# ── Faz 27 (alternative_data_engine) entegrasyonu ────────────────────────────
+
+
+def test_faz27_defi_block_attached() -> None:
+    alt = {"defi": {
+        "tvl": {"tvl_change_pct": 0.15, "chain_tvl_flows": {"solana": 5e8}},
+        "bridge": {"bridge_flows": {"solana": 4e8}},
+    }}
+    out = analyze_alternative_data("SOL/USDT", alt, {"signal": "BUY"})
+    assert "defi" in out["alternative_data"]
+    assert out["alternative_data"]["defi"]["chain_rotation"] == "solana"
+
+
+def test_faz27_defi_exploit_raises_risk() -> None:
+    healthy = {"defi": {"tvl": {"tvl_change_pct": 0.1}}}
+    exploit = {"defi": {"tvl": {"tvl_change_pct": -0.4}}}
+    r_ok = analyze_alternative_data("X/USDT", healthy, {"signal": "BUY"})
+    r_exp = analyze_alternative_data("X/USDT", exploit, {"signal": "BUY"})
+    assert r_exp["risk_score"] > r_ok["risk_score"]
+    assert r_exp["alternative_data"]["defi"]["exploit_alert"] is True
+
+
+def test_faz27_defi_flat_keys() -> None:
+    out = analyze_alternative_data("X/USDT", {"borrow_rate": 0.2, "borrow_rate_prev": 0.1}, {"signal": "BUY"})
+    assert "defi" in out["alternative_data"]
+
+
+def test_faz27_defi_coexists_with_developer() -> None:
+    alt = {
+        "developer": {"commits_30d": 70, "commits_90d": 180, "unique_contributors": 12},
+        "defi": {"tvl": {"tvl_change_pct": 0.1}},
+    }
+    out = analyze_alternative_data("X/USDT", alt, {"signal": "BUY"})
+    assert "defi" in out["alternative_data"]
+    assert "developer_deep" in out["alternative_data"]
+
+
+def test_faz27_backward_compat_no_defi() -> None:
+    out = analyze_alternative_data("X/USDT", {"adoption": {"active_users": 1e6}}, {"signal": "BUY"})
+    assert "defi" not in out["alternative_data"]

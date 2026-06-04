@@ -36,6 +36,7 @@ fonksiyonları saftır; testler ağsız (`tests/test_defi_protocol_intelligence_
 ## Faz 27 entegrasyonu (`alternative_data_engine`)
 `defi` verisi varsa: DeFi `adoption_score` mevcut adoption ile harmanlanır,
 `risk_score` risk ile `max()`, `alpha_score` `defi_alpha_bias` ile ayarlanır;
-`alternative_data.defi` bloğu eklenir. Veri yoksa davranış değişmez; hata Faz 27'yi
-asla bozmaz. *(Entegrasyon, PROMPT-5.3 alternative_data_engine değişikliği main'e
-girdikten sonra eklenir; modül ve standalone analizler bağımsız çalışır.)*
+`alternative_data.defi` bloğu eklenir. DeFi `defi_alpha_bias` alpha'ya eklenir
+(`+0.10`), `defi_risk_score` risk ile `max()` alınır. onchain/options/unlock/developer
+katmanlarıyla birlikte çalışır. Veri yoksa `defi` bloğu eklenmez, davranış değişmez;
+hata Faz 27'yi asla bozmaz.

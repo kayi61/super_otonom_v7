@@ -273,6 +273,10 @@ def analyze_alternative_data(
     if onchain_an is not None:
         # On-chain adoption skoru mevcut adoption skoruyla harmanlanır.
         adop = _clamp01(0.55 * adop + 0.45 * onchain_an.adoption_score)
+    defi_an = _deep_defi_analysis(d)  # PROMPT-2.2
+    if defi_an is not None:
+        # DeFi adoption skoru (TVL/DEX) mevcut adoption ile harmanlanır.
+        adop = _clamp01(0.6 * adop + 0.4 * defi_an.adoption_score)
     tok_block, tok_risk, tok_reason, tok_detail = _tokenomics_eval(sections)
 
     coverage = sum(
@@ -327,6 +331,11 @@ def analyze_alternative_data(
         risk_01 = _clamp01(max(risk_01, dev_deep.risk_score))
         alpha_01 = _clamp01(alpha_01 + 0.10 * dev_deep.alpha_bias)
 
+    # PROMPT-2.2: DeFi protocol (TVL/DEX/lending/bridge → risk, chain rotation → alpha)
+    if defi_an is not None:
+        risk_01 = _clamp01(max(risk_01, defi_an.risk_score))
+        alpha_01 = _clamp01(alpha_01 + 0.10 * defi_an.alpha_bias)
+
     conf_base = _clamp01(0.22 + 0.42 * cov01 + 0.24 * dev_act + 0.12 * (1.0 - opt_risk))
     conf = _clamp01(conf_base * (1.0 - 0.55 * dev_conf_pen))
 
@@ -378,6 +387,8 @@ def analyze_alternative_data(
         payload["alternative_data"]["unlock"] = unlock_an.to_dict()
     if dev_deep is not None:
         payload["alternative_data"]["developer_deep"] = dev_deep.to_dict()
+    if defi_an is not None:
+        payload["alternative_data"]["defi"] = defi_an.to_dict()
 
     if attach_to_analysis:
         attach_phase_alias(a, "27", payload)
@@ -405,6 +416,16 @@ def _deep_developer_analysis(developer: Dict[str, Any]) -> Any:
 
         return analyze_developer_data(developer)
     except Exception:  # developer analizi asla Faz 27'yi bozmamalı
+        return None
+
+
+def _deep_defi_analysis(d: Dict[str, Any]) -> Any:
+    """PROMPT-2.2 — DeFi protocol intelligence (TVL/DEX/lending/bridge). Veri yoksa None."""
+    try:
+        from super_otonom.signals.defi_protocol_intelligence import analyze_defi_data
+
+        return analyze_defi_data(d)
+    except Exception:  # DeFi analizi asla Faz 27'yi bozmamalı
         return None
 
 
