@@ -322,6 +322,11 @@ def analyze_news_event(
         elif unlock_story and hu_unlock is None:
             unlock_risk = 0.55
 
+    # PROMPT-5.1: token unlock & vesting takvimi — varsa unlock riskini yükseltir.
+    unlock_sig = _deep_unlock_analysis(d)
+    if unlock_sig is not None:
+        unlock_risk = _clamp01(max(unlock_risk, unlock_sig.risk_score))
+
     listing_boost = 0.72 if listing else 0.0
 
     signal_hint = str(a.get("signal", "HOLD")).upper()
@@ -352,6 +357,10 @@ def analyze_news_event(
     perm: TradePermission = "ALLOW"
     if hack_txt or hack_cat:
         perm = "HALT"
+    elif unlock_sig is not None and unlock_sig.trade_permission == "HALT":
+        perm = "HALT"
+    elif unlock_sig is not None and unlock_sig.trade_permission == "BLOCK":
+        perm = "BLOCK"
     elif hu_unlock is not None and 0 < hu_unlock <= 72.0:
         perm = "BLOCK"
     elif unlock_story and hu_unlock is not None and hu_unlock <= 96.0:
@@ -389,10 +398,26 @@ def analyze_news_event(
         },
     }
 
+    if unlock_sig is not None:
+        payload["news"]["unlock_tracker"] = unlock_sig.to_dict()
+
     if attach_to_analysis:
         attach_phase_alias(a, "23", payload)
 
     return payload
+
+
+def _deep_unlock_analysis(d: Dict[str, Any]) -> Any:
+    """PROMPT-5.1 — token unlock & vesting takvimi. İlgili veri yoksa None.
+
+    Girdi: ``token_unlock`` alt dict veya düz ``unlock_schedule`` listesi.
+    """
+    try:
+        from super_otonom.signals.token_unlock_tracker import analyze_unlock_data
+
+        return analyze_unlock_data(d)
+    except Exception:  # unlock analizi asla Faz 23'ü bozmamalı
+        return None
 
 
 def run_news_event_phase(
