@@ -126,6 +126,16 @@ def normalize_regime(regime: Any) -> str:
     return s if s in KNOWN_REGIMES else "UNKNOWN"
 
 
+def _macro_regime_hint(analysis: Optional[Mapping[str, Any]]) -> str:
+    """PROMPT-6.1 — makro ortamdan rejim ipucu (omega yoksa fallback). Hata → UNKNOWN."""
+    try:
+        from super_otonom.macro_event_intelligence import macro_regime_hint as _hint
+
+        return _hint(dict(analysis) if isinstance(analysis, Mapping) else None)
+    except Exception:
+        return "UNKNOWN"
+
+
 def _env_truthy(name: str) -> bool:
     v = (os.getenv(name) or "").strip().lower()
     return v in ("1", "true", "yes", "on")
@@ -237,7 +247,16 @@ def compute_meta_regime(
     eff_mode = _resolve_mode(mode)
 
     regime_raw = analysis.get("omega_regime") if isinstance(analysis, Mapping) else None
-    regime = normalize_regime(regime_raw)
+    regime_omega = normalize_regime(regime_raw)
+    regime = regime_omega
+    # PROMPT-6.1: omega rejimi yoksa makro ortamdan rejim ipucu (additive fallback;
+    # omega mevcutsa hiçbir etki yok → eski davranış korunur).
+    macro_hint: Optional[str] = None
+    if regime == "UNKNOWN":
+        hint = _macro_regime_hint(analysis)
+        if hint != "UNKNOWN":
+            macro_hint = hint
+            regime = hint
     weights = family_weights_for_regime(regime)
     counts = _families_present(phase_chain or {})
     weighted = _weighted_mean(weights, counts)
@@ -264,7 +283,11 @@ def compute_meta_regime(
     payload: Dict[str, Any] = {
         "schema": SCHEMA_VERSION,
         "regime": regime,
-        "regime_source": "omega_regime" if regime != "UNKNOWN" else "missing",
+        "regime_source": (
+            "omega_regime" if regime_omega != "UNKNOWN"
+            else ("macro_hint" if (macro_hint and macro_hint != "UNKNOWN") else "missing")
+        ),
+        "macro_regime_hint": macro_hint,
         "mode": eff_mode,
         "applied": bool(applied),
         "advisory_blocked_reason": advisory_blocked_reason,
