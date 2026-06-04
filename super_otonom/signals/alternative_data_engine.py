@@ -264,6 +264,10 @@ def analyze_alternative_data(
     opt_risk, opt_detail = _put_call_risk(sections)
     options_an = _deep_options_analysis(d, sections)  # PROMPT-3.3
     dev_act, dev_conf_pen, dev_detail = _developer_scores(sections)
+    dev_deep = _deep_developer_analysis(sections["developer"])  # PROMPT-5.3
+    if dev_deep is not None:
+        # Genişletilmiş GitHub aktivite skoru, temel developer skoruyla harmanlanır.
+        dev_act = _clamp01(0.5 * dev_act + 0.5 * dev_deep.activity_score)
     adop, adop_detail = _adoption_scores(sections)
     onchain_an = _deep_onchain_analysis(d)  # PROMPT-2.1
     if onchain_an is not None:
@@ -318,6 +322,11 @@ def analyze_alternative_data(
         risk_01 = _clamp01(max(risk_01, unlock_an.risk_score))
         alpha_01 = _clamp01(alpha_01 + 0.10 * unlock_an.alpha_bias)
 
+    # PROMPT-5.3: developer activity (red flag → risk, pozitif sinyal → alpha)
+    if dev_deep is not None:
+        risk_01 = _clamp01(max(risk_01, dev_deep.risk_score))
+        alpha_01 = _clamp01(alpha_01 + 0.10 * dev_deep.alpha_bias)
+
     conf_base = _clamp01(0.22 + 0.42 * cov01 + 0.24 * dev_act + 0.12 * (1.0 - opt_risk))
     conf = _clamp01(conf_base * (1.0 - 0.55 * dev_conf_pen))
 
@@ -367,6 +376,8 @@ def analyze_alternative_data(
         payload["alternative_data"]["onchain"] = onchain_an.to_dict()
     if unlock_an is not None:
         payload["alternative_data"]["unlock"] = unlock_an.to_dict()
+    if dev_deep is not None:
+        payload["alternative_data"]["developer_deep"] = dev_deep.to_dict()
 
     if attach_to_analysis:
         attach_phase_alias(a, "27", payload)
@@ -384,6 +395,16 @@ def _deep_unlock_analysis(d: Dict[str, Any]) -> Any:
 
         return analyze_unlock_data(d)
     except Exception:  # unlock analizi asla Faz 27'yi bozmamalı
+        return None
+
+
+def _deep_developer_analysis(developer: Dict[str, Any]) -> Any:
+    """PROMPT-5.3 — GitHub developer activity. Genişletilmiş veri yoksa None."""
+    try:
+        from super_otonom.signals.developer_activity_tracker import analyze_developer_data
+
+        return analyze_developer_data(developer)
+    except Exception:  # developer analizi asla Faz 27'yi bozmamalı
         return None
 
 
