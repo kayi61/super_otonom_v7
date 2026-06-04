@@ -308,9 +308,11 @@ class MacroSignal:
     trade_permission: str           # ALLOW | BLOCK | HALT
     risk_off: bool
     reasons: List[str] = field(default_factory=list)
+    stablecoin_mint: bool = False                       # PROMPT-6.2 (büyük mint)
+    stablecoin: Optional[Dict[str, Any]] = None         # PROMPT-6.2 detayı
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        out: Dict[str, Any] = {
             "environment": self.environment,
             "macro_bias": self.bias,
             "macro_risk_score": self.risk_score,
@@ -320,7 +322,11 @@ class MacroSignal:
             "trade_permission": self.trade_permission,
             "risk_off": self.risk_off,
             "macro_reasons": list(self.reasons),
+            "stablecoin_mint": self.stablecoin_mint,
         }
+        if self.stablecoin is not None:
+            out["stablecoin"] = self.stablecoin
+        return out
 
 
 def _environment_to_regime(environment: str) -> str:
@@ -358,6 +364,9 @@ def analyze_macro(
     regulation_news: bool = False,
     regulatory_severity: Optional[float] = None,
     cbdc_news: bool = False,
+    stablecoin_bias: Optional[float] = None,
+    stablecoin_mint: bool = False,
+    stablecoin_detail: Optional[Dict[str, Any]] = None,
 ) -> MacroSignal:
     """Tüm makro katmanlarını birleşik bir ortam/rejim sinyaline indirger."""
     cal_bias, cal_vol, cpi_surprise, cal_reasons = analyze_economic_calendar(
@@ -381,9 +390,15 @@ def analyze_macro(
     )
 
     bias = _clamp(0.34 * cal_bias + 0.30 * ind_bias + 0.26 * liq_bias + 0.10 * geo_bias, -1.0, 1.0)
+    # PROMPT-6.2: stablecoin akışı likidite ortamını besler.
+    sb = _coerce_float(stablecoin_bias)
+    if sb is not None:
+        bias = _clamp(0.82 * bias + 0.18 * _clamp(sb, -1.0, 1.0), -1.0, 1.0)
     risk = _clamp01(max(ind_risk, geo_risk, 0.5 * max(0.0, -bias)))
     vol = _clamp01(max(cal_vol, 0.6 if risk_off else 0.0))
     reasons = cal_reasons + ind_reasons + liq_reasons + geo_reasons
+    if isinstance(stablecoin_detail, dict):
+        reasons = reasons + list(stablecoin_detail.get("stablecoin_reasons", []))
 
     # Birleşik kurallar (prompt sinyal mantığı)
     dovish = _stance_bias(fed_stance) > 0
@@ -423,6 +438,8 @@ def analyze_macro(
         trade_permission=perm,
         risk_off=bool(risk_off),
         reasons=reasons,
+        stablecoin_mint=bool(stablecoin_mint),
+        stablecoin=stablecoin_detail,
     )
 
 
@@ -442,7 +459,21 @@ def analyze_macro_data(source: Any) -> Optional[MacroSignal]:
         return None
     block = source.get("macro") if isinstance(source.get("macro"), dict) else {}
     src: Dict[str, Any] = {**source, **block}
-    if not (block or any(k in source for k in _MACRO_KEYS)):
+
+    # PROMPT-6.2: stablecoin akışı (varsa) → bias/mint beslemesi (lazy, izole).
+    stable_bias: Optional[float] = None
+    stable_mint: bool = False
+    stable_detail: Optional[Dict[str, Any]] = None
+    try:
+        from super_otonom.signals.stablecoin_intelligence import analyze_stablecoin_data
+
+        ss = analyze_stablecoin_data(src)
+        if ss is not None:
+            stable_bias, stable_mint, stable_detail = ss.bias, ss.stablecoin_mint, ss.to_dict()
+    except Exception:  # stablecoin analizi asla makro'yu bozmamalı
+        pass
+
+    if not (block or any(k in source for k in _MACRO_KEYS) or stable_detail is not None):
         return None
 
     def g(*keys: str) -> Any:
@@ -475,6 +506,9 @@ def analyze_macro_data(source: Any) -> Optional[MacroSignal]:
         regulation_news=_truthy(g("regulation_news")),
         regulatory_severity=_coerce_float(g("regulatory_severity")),
         cbdc_news=_truthy(g("cbdc_news")),
+        stablecoin_bias=stable_bias,
+        stablecoin_mint=stable_mint,
+        stablecoin_detail=stable_detail,
     )
 
 
