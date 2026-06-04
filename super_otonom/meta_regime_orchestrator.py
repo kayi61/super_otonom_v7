@@ -129,7 +129,7 @@ def normalize_regime(regime: Any) -> str:
 def _macro_regime_hint(analysis: Optional[Mapping[str, Any]]) -> str:
     """PROMPT-6.1 — makro ortamdan rejim ipucu (omega yoksa fallback). Hata → UNKNOWN."""
     try:
-        from super_otonom.macro_event_intelligence import macro_regime_hint as _hint
+        from super_otonom.signals.macro_event_intelligence import macro_regime_hint as _hint
 
         return _hint(dict(analysis) if isinstance(analysis, Mapping) else None)
     except Exception:

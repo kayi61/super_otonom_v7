@@ -1,6 +1,6 @@
 # Makroekonomik Event Tracker (PROMPT-6.1)
 
-`super_otonom/macro_event_intelligence.py` — kripto piyasayı etkileyen makro
+`super_otonom/signals/macro_event_intelligence.py` — kripto piyasayı etkileyen makro
 olayları takip eder; `regime_detection_engine` (Faz 26) ve `meta_regime_orchestrator`
 (A9) rejim çıkarımını makro ortamla zenginleştirir.
 

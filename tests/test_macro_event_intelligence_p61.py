@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 
 import pytest
-from super_otonom.macro_event_intelligence import (
+from super_otonom.meta_regime_orchestrator import compute_meta_regime
+from super_otonom.signals.macro_event_intelligence import (
     BEARISH,
     BULLISH,
     CRASH_RISK,
@@ -23,7 +24,6 @@ from super_otonom.macro_event_intelligence import (
     macro_regime_hint,
     parse_fred_series,
 )
-from super_otonom.meta_regime_orchestrator import compute_meta_regime
 
 # ── 1) Ekonomik takvim ───────────────────────────────────────────────────────
 

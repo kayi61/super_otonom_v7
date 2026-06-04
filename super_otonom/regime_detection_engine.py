@@ -59,7 +59,7 @@ def run_regime_detection_phase(
 def _deep_macro_analysis(analysis: Dict[str, Any]) -> Any:
     """PROMPT-6.1 — makro ortam sinyali. İlgili veri yoksa None."""
     try:
-        from super_otonom.macro_event_intelligence import analyze_macro_data
+        from super_otonom.signals.macro_event_intelligence import analyze_macro_data
 
         return analyze_macro_data(analysis)
     except Exception:  # makro analizi asla Faz 26'yı bozmamalı
