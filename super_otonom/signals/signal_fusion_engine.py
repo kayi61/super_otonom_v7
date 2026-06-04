@@ -97,6 +97,17 @@ def _fusion_vector(analysis: Dict[str, Any]) -> Tuple[float, Dict[str, float]]:
 
 def _apply_fusion_to_out(analysis: Dict[str, Any], out: Dict[str, Any]) -> None:
     """AI çıktısından sonra çoklu kaynak uyumu: güven artır / çelişkide HOLD."""
+    # PROMPT-10.1: insider fusion (varsa) — exploit/HALT her şeyi override eder.
+    ins = analysis.get("insider_fusion")
+    if isinstance(ins, dict):
+        out["insider_conviction"] = ins.get("insider_conviction")
+        if str(ins.get("decision")) == "HALT":
+            out["final_signal"] = "HOLD"
+            out["decision_reason"] = "INSIDER_EXPLOIT_HALT"
+            out["fusion_confidence"] = 0.0
+            log.warning("FUSION | insider exploit HALT override")
+            return
+
     fscore, sources = _fusion_vector(analysis)
     out["fusion_score"] = round(fscore, 4)
     out["fusion_sources"] = sources
