@@ -312,6 +312,12 @@ def analyze_alternative_data(
         risk_01 = _clamp01(max(risk_01, onchain_an.risk_score))
         alpha_01 = _clamp01(alpha_01 + 0.12 * onchain_an.alpha_bias)
 
+    # PROMPT-5.1: token unlock & vesting (satış baskısı → risk, alpha negatif)
+    unlock_an = _deep_unlock_analysis(d)
+    if unlock_an is not None:
+        risk_01 = _clamp01(max(risk_01, unlock_an.risk_score))
+        alpha_01 = _clamp01(alpha_01 + 0.10 * unlock_an.alpha_bias)
+
     conf_base = _clamp01(0.22 + 0.42 * cov01 + 0.24 * dev_act + 0.12 * (1.0 - opt_risk))
     conf = _clamp01(conf_base * (1.0 - 0.55 * dev_conf_pen))
 
@@ -320,6 +326,10 @@ def analyze_alternative_data(
     perm: TradePermission = "ALLOW"
     if d.get("force_halt") is True:
         perm = "HALT"
+    elif unlock_an is not None and unlock_an.trade_permission == "HALT":
+        perm = "HALT"
+    elif unlock_an is not None and unlock_an.trade_permission == "BLOCK":
+        perm = "BLOCK"
     elif tok_block:
         perm = "BLOCK"
     elif risk_01 >= 0.88:
@@ -355,11 +365,26 @@ def analyze_alternative_data(
         payload["alternative_data"]["options_flow_deep"] = options_an.to_dict()
     if onchain_an is not None:
         payload["alternative_data"]["onchain"] = onchain_an.to_dict()
+    if unlock_an is not None:
+        payload["alternative_data"]["unlock"] = unlock_an.to_dict()
 
     if attach_to_analysis:
         attach_phase_alias(a, "27", payload)
 
     return payload
+
+
+def _deep_unlock_analysis(d: Dict[str, Any]) -> Any:
+    """PROMPT-5.1 — token unlock & vesting takvimi. İlgili veri yoksa None.
+
+    Girdi: ``token_unlock`` alt dict veya düz ``unlock_schedule`` listesi.
+    """
+    try:
+        from super_otonom.signals.token_unlock_tracker import analyze_unlock_data
+
+        return analyze_unlock_data(d)
+    except Exception:  # unlock analizi asla Faz 27'yi bozmamalı
+        return None
 
 
 def _deep_onchain_analysis(d: Dict[str, Any]) -> Any:
