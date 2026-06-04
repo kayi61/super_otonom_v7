@@ -290,3 +290,21 @@ def compute_mm_whale_consensus(
         half_life_ms=hl,
         veto_reason=veto_reason,
     )
+
+
+def as_insider_signal(result: Any) -> Dict[str, Any]:
+    """PROMPT-10.1 — Faz 75 sonucunu insider_fusion ``whale_signal`` girdisine çevirir.
+
+    Yön = (alpha_score − risk_score)/100; conviction = result.conviction.
+    """
+    d = result.to_dict() if hasattr(result, "to_dict") else (result if isinstance(result, dict) else {})
+    alpha = float(d.get("alpha_score", 0) or 0)
+    risk = float(d.get("risk_score", 0) or 0)
+    direction = max(-1.0, min(1.0, (alpha - risk) / 100.0))
+    return {
+        "conviction": d.get("conviction"),
+        "alpha_bias": direction,
+        "action": d.get("action"),
+        "trade_permission": d.get("trade_permission"),
+        "source": "mm_whale_consensus",
+    }
