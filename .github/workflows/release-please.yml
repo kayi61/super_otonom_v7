@@ -15,14 +15,36 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write          # CI workflow'unu dispatch edebilmek için
 
 jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
       - name: Release Please
+        id: release
         uses: googleapis/release-please-action@v5
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: .github/release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      # Kalıcı CI fix: release-please PR'ları GITHUB_TOKEN ile push edildiğinden
+      # push/pull_request CI'ı tetiklenmez. Burada CI'ı release branch'inde
+      # workflow_dispatch ile tetikliyoruz (GITHUB_TOKEN bunu yapabilir). Böylece
+      # release PR'ları zorunlu check'leri alır ve normal merge edilebilir.
+      # Asla workflow'u bozmaz (|| true). PAT (RELEASE_PLEASE_TOKEN) varsa bu adıma
+      # zaten gerek kalmaz; ek olarak güvenli kalır.
+      - name: Trigger CI on release-please PR branch
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BR="release-please--branches--main--components--super_otonom"
+          if gh api "repos/${{ github.repository }}/branches/$BR" >/dev/null 2>&1; then
+            gh workflow run ci.yml --ref "$BR" \
+              && echo "CI dispatched on $BR" \
+              || echo "CI dispatch failed (non-fatal)"
+          else
+            echo "No release-please branch ($BR); nothing to dispatch."
+          fi
