@@ -45,8 +45,8 @@ from super_otonom.profiling import (
     measure_latency_ms,
     record_tick_performance,
 )
-from super_otonom.runtime_paths import runtime_path
 from super_otonom.risk_ontology import RiskOntology
+from super_otonom.runtime_paths import runtime_path
 from super_otonom.self_feedback_guard import (
     audit_intratick_frozen_core,
 )
