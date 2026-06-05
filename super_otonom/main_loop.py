@@ -18,9 +18,19 @@ if __name__ != "__main__":
     sys.modules[_TARGET] = _mod
     sys.modules[__name__] = _mod
 else:
-    _main = getattr(_mod, "main", None)
-    if _main is not None:
-        raise SystemExit(_main())
-    import runpy
+    import asyncio
 
-    runpy.run_module("super_otonom.core.main_loop", alter_sys=True)
+    _main = getattr(_mod, "main", None)
+    if _main is None:
+        import runpy
+
+        runpy.run_module("super_otonom.core.main_loop", run_name="__main__", alter_sys=True)
+    elif asyncio.iscoroutinefunction(_main):
+        # main() async coroutine — asyncio.run ile calistirilmali.
+        # Dogrudan _main() cagirmak coroutine'i await ETMEZ -> bot HIC baslamaz.
+        try:
+            raise SystemExit(asyncio.run(_main()))
+        except KeyboardInterrupt:
+            raise SystemExit(0) from None
+    else:
+        raise SystemExit(_main())
