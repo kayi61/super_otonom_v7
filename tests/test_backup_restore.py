@@ -8,9 +8,27 @@ from pathlib import Path
 
 import pytest
 
+
+def _bash_works() -> bool:
+    """PATH'te bash olmasi yetmez; gercekten calismali (bozuk WSL stub'i ele)."""
+    if shutil.which("bash") is None:
+        return False
+    try:
+        proc = subprocess.run(
+            ["bash", "-c", "echo ok"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return proc.returncode == 0 and "ok" in (proc.stdout or "")
+
+
 pytestmark = pytest.mark.skipif(
-    shutil.which("bash") is None,
-    reason="bash required for backup.sh / restore.sh",
+    not _bash_works(),
+    reason="calisan bash gerekli (backup.sh / restore.sh Linux deploy scriptleri)",
 )
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -91,11 +91,11 @@ def test_bot_engine_emergency_liquidate_no_positions(tmp_path: Path, monkeypatch
 
 def test_bot_engine_save_load_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
-    from super_otonom.bot_engine import BotEngine
+    from super_otonom.bot_engine import _STATE_FILE, BotEngine
 
     eng = BotEngine(capital=1000.0, paper=True)
     eng._save_state()
-    assert Path("data/bot_state.json").exists()
+    assert Path(_STATE_FILE).exists()
 
     # _load_state on existing
     eng2 = BotEngine(capital=1000.0, paper=True)
@@ -105,15 +105,16 @@ def test_bot_engine_save_load_state(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
 def test_bot_engine_load_state_bad_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
-    p = Path("data/bot_state.json")
+    from super_otonom.bot_engine import _STATE_FILE, BotEngine
+
+    p = Path(_STATE_FILE)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text("{ bad json", encoding="utf-8")
-    from super_otonom.bot_engine import BotEngine
 
     eng = BotEngine(capital=1000.0, paper=True)
     # bad JSON triggered _state_corrupt_fallback path
     assert eng._state_corrupt_fallback is True
-    assert Path("data/bot_state.json.bak").exists()
+    assert Path(str(_STATE_FILE) + ".bak").exists()
 
 
 # ════════════════════════════════════════════════════════════════════════════
