@@ -200,22 +200,28 @@ async def execute_trade_phase(
         }
 
         # Faz 80 final_action → mevcut bot giriş sinyali (BUY/HOLD) köprüsü
+        # P0 kararlar (FORCE_ALL_CLOSE, EMERGENCY) FAZ80 tarafından ezilmemeli
+        _p0_reason = out.get("decision_reason") or ""
+        _p0_preserved = any(tag in _p0_reason for tag in ("FORCE_ALL_CLOSE", "EMERGENCY"))
+
         if p80.final_action == "ENTER":
             out["final_signal"] = "BUY"
-            out["decision_reason"] = out.get("decision_reason") or "FAZ80_ENTER"
+            out["decision_reason"] = _p0_reason or "FAZ80_ENTER"
             dctx.add_trace(DecisionStage.ENTRY.value, "faz80:ENTER")
         elif p80.final_action == "HALT":
             out["final_signal"] = "HOLD"
-            if "FORCE_ALL_CLOSE" not in (out.get("decision_reason") or ""):
+            if not _p0_preserved:
                 out["decision_reason"] = "FAZ80_HALT"
             dctx.add_trace(DecisionStage.ENTRY.value, "faz80:HALT")
         elif p80.final_action in ("HEDGE", "EXIT"):
             out["final_signal"] = "HOLD"
-            out["decision_reason"] = f"FAZ80_{p80.final_action}"
+            if not _p0_preserved:
+                out["decision_reason"] = f"FAZ80_{p80.final_action}"
             dctx.add_trace(DecisionStage.ENTRY.value, f"faz80:{p80.final_action}")
         else:
             out["final_signal"] = "HOLD"
-            out["decision_reason"] = out.get("decision_reason") or "FAZ80_WAIT"
+            if not _p0_preserved:
+                out["decision_reason"] = _p0_reason or "FAZ80_WAIT"
             dctx.add_trace(DecisionStage.ENTRY.value, "faz80:WAIT")
 
         # Faz 80 WAIT iken üst akış zaten BUY ise sinyali koru — giriş kapısı (OB merge, hard limit)
