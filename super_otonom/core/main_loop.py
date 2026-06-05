@@ -61,16 +61,62 @@ _MAX_LOOP_ITERATIONS = int(os.getenv("MAIN_LOOP_MAX_ITERATIONS", "0") or "0")
 # WebSocket modu: WS_ENABLED=true (varsayılan) → borsa WS + mum kapanınca tick; REST yalnızca seed/MTF/ALT
 _WS_ENABLED = os.getenv("WS_ENABLED", "true").lower() in ("1", "true", "yes", "on")
 
-if not GENERAL.get("paper_mode", True) and GENERAL.get("live_confirm") != "YES":
-    log.critical(
-        "LIVE mod aktif ama LIVE_CONFIRM=YES degil. "
-        "Cikiliyor. Gercek emir gondermek icin .env dosyasina "
-        "LIVE_CONFIRM=YES ekleyin."
-    )
-    sys.exit(1)
+def assert_go_live_or_exit() -> None:
+    """
+    TEK final go/no-go kapisi — gercek emir gondermeden once tum on kosullari SIRAYLA dogrular.
 
-# P0 — deploy_env_check kilidi: üretim .env'de DEPLOY_ENV_LOCK_AT_START=1 (+ önce başarılı deploy_env_check).
-enforce_live_deploy_env_lock()
+    Paper/dry-run modda no-op. Canli modda (PAPER_MODE=false) herhangi bir kapi
+    basarisizsa ``sys.exit(1)`` (tek izlenebilir cikis noktasi, asagidan yukari kapi yok).
+
+    Kapilar (her biri P0, sirali):
+      1. LIVE_CONFIRM=YES         — bilincli canli onay
+      2. Vault erisilebilir        — SECRETS_VAULT_ONLY iken Vault ayakta + muhursuz
+      3. Vault KV anahtar dolu     — borsa api_key/api_secret mevcut
+      4. deploy_env_check kilidi    — basarili on-deploy dogrulamasi damgasi
+    """
+    if GENERAL.get("paper_mode", True):
+        return  # paper / dry-run: canli kapi yok
+
+    # ── Kapi 1: bilincli canli onay ──────────────────────────────────────────
+    if GENERAL.get("live_confirm") != "YES":
+        log.critical(
+            "GO-LIVE RED [1/4 LIVE_CONFIRM] — PAPER_MODE kapali ama LIVE_CONFIRM=YES degil. "
+            "Gercek emir icin .env'e LIVE_CONFIRM=YES ekleyin."
+        )
+        sys.exit(1)
+
+    # ── Kapi 2+3: Vault erisim + anahtar (yalnizca SECRETS_VAULT_ONLY) ────────
+    from super_otonom.infra.vault_bridge import VaultBridge, secrets_vault_only_mode
+
+    if secrets_vault_only_mode():
+        vb = VaultBridge()
+        if not vb.status().get("available"):
+            log.critical(
+                "GO-LIVE RED [2/4 VAULT] — SECRETS_VAULT_ONLY aktif ama Vault erisilemez. "
+                "VAULT_ADDR + AppRole (VAULT_ROLE_ID, VAULT_SECRET_ID) ayarlayin."
+            )
+            sys.exit(1)
+        ex_id = GENERAL.get("default_exchange", "binance")
+        probe = vb.probe_kv_fields(ex_id, ("api_key", "api_secret"))
+        if not probe.get("api_key") or not probe.get("api_secret"):
+            log.critical(
+                "GO-LIVE RED [3/4 VAULT_KV] — Vault KV'de %s api_key/api_secret eksik. "
+                "python -m super_otonom.infra.vault_seed",
+                ex_id,
+            )
+            sys.exit(1)
+
+    # ── Kapi 4: deploy_env_check basari damgasi (kendi icinde sys.exit) ───────
+    enforce_live_deploy_env_lock()
+
+    log.info(
+        "GO-LIVE ONAY — tum canli kapilar gecildi "
+        "(1.LIVE_CONFIRM + 2.Vault + 3.KV-anahtar + 4.deploy_env_lock)."
+    )
+
+
+# Tek final go/no-go kapisi — modul yuklenirken (main_loop import) calisir.
+assert_go_live_or_exit()
 
 _shutdown = asyncio.Event()
 _loop_counter = 0
