@@ -30,7 +30,29 @@ logs/
 data/audit/*.jsonl
 data/backup/
 data/bot_state.json
+data/trades.log
+data/orders.jsonl
+data/pending_orders.json
+data/capital_journal.jsonl
+data/reconcile/
+data/recon/
+data/reports/
+data/runtime/
 data/local/vault_init.json
 data/local/vault_admin_token.json
 data/local/telegram.env
 docker/tls/*.pem
+
+# Runtime / test artifacts
+_pytest_full.txt
+*.log
+health.log
+
+# Yanlis-yol bug savunmasi: bazi araclar (secrets_audit/deploy_env_stamp) repo koku
+# yerine super_otonom/ altina yaziyor — commit'e karismasin.
+super_otonom/data/
+super_otonom/docs/
+
+# .env yedekleri ASLA commit edilmez (secret icerir)
+.env.bak*
+.env.*.bak

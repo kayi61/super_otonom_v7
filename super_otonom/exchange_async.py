@@ -484,15 +484,23 @@ class AsyncExchangeHandler:
         if self._ex is None:
             raise RuntimeError("Exchange bağlantısı yok — ccxt başlatılmamış")
 
+        api_key = str(getattr(self._ex, "apiKey", "") or "").strip()
+        if not api_key:
+            raise RuntimeError(
+                "API anahtarı yok — canlı emir gönderilemez. "
+                "Vault KV'ye anahtar yazın veya SECRETS_VAULT_ONLY kontrolünü yapın."
+            )
+
         params = params or {}
         side = side.lower()
         order_type = order_type.lower()
 
+        safe_params = {k: v for k, v in params.items() if "secret" not in k.lower()}
         log.info(
             "CREATE_ORDER | %s %s %s | qty=%.8f price=%s | params=%s",
             symbol, side, order_type, amount,
             f"{price:.6f}" if price else "MARKET",
-            {k: v for k, v in params.items() if k != "clientOrderId"},
+            safe_params,
         )
 
         try:

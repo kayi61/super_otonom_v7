@@ -22,7 +22,13 @@ TARGETS: dict[str, list[str]] = {
         "tests/test_kill_switch.py",
     ],
     "capital_engine": [
-        "tests/test_risk_mutation_targets.py",
+        # test_risk_mutation_targets.py capital_engine'i KAPSAMIYORDU -> "no mutants
+        # tested" (coverage context bos) -> CI fail. Gercek capital_engine testlerine
+        # yonlendirildi; mutmut --use-coverage artik dogru context bulur.
+        "tests/test_capital_engine.py",
+        "tests/test_capital_engine_journal_sink.py",
+        "tests/test_capital_engine_v2_fixes.py",
+        "tests/test_capital_engine_v3_fixes.py",
     ],
     "pre_trade_gate": [
         "tests/test_risk_mutation_targets.py",

@@ -33,9 +33,11 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
+from super_otonom.runtime_paths import runtime_path
+
 log = logging.getLogger("super_otonom.capital")
 
-_JOURNAL_FILE = "data/capital_journal.jsonl"
+_JOURNAL_FILE = runtime_path("capital_journal.jsonl")
 _INVARIANT_TOLERANCE = 0.01  # yuvarlama toleransı (kuruş)
 _JOURNAL_MAX_BYTES = 50 * 1024 * 1024  # 50 MB — üstünde rotate
 

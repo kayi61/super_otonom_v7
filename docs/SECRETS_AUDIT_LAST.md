@@ -1,11 +1,11 @@
-# Sir denetimi (PROMPT 2) — 2026-05-16 15:04:18 UTC
+# Sir denetimi (PROMPT 2) — 2026-06-05 01:35:43 UTC
 
 | Alan | Deger |
 |------|--------|
 | Makine | `DESKTOP-98LUGLH` |
-| Repo | `C:\Users\lonek\Desktop\super otomonv7\super_otonom_v7` |
+| Repo | `C:\Users\lonek\Desktop\super otomonv7\super_otonom_v7\super_otonom` |
 | Genel sonuc | **FAIL** |
-| .env dosyasi | `C:\Users\lonek\Desktop\super otomonv7\super_otonom_v7\.env` (var) |
+| .env dosyasi | `C:\Users\lonek\Desktop\super otomonv7\super_otonom_v7\super_otonom\.env` (yok) |
 
 ## Checklist
 
@@ -15,7 +15,7 @@
 | Mevcut profil: PAPER_MODE | **PASS** | True |
 | Mevcut profil: LIVE_CONFIRM | **WARN** | '' |
 | .env icinde duz metin BINANCE/borsa anahtari (dosya) | **PASS** | (yok) |
-| .env icinde TELEGRAM_* (uyari; canlida Vault onerilir) | **WARN** | TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID |
+| .env icinde TELEGRAM_* (uyari; canlida Vault onerilir) | **PASS** | (yok) |
 | Ortamda duz metin BINANCE/borsa anahtari (process env) | **PASS** | (yok) |
 | SECRETS_VAULT_ONLY (simdiki cozumleme) | **WARN** | False |
 | Vault erisilebilir | **FAIL** | addr=http://127.0.0.1:8200 auth=approle |
@@ -47,17 +47,19 @@
 # One-line verification example (internal note / PR): "max_daily_loss_pct=0.05 (~%5), INSTITUTIONAL sect.1 daily loss %5 - OK" or fix table / env / commit.
 
 PAIRS (4): BTC/USDT, ETH/USDT, BNB/USDT, SOL/USDT
+deploy_env_check: RiskConfig invariant validation OK.
+deploy_env_check: VaRLimits hierarchy validation OK.
 deploy_env_check: A9 / canlÄ± .env â€” engelleyici sorun yok (META_REGIME_MODE='shadow', paper_mode=True, LIVE_CONFIRM='').
 deploy_env_check: P0 - INSTITUTIONAL sect.1 alignment (resolved RISK; no .env required): max_daily_loss_pct=0.05
 deploy_env_check: P0 â€” Ã§Ã¶zÃ¼mlenmiÅŸ RISK Ã¶zeti (INSTITUTIONAL sect.1 ile karÅŸÄ±laÅŸtÄ±rÄ±n):
 deploy_env_check: baÅŸarÄ± zaman damgasÄ± â€” deploy_env_check_last_ok.json (canlÄ± tick kilidi iÃ§in RUNBOOK #tatbikat-env).
-Vault AppRole login baÅŸarÄ±sÄ±z: HTTP Error 503: Service Unavailable
-Vault AppRole login baÅŸarÄ±sÄ±z: HTTP Error 503: Service Unavailable
 ```
 
 ### Canli profil simulasyonu
 ```text
-Vault AppRole login baÅŸarÄ±sÄ±z: HTTP Error 503: Service Unavailable
+deploy_env_check: RiskConfig invariant validation OK.
+deploy_env_check: VaRLimits hierarchy validation OK.
+Vault AppRole login baÅŸarÄ±sÄ±z: <urlopen error [WinError 10061] Hedef makine etkin olarak reddettiÄŸinden baÄŸlantÄ± kurulamadÄ±>
 SECRETS_VAULT_ONLY aktif ancak VAULT_TOKEN veya AppRole yok â€” VAULT_ADDR + VAULT_ROLE_ID + VAULT_SECRET_ID ayarlayÄ±n
 Vault yok â€” binance secret okunamadÄ± (SECRETS_VAULT_ONLY)
 Vault yok â€” bybit secret okunamadÄ± (SECRETS_VAULT_ONLY)
@@ -65,10 +67,10 @@ Vault yok â€” kucoin secret okunamadÄ± (SECRETS_VAULT_ONLY)
 Vault yok â€” okx secret okunamadÄ± (SECRETS_VAULT_ONLY)
 Vault yok â€” coinbase secret okunamadÄ± (SECRETS_VAULT_ONLY)
 Vault yok â€” gateio secret okunamadÄ± (SECRETS_VAULT_ONLY)
-Vault AppRole login baÅŸarÄ±sÄ±z: HTTP Error 503: Service Unavailable
+Vault AppRole login baÅŸarÄ±sÄ±z: <urlopen error [WinError 10061] Hedef makine etkin olarak reddettiÄŸinden baÄŸlantÄ± kurulamadÄ±>
 SECRETS_VAULT_ONLY aktif ancak VAULT_TOKEN veya AppRole yok â€” VAULT_ADDR + VAULT_ROLE_ID + VAULT_SECRET_ID ayarlayÄ±n
 [HATA] CanlÄ± profil + SECRETS_VAULT_ONLY â€” Vault eriÅŸilemiyor. VAULT_ADDR + AppRole (VAULT_ROLE_ID, VAULT_SECRET_ID) veya kÄ±sa Ã¶mÃ¼rlÃ¼ VAULT_TOKEN.
-[HATA] API anahtarlarÄ± .env/ortamda â€” Ã¼retimde yalnÄ±zca Vault KV: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID. TaÅŸÄ±ma: python -m super_otonom.vault_seed
+[HATA] API anahtarlarÄ± .env/ortamda â€” Ã¼retimde yalnÄ±zca Vault KV: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID. TaÅŸÄ±ma: python -m super_otonom.infra.vault_seed
 ```
 
 ## Emir gonderimi

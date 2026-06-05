@@ -71,6 +71,9 @@ Aşağıdakiler **hedef bütçe**dir; piyasa ve ağ koşullarına göre kalibre 
 
 ## 6) SLO ihlal prosedürü
 
+**Birincil ihlal sahibi:** Sistem operatoru (bot operasyonundan sorumlu kisi).  
+**Yedek:** Teknik lider veya kurucu.
+
 1. **Tespit:** İzleme (Prometheus, log, sağlık dosyası) eşiği aştı veya SLO tanımı ihlal edildi.  
 2. **Sınıflandırma:** Kullanıcı etkisi (var/yok), finansal etki, süreklilik.  
 3. **Müdahale:** `docs/RUNBOOK.md` acil / kurtarma bölümü; gerekirse süreç durdur ve güvenli mod.  
@@ -79,6 +82,34 @@ Aşağıdakiler **hedef bütçe**dir; piyasa ve ağ koşullarına göre kalibre 
 6. **Eylem maddeleri:** Kod, konfig, kapasite veya runbook güncellemesi; sahibi ve tarih.  
 7. **Eşik gözden gezimi:** Bu SLO belgesinde hedef veya ölçüm tanımı güncellenmiş mi?  
 8. **Kapanış:** Incident raporu arşiv; tekrarlayan ihlalde üst yönetim / kalite incelemesi.
+
+---
+
+## 6.1) Log retention politikasi
+
+| Log tipi | Konum | Saklama suresi | Sorumlu |
+|----------|-------|----------------|---------|
+| Bot islem loglari (`trades.log`) | `data/trades.log` | Suresiz (append-only) | Sistem operatoru |
+| Audit loglari | `data/audit/*.jsonl` | Min 1 yil | Sistem operatoru |
+| Health log | `logs/health.log` | 90 gun (rotation onerisi) | Sistem operatoru |
+| Reconciliation | `data/recon/` | 90 gun | Sistem operatoru |
+| Capital journal | `data/capital_journal.jsonl` | Suresiz | Sistem operatoru |
+| Prometheus TSDB | Docker volume | 15 gun (varsayilan) | Sistem operatoru |
+
+**Merkezi log:** Uretimde `logs/` ve `data/audit/` dosyalari merkezi log sistemine (Loki, ELK veya eşdeğeri) yonlendirilmelidir. Varsayilan: yalnizca yerel disk.
+
+---
+
+## 6.2) Secret rotation politikasi
+
+| Secret tipi | Rotation sikligi | Sorumlu | Yontem |
+|-------------|------------------|---------|--------|
+| Borsa API anahtarlari | 90 gun veya sizdirma sonrasi hemen | Sistem operatoru | Vault KV guncelleme + `vault_seed` |
+| Vault AppRole secret_id | 30 gun | Sistem operatoru | `vault_rotate` |
+| Telegram bot token | Yalnizca sizdirmada | Sistem operatoru | BotFather + Vault |
+| Postgres / TimescaleDB | 90 gun | Sistem operatoru | Docker secret + restart |
+
+**Acil rotation:** API anahtari sizdirma suphe/tespitinde derhal: (1) borsadan iptal, (2) yeni anahtar uret, (3) Vault'a yaz, (4) bot restart.
 
 ---
 
