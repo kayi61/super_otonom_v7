@@ -1,7 +1,7 @@
 {
   "audit": 7,
   "schema_version": 1,
-  "flat_production_count": 105,
+  "flat_production_count": 106,
   "flat_test_count": 0,
   "flat_production_ceiling": 125,
   "allowed_subpackages": [
@@ -124,6 +124,7 @@
     "risk_manager.py",
     "risk_ontology.py",
     "rl_trading_agent.py",
+    "runtime_paths.py",
     "safety_policy_engine.py",
     "self_feedback_guard.py",
     "sharpe_audit.py",
