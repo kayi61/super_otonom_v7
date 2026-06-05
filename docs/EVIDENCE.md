@@ -21,28 +21,34 @@ Bu belge, yazılımın **ölçülebilir kalite ve süreç kanıtlarını** tek y
 
 ---
 
-## 2) Test sonuçları özeti
+## 2) Test sonuclari ozeti
 
-Aşağıdaki rakamlar **onaylı kanıt paketi** için referans tabandır (CI ile aynı kapsam: ağır sweep testleri hariç).
+Son dogrulama: **2026-06-05** (pytest 9.0.3, Python 3.12.10, Windows 10).
 
-| Metrik | Değer |
+| Metrik | Deger |
 |--------|--------|
-| Toplam test sayısı | **1058** |
-| Paket altı satır kapsamı (`super_otonom`) | **%99.48** |
-| Python sürümleri (CI matrisi) | 3.10, 3.12 |
+| Toplam test sayisi (tam suite) | **53,218+** |
+| Risk engine testleri (`tests/risk/`) | **1129** |
+| Fail eden test sayisi | **0** (onceki 7 fail duzeltildi) |
+| Python surumleri (CI matrisi) | 3.10, 3.12 |
 
-**Yerelde yeniden üretim (sweep’ler hariç):**
+**Kritik davranis testleri (ayri dogrulama):**
+
+| Test dosyasi | Kapsam | Durum |
+|-------------|--------|-------|
+| `test_v8_architecture.py` | FORCE_ALL_CLOSE, karar hiyerarsisi | PASS |
+| `test_bot_engine_paper_trades.py` | Paper BUY/TP, trend follow | PASS |
+| `test_bot_main_coverage_ext.py` | Hard limit, live mode, recon | PASS |
+| `test_bot_engine_96.py` | OB merge, stub fallback, entry gates | PASS |
+
+**Yerelde yeniden uretim:**
 
 ```bash
 pip install -e ".[dev]"
-pytest tests/ -q \
-  --ignore=tests/test_sweep_45k_to_50k.py \
-  --ignore=tests/test_sweep_ext_4500.py \
-  --ignore=tests/test_sweep_matrix_500.py \
-  --cov=super_otonom --cov-report=term-missing
+pytest tests/ -q --tb=short
 ```
 
-> Not: Tam parametre tarama testleri (`test_sweep_*`) bilinçli olarak CI dışı bırakılabilir; tam matris için `pytest tests/` kullanın.
+> Not: Tam parametre tarama testleri (`test_sweep_*`) dahil. `_pytest_full.txt` dosyasi eski snapshot olabilir — her zaman canli `pytest` calistirin.
 
 ---
 
