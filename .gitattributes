@@ -1,0 +1,30 @@
+# Line-ending politikasi — Windows autocrlf=true'ya RAGMEN container dosyalari LF kalmali.
+#
+# KOK SEBEP: .gitattributes yokken Windows checkout, LF saklanan *.sh dosyalarini
+# CRLF'e cevirir. Docker bunu Linux container'a mount edince shell '\r'i "illegal
+# option" sanip coker (ornek: vault-entrypoint.sh -> Vault crash-loop).
+# Asagidaki kurallar bu dosyalarin HER platformda LF checkout edilmesini garanti eder.
+
+# Varsayilan: git metni otomatik algilasin, satir sonunu normalize etsin.
+* text=auto
+
+# Linux container / shell dosyalari — ZORUNLU LF (Windows'ta bile)
+*.sh            text eol=lf
+*.bash          text eol=lf
+docker/**/*.sh  text eol=lf
+Dockerfile      text eol=lf
+*.Dockerfile    text eol=lf
+docker-entrypoint* text eol=lf
+*-entrypoint.sh text eol=lf
+
+# Windows-ozel scriptler — CRLF kalsin (PowerShell/cmd)
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary — donusturme
+*.png binary
+*.jpg binary
+*.gz  binary
+*.zip binary
+*.pyc binary
