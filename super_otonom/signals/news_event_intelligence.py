@@ -330,6 +330,9 @@ def analyze_news_event(
     # PROMPT-5.2: borsa listing/delisting erken tespiti (varsa alpha/risk ayarlar).
     listing_sig = _deep_listing_analysis(d)
 
+    # PROMPT-8.1: real-time exploit/hack tespiti (yapılandırılmış veri varsa).
+    exploit_sig = _deep_exploit_analysis(d)
+
     listing_boost = 0.72 if listing else 0.0
 
     signal_hint = str(a.get("signal", "HOLD")).upper()
@@ -354,6 +357,11 @@ def analyze_news_event(
         alpha_01 = _clamp01(alpha_01 + 0.12 * listing_sig.alpha_bias)
         risk_01 = _clamp01(max(risk_01, listing_sig.risk_score))
 
+    # PROMPT-8.1: exploit tespit → risk maksimize, alpha kıs.
+    if exploit_sig is not None and exploit_sig.exploit_detected:
+        risk_01 = _clamp01(max(risk_01, exploit_sig.severity))
+        alpha_01 = _clamp01(alpha_01 * 0.3)
+
     stale_f = _freshness_confidence_factor(age_h)
     base_conf = _clamp01(0.26 + 0.55 * sent_01 + 0.14 * (1.0 - macro_r * 0.3))
     conf = _clamp01(base_conf * stale_f)
@@ -363,7 +371,9 @@ def analyze_news_event(
     eff_half_life = _half_life_from_freshness(age_h, half_life_ms)
 
     perm: TradePermission = "ALLOW"
-    if hack_txt or hack_cat:
+    if exploit_sig is not None and exploit_sig.exploit_detected:
+        perm = "HALT"
+    elif hack_txt or hack_cat:
         perm = "HALT"
     elif unlock_sig is not None and unlock_sig.trade_permission == "HALT":
         perm = "HALT"
@@ -416,6 +426,11 @@ def analyze_news_event(
     if listing_sig is not None:
         payload["news"]["listing_intelligence"] = listing_sig.to_dict()
 
+    if exploit_sig is not None:
+        payload["news"]["exploit_detector"] = exploit_sig.to_dict()
+        if exploit_sig.exploit_detected:
+            payload["news"]["hack_or_exploit_flag"] = True
+
     if attach_to_analysis:
         attach_phase_alias(a, "23", payload)
 
@@ -445,6 +460,19 @@ def _deep_listing_analysis(d: Dict[str, Any]) -> Any:
 
         return analyze_listing_data(d)
     except Exception:  # listing analizi asla Faz 23'ü bozmamalı
+        return None
+
+
+def _deep_exploit_analysis(d: Dict[str, Any]) -> Any:
+    """PROMPT-8.1 — real-time exploit/hack tespiti. İlgili veri yoksa None.
+
+    Girdi: ``exploit`` alt dict'i veya düz exploit anahtarları (on-chain/sosyal).
+    """
+    try:
+        from super_otonom.signals.exploit_detector import detect_exploit_data
+
+        return detect_exploit_data(d)
+    except Exception:  # exploit analizi asla Faz 23'ü bozmamalı
         return None
 
 

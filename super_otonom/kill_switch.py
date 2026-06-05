@@ -192,3 +192,28 @@ def apply_storm_trip_to_risk(risk: Any) -> bool:
     if hasattr(risk, "trigger_emergency"):
         risk.trigger_emergency(trip, silent=True)
     return not was
+
+
+def apply_exploit_emergency_to_risk(risk: Any, source: Any) -> bool:
+    """
+    PROMPT-8.1 — Real-time exploit tespit edilirse `risk.trigger_emergency('exploit_emergency')`.
+
+    ``source``: exploit verisi (dict) veya hazır ExploitSignal. Exploit tespit edilmezse
+    hiçbir şey yapmaz. Dönüş: yeni (önceden yok) acil uygulandıysa True.
+    """
+    try:
+        from super_otonom.signals.exploit_detector import (
+            EXPLOIT_EMERGENCY,
+            detect_exploit_data,
+        )
+
+        sig = detect_exploit_data(source) if isinstance(source, dict) else source
+    except Exception:  # exploit modülü/analizi asla kill_switch'i bozmamalı
+        return False
+
+    if sig is None or not bool(getattr(sig, "exploit_detected", False)):
+        return False
+    was = bool(getattr(risk, "emergency_stop", False))
+    if hasattr(risk, "trigger_emergency"):
+        risk.trigger_emergency(EXPLOIT_EMERGENCY, silent=True)
+    return not was
