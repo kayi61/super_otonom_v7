@@ -6,6 +6,11 @@ on:
     branches: [main, master, develop]
   pull_request:
     branches: [main, master, develop]
+  # release-please PR'ları GITHUB_TOKEN ile push edildiği için push/pull_request
+  # tetiklenmez (anti-recursion). release-please.yml bu workflow'u dispatch eder
+  # (workflow_dispatch GITHUB_TOKEN ile çalışır — belgelenmiş istisna), böylece
+  # release PR'larında da zorunlu check'ler üretilir. Mevcut tetikleyiciler değişmez.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
