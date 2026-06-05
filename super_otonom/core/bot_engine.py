@@ -45,6 +45,7 @@ from super_otonom.profiling import (
     measure_latency_ms,
     record_tick_performance,
 )
+from super_otonom.runtime_paths import runtime_path
 from super_otonom.risk_ontology import RiskOntology
 from super_otonom.self_feedback_guard import (
     audit_intratick_frozen_core,
@@ -75,8 +76,8 @@ except ImportError:
 _TAKE_PROFIT_PCT = RISK.get("take_profit_pct", 0.03)
 _STOP_LOSS_PCT = RISK.get("stop_loss_pct", 0.015)
 _MAX_OPEN_POSITIONS = RISK.get("max_open_positions", 1)
-_STATE_FILE = "data/bot_state.json"
-_TRADE_LOG_FILE = "data/trades.log"
+_STATE_FILE = runtime_path("bot_state.json")
+_TRADE_LOG_FILE = runtime_path("trades.log")
 
 VALID_BUY_SIGNALS = {"BUY"}
 VALID_SELL_SIGNALS = {"SELL", "CLOSE_ALL"}

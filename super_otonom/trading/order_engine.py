@@ -32,10 +32,12 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from super_otonom.runtime_paths import runtime_path
+
 log = logging.getLogger("super_otonom.order_engine")
 
-_ORDER_LOG_FILE = "data/orders.jsonl"
-_PENDING_FILE = "data/pending_orders.json"
+_ORDER_LOG_FILE = runtime_path("orders.jsonl")
+_PENDING_FILE = runtime_path("pending_orders.json")
 
 
 def _truthy_env(name: str, default: str = "false") -> bool:
