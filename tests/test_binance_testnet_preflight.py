@@ -183,6 +183,32 @@ def test_result_render_masks_and_formats():
     assert "PASS" in txt and "USDT=10.00" in txt and "AB…YZ" in txt
 
 
+def test_ensure_vault_token_noop_when_already_set(monkeypatch):
+    monkeypatch.setenv("VAULT_TOKEN", "zaten-var")
+    pf._ensure_vault_token()
+    import os as _os
+    assert _os.environ["VAULT_TOKEN"] == "zaten-var"  # mevcut token degismedi
+
+
+def test_sync_probe_uses_sandbox(monkeypatch):
+    # _SyncTestnetProbe set_sandbox_mode(True) cagirmali (testnet'e yonlendir).
+    calls = {}
+
+    class _FakeCcxtEx:
+        def __init__(self, cfg):
+            calls["cfg"] = cfg
+
+        def set_sandbox_mode(self, on):
+            calls["sandbox"] = on
+
+    import types
+    fake_ccxt = types.SimpleNamespace(binance=lambda cfg: _FakeCcxtEx(cfg))
+    monkeypatch.setitem(__import__("sys").modules, "ccxt", fake_ccxt)
+    pf._SyncTestnetProbe("K" * 40, "S" * 40)
+    assert calls["sandbox"] is True
+    assert calls["cfg"]["options"]["adjustForTimeDifference"] is True
+
+
 def test_main_returns_1_on_no_key(monkeypatch, capsys):
     for k in ("SEED_API_KEY", "SEED_API_SECRET", "BINANCE_API_KEY", "BINANCE_API_SECRET"):
         monkeypatch.delenv(k, raising=False)
