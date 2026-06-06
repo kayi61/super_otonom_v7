@@ -24,6 +24,11 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--exchange", default="binance", help="borsa anahtari (varsayilan: binance)")
     ap.add_argument("--addr", default="http://127.0.0.1:8200", help="VAULT_ADDR")
+    ap.add_argument(
+        "--from-env",
+        action="store_true",
+        help="anahtarlari SEED_API_KEY / SEED_API_SECRET env'den oku (getpass paste sorunu varsa)",
+    )
     args = ap.parse_args()
 
     # Vault token — once env, yoksa vault_init.json'dan (root_token)
@@ -53,11 +58,36 @@ def main() -> int:
         )
         return 1
 
-    print(f"Vault OK. {args.exchange} anahtarlarini girin (giris GIZLI — ekranda gorunmez):")
-    api_key = getpass.getpass("  api_key   : ").strip()
-    api_secret = getpass.getpass("  api_secret: ").strip()
+    if args.from_env:
+        api_key = os.getenv("SEED_API_KEY", "").strip()
+        api_secret = os.getenv("SEED_API_SECRET", "").strip()
+        print(f"Vault OK. {args.exchange} anahtarlari SEED_API_KEY/SEED_API_SECRET env'den okundu.")
+    else:
+        print(f"Vault OK. {args.exchange} anahtarlarini girin (giris GIZLI — ekranda gorunmez):")
+        api_key = getpass.getpass("  api_key   : ").strip()
+        api_secret = getpass.getpass("  api_secret: ").strip()
     if not api_key or not api_secret:
-        print("HATA: api_key/api_secret bos olamaz.", file=sys.stderr)
+        print(
+            "HATA: api_key/api_secret bos olamaz."
+            + (" SEED_API_KEY/SEED_API_SECRET ayarli mi?" if args.from_env else ""),
+            file=sys.stderr,
+        )
+        return 1
+
+    # KOK SEBEP korumasi: getpass bazi terminallerde (Windows PowerShell paste)
+    # yapistirmayi tam yakalayamaz; sadece 1-2 karakter okunup gecersiz anahtar
+    # Vault'a yazilir -> borsa /account 400 verir, sebep gizli kalir. Erken yakala.
+    # Gercek borsa anahtarlari uzundur (Binance ~64 karakter).
+    _MIN_KEY_LEN = 16
+    if len(api_key) < _MIN_KEY_LEN or len(api_secret) < _MIN_KEY_LEN:
+        print(
+            f"HATA: anahtar COK KISA (api_key={len(api_key)} char, "
+            f"api_secret={len(api_secret)} char). Gercek borsa anahtarlari ~64 karakter.\n"
+            "  -> Yapistirma tam olmadi (getpass paste sorunu). Tekrar calistirin;\n"
+            "     PowerShell'de sag-tik ile yapistirip TEK Enter'a basin.\n"
+            "  -> Alternatif: $env:SEED_API_KEY / $env:SEED_API_SECRET ile --from-env.",
+            file=sys.stderr,
+        )
         return 1
 
     try:
