@@ -51,8 +51,11 @@ _RECONNECT_DELAY = 5  # saniye
 _MAX_RECONNECT_DELAY = 60
 
 # Binance WebSocket URL'leri
+# Spot testnet market-stream host'u 'stream.testnet.binance.vision' (stream. prefix).
+# 'testnet.binance.vision/stream' 404 verir (canli dogrulandi 2026-06-06); o host
+# REST/ws-api icindir, market combined-stream icin stream. prefix sart.
 _BINANCE_WS = "wss://stream.binance.com:9443/stream?streams={streams}"
-_BINANCE_WS_TESTNET = "wss://testnet.binance.vision/stream?streams={streams}"
+_BINANCE_WS_TESTNET = "wss://stream.testnet.binance.vision/stream?streams={streams}"
 
 # OKX WebSocket URL
 _OKX_WS = "wss://ws.okx.com:8443/ws/v5/public"

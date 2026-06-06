@@ -61,6 +61,51 @@ _MAX_LOOP_ITERATIONS = int(os.getenv("MAIN_LOOP_MAX_ITERATIONS", "0") or "0")
 # WebSocket modu: WS_ENABLED=true (varsayılan) → borsa WS + mum kapanınca tick; REST yalnızca seed/MTF/ALT
 _WS_ENABLED = os.getenv("WS_ENABLED", "true").lower() in ("1", "true", "yes", "on")
 
+
+def _try_auto_unseal_vault() -> None:
+    """Dev self-heal: VAULT_AUTO_UNSEAL truthy iken muhurlu Vault'u
+    data/local/vault_init.json ile acar (docker vault-unseal sidecar yoksa bot kendi acar).
+
+    URETIMDE KAPALI (default) — unseal anahtarini diskte tutmak guvenlik riski;
+    uretimde cloud KMS / Vault transit auto-unseal kullanin. Basarisizsa net uyari,
+    sys.exit YOK (asil Vault kapisi assert_go_live_or_exit icinde karar verir).
+    """
+    if os.getenv("VAULT_AUTO_UNSEAL", "").strip().lower() not in ("1", "true", "yes", "on"):
+        return
+    import json as _json
+    import urllib.request as _req
+    from pathlib import Path as _Path
+
+    addr = (os.getenv("VAULT_ADDR", "http://127.0.0.1:8200") or "").rstrip("/")
+    init_path = _Path(__file__).resolve().parents[2] / "data" / "local" / "vault_init.json"
+    if not init_path.is_file():
+        log.warning("VAULT_AUTO_UNSEAL aktif ama vault_init.json yok: %s", init_path)
+        return
+    try:
+        with _req.urlopen(f"{addr}/v1/sys/seal-status", timeout=5) as r:
+            if not _json.load(r).get("sealed"):
+                return  # zaten acik
+        init = _json.loads(init_path.read_text(encoding="utf-8"))
+        keys = init.get("unseal_keys_b64") or init.get("unseal_keys_hex") or []
+        threshold = max(1, int(init.get("unseal_threshold") or 1))
+        for k in keys[:threshold]:
+            rq = _req.Request(
+                f"{addr}/v1/sys/unseal",
+                data=_json.dumps({"key": k}).encode(),
+                method="POST",
+            )
+            rq.add_header("Content-Type", "application/json")
+            with _req.urlopen(rq, timeout=5) as r:
+                if not _json.load(r).get("sealed"):
+                    break
+        log.info("VAULT_AUTO_UNSEAL: muhurlu Vault acildi (dev self-heal).")
+    except Exception as exc:  # noqa: BLE001
+        log.warning(
+            "VAULT_AUTO_UNSEAL: unseal denemesi basarisiz (%s) — manuel: scripts/vault_unseal.ps1",
+            exc,
+        )
+
+
 def assert_go_live_or_exit() -> None:
     """
     TEK final go/no-go kapisi — gercek emir gondermeden once tum on kosullari SIRAYLA dogrular.
@@ -73,7 +118,12 @@ def assert_go_live_or_exit() -> None:
       2. Vault erisilebilir        — SECRETS_VAULT_ONLY iken Vault ayakta + muhursuz
       3. Vault KV anahtar dolu     — borsa api_key/api_secret mevcut
       4. deploy_env_check kilidi    — basarili on-deploy dogrulamasi damgasi
+
+    Kapilardan ONCE: VAULT_AUTO_UNSEAL set ise muhurlu Vault'u self-heal eder.
     """
+    # Kapilardan once: dev self-heal (muhurlu Vault'u ac). Default no-op.
+    _try_auto_unseal_vault()
+
     if GENERAL.get("paper_mode", True):
         return  # paper / dry-run: canli kapi yok
 

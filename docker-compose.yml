@@ -280,6 +280,27 @@ services:
     networks:
       - bot_network
 
+  # Auto-unseal sidecar (YEREL/DEV) — Vault muhurluyse data/local/vault_init.json
+  # ile acar; restart sonrasi gozetimsiz toparlanma. restart: unless-stopped ile
+  # Docker/makine restart'inda kendiliginden Vault'u tekrar unseal eder.
+  # UYARI: unseal anahtarini diskte tutar — uretimde cloud KMS auto-unseal kullanin.
+  # data/local dizini yoksa script no-op (acmaz, hata vermez).
+  vault-unseal:
+    image: hashicorp/vault:latest
+    container_name: super_otonom_vault_unseal
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/vault-unseal.sh"]
+    environment:
+      - VAULT_ADDR=http://vault:8200
+    volumes:
+      - ./docker/vault-unseal.sh:/vault-unseal.sh:ro
+      - ./data/local:/vault/init:ro
+    depends_on:
+      vault:
+        condition: service_started
+    networks:
+      - bot_network
+
   nginx:
     image: nginx:alpine
     container_name: super_otonom_nginx

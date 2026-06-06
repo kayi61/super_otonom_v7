@@ -255,13 +255,24 @@ class AsyncExchangeHandler:
             and _binance_testnet_env_enabled()
         )
         if _binance_demo:
-            # Sandbox ile demo trading birlikte ccxt'te desteklenmez; demo URL'ler resmi yol.
+            # KOK SEBEP (canli dogrulandi 2026-06-06): enable_demo_trading isteklerini
+            # demo-api.binance.com (FUTURES demo) host'una yonlendiriyor. Spot testnet
+            # anahtarlari (testnet.binance.vision) o host'ta GECERSIZ -> /api/v3/account 400.
+            # set_sandbox_mode(True) defaultType'a gore dogru testnet host'unu secer:
+            #   spot    -> https://testnet.binance.vision/api/v3   (spot anahtarlar gecerli)
+            #   futures -> https://testnet.binancefuture.com       (futures testnet)
             try:
-                if hasattr(self._ex, "enable_demo_trading"):
+                if hasattr(self._ex, "set_sandbox_mode"):
+                    self._ex.set_sandbox_mode(True)
+                    _api = self._ex.urls.get("api")
+                    _host = _api.get("private") if isinstance(_api, dict) else _api
+                    log.info("Binance testnet: ccxt set_sandbox_mode — host=%s", _host)
+                elif hasattr(self._ex, "enable_demo_trading"):
+                    # Fallback (yalnizca futures demo isteniyorsa): eski yol.
                     self._ex.enable_demo_trading(True)
-                    log.info(
-                        "Binance testnet: ccxt enable_demo_trading — "
-                        "exchangeInfo ve diger uclar demo-api / demo-fapi."
+                    log.warning(
+                        "Binance testnet: set_sandbox_mode yok — enable_demo_trading "
+                        "(demo-api/demo-fapi; SPOT anahtarlari calismayabilir)."
                     )
                 else:
                     demo = self._ex.urls.get("demo")
@@ -270,9 +281,9 @@ class AsyncExchangeHandler:
                         self._ex.options["enableDemoTrading"] = True
                         log.info("Binance testnet: urls['demo'] -> urls['api'] (eski ccxt).")
                     else:
-                        log.warning("Binance testnet: ccxt urls['demo'] yok — URL ayari atlandi.")
+                        log.warning("Binance testnet: ccxt sandbox/demo yolu yok — URL ayari atlandi.")
             except Exception as exc:
-                log.warning("Binance demo URL ayari basarisiz: %s", exc)
+                log.warning("Binance testnet URL ayari basarisiz: %s", exc)
         elif exchange_id == "binance" and bool(testnet) and not _binance_testnet_env_enabled():
             log.info(
                 "Binance: testnet bayragi acik ama BINANCE_TESTNET env kapali — "
