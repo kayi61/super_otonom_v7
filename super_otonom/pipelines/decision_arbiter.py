@@ -239,3 +239,42 @@ def arbitrate_from_phases(
         )
     )
     return arbitrate(verdicts)
+
+
+def tick_decision_context(
+    *,
+    emergency_stop: bool,
+    force_all_close: bool,
+    has_open_position: bool,
+    analysis: Optional[Mapping[str, Any]],
+    execution_action: str,
+    execution_reason: str = "",
+    hard_limit_blocked: bool = False,
+    hard_limit_reason: str = "",
+) -> Dict[str, Any]:
+    """Bir tick'in tek izlenebilir kararini mevcut analiz/bayraklardan uretir.
+
+    SHADOW kullanim: execution_pipeline bunu cagirir ve sonucu yalnizca
+    ``out["priority_arbiter"]``'a yazar — final_signal/davranis DEGISMEZ. Boylece
+    "her tick'te tek izlenebilir karar" (P-2 kabul) canli yolda gerceklesir ve
+    legacy karar ile arbiter karari arasindaki uyusmazliklar (kalan oncelik
+    bug'lari) ``legacy_mismatch`` ile yakalanir.
+    """
+    a = analysis or {}
+    decision = arbitrate_from_phases(
+        emergency_stop=emergency_stop,
+        force_all_close=force_all_close,
+        has_open_position=has_open_position,
+        hard_limit_blocked=hard_limit_blocked,
+        hard_limit_reason=hard_limit_reason,
+        phase39=a.get("phase39") or a.get("faz39"),
+        phase64=a.get("phase64") or a.get("faz64"),
+        execution_action=execution_action,
+        execution_reason=execution_reason,
+    )
+    payload = decision.to_dict()
+    # Legacy uyusmazlik: arbiter girise IZIN VERMIYOR ama execution ENTER istedi mi?
+    payload["legacy_mismatch"] = bool(
+        (not decision.allowed) and str(execution_action).upper() == "ENTER"
+    )
+    return payload

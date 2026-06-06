@@ -240,6 +240,31 @@ async def execute_trade_phase(
                 out["decision_reason"] = str(_dr_upstream)
             dctx.add_trace(DecisionStage.ENTRY.value, "faz80:WAIT_upstream_buy")
 
+        # ── P-2 SHADOW: tek izlenebilir oncelik karari (GOZLEM; davranis DEGISMEZ) ──
+        # arbiter mevcut faz/bayraklardan degismez merdivenle kazanan katmani uretir;
+        # yalnizca out["priority_arbiter"]'a yazilir. final_signal'a DOKUNULMAZ. legacy
+        # karar ile arbiter uyusmazsa (kalan oncelik bug'i) trace'e MISMATCH dusulur.
+        try:
+            from super_otonom.pipelines.decision_arbiter import tick_decision_context
+            from super_otonom.pipelines.risk_pipeline import force_all_close_requested
+
+            _arb = tick_decision_context(
+                emergency_stop=bool(getattr(engine.risk, "emergency_stop", False)),
+                force_all_close=bool(force_all_close_requested()),
+                has_open_position=symbol in engine.open_positions,
+                analysis=analysis,
+                execution_action=str(p80.final_action),
+                execution_reason=str(out.get("decision_reason") or ""),
+            )
+            out["priority_arbiter"] = _arb
+            if _arb.get("legacy_mismatch"):
+                dctx.add_trace(
+                    "priority_arbiter",
+                    f"MISMATCH {_arb.get('winning_layer')} vs faz80:{p80.final_action}",
+                )
+        except Exception:  # noqa: BLE001 — shadow asla tick'i bozmaz
+            pass
+
         analysis["dynamic_stop"] = out["dynamic_stop"]
         analysis["faz77"] = out["faz77_stop"]
 
