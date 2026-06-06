@@ -283,3 +283,135 @@ def test_bridge_health_unreachable_env_fallback(monkeypatch):
     with _patch_urlopen(boom):
         vb = VaultBridge(addr=_ADDR, token="root-token")
         assert vb.status()["available"] is False
+
+
+# ── Hata yollari (except / fallback dallari) ───────────────────────────────
+
+
+def test_renew_failure_falls_back_to_approle(monkeypatch):
+    monkeypatch.setenv("SECRETS_VAULT_ONLY", "false")
+    monkeypatch.setenv("VAULT_ROLE_ID", "rid")
+    monkeypatch.setenv("VAULT_SECRET_ID", "sid")
+
+    def handler(url, method, req):
+        if url.endswith("/sys/health"):
+            return _Resp({"initialized": True, "sealed": False})
+        if "/auth/token/renew-self" in url:
+            raise urllib.error.URLError("renew down")
+        if "/auth/approle/login" in url:
+            return _Resp({"auth": {"client_token": "new-tok", "lease_duration": 3600}})
+        return _Resp(b"{}")
+
+    with _patch_urlopen(handler):
+        vb = VaultBridge(addr=_ADDR, token="root-token")
+        vb._token_expires = 1.0  # gecmis -> renew dene
+        vb._request_headers()  # renew patlar -> approle retry
+        assert vb._token == "new-tok"
+
+
+def test_renew_and_approle_both_fail(monkeypatch):
+    monkeypatch.setenv("SECRETS_VAULT_ONLY", "false")
+
+    def handler(url, method, req):
+        if url.endswith("/sys/health"):
+            return _Resp({"initialized": True, "sealed": False})
+        if "/auth/token/renew-self" in url:
+            raise urllib.error.URLError("down")
+        return _Resp(b"{}")
+
+    with _patch_urlopen(handler):
+        vb = VaultBridge(addr=_ADDR, token="root-token")
+        vb._token_expires = 1.0
+        vb._request_headers()  # renew patlar, role/secret yok -> approle fail
+        assert vb._available is False
+
+
+def test_vault_read_generic_exception(monkeypatch):
+    monkeypatch.setenv("SECRETS_VAULT_ONLY", "true")
+
+    def handler(url, method, req):
+        if url.endswith("/sys/health"):
+            return _Resp({"initialized": True, "sealed": False})
+        if "/data/" in url:
+            raise ValueError("bozuk yanit")  # HTTPError DEGIL -> genel except
+        return _Resp(b"{}")
+
+    with _patch_urlopen(handler):
+        vb = VaultBridge(addr=_ADDR, token="root-token")
+        assert vb.get_secret("binance", "api_key") == ""
+
+
+def test_put_secret_exception(monkeypatch):
+    def handler(url, method, req):
+        if url.endswith("/sys/health"):
+            return _Resp({"initialized": True, "sealed": False})
+        if "/data/" in url and method == "POST":
+            raise urllib.error.URLError("yazma patladi")
+        return _Resp(b"{}")
+
+    with _patch_urlopen(handler):
+        vb = VaultBridge(addr=_ADDR, token="root-token")
+        assert vb.put_secret("binance", {"api_key": "x" * 20}) is False
+
+
+def test_delete_secret_exception(monkeypatch):
+    def handler(url, method, req):
+        if url.endswith("/sys/health"):
+            return _Resp({"initialized": True, "sealed": False})
+        if "/data/" in url and method == "DELETE":
+            raise urllib.error.URLError("silme patladi")
+        return _Resp(b"{}")
+
+    with _patch_urlopen(handler):
+        vb = VaultBridge(addr=_ADDR, token="root-token")
+        assert vb.delete_secret("binance") is False
+
+
+def test_enable_kv_non400_httperror(monkeypatch):
+    def handler(url, method, req):
+        if url.endswith("/sys/health"):
+            return _Resp({"initialized": True, "sealed": False})
+        if "/sys/mounts/" in url:
+            raise urllib.error.HTTPError(url, 500, "server error", {}, None)
+        return _Resp(b"{}")
+
+    with _patch_urlopen(handler):
+        vb = VaultBridge(addr=_ADDR, token="root-token")
+        assert vb.enable_kv_engine() is False  # 500 -> False (400 degil)
+
+
+def test_enable_kv_generic_exception(monkeypatch):
+    def handler(url, method, req):
+        if url.endswith("/sys/health"):
+            return _Resp({"initialized": True, "sealed": False})
+        if "/sys/mounts/" in url:
+            raise ValueError("beklenmeyen")
+        return _Resp(b"{}")
+
+    with _patch_urlopen(handler):
+        vb = VaultBridge(addr=_ADDR, token="root-token")
+        assert vb.enable_kv_engine() is False
+
+
+def test_env_secrets_binance_alt_keys(monkeypatch):
+    # BINANCE_API_KEY yok ama BINANCE_KEY / BINANCE_SECRET_KEY var -> fallback dallari
+    monkeypatch.setenv("SECRETS_VAULT_ONLY", "false")
+    monkeypatch.setenv("BINANCE_KEY", "ALTKEY1234567890")
+    monkeypatch.setenv("BINANCE_SECRET_KEY", "ALTSEC1234567890")
+
+    def unreachable(url, method, req):
+        raise urllib.error.URLError("down")
+
+    with _patch_urlopen(unreachable):
+        vb = VaultBridge(addr=_ADDR)
+        assert vb.get_secret("binance", "api_key") == "ALTKEY1234567890"
+        assert vb.get_secret("binance", "api_secret") == "ALTSEC1234567890"
+
+
+def test_seed_from_env_binance_alt_keys(monkeypatch):
+    monkeypatch.setenv("SECRETS_VAULT_ONLY", "false")
+    monkeypatch.setenv("BINANCE_KEY", "K" * 30)
+    monkeypatch.setenv("BINANCE_SECRET", "S" * 30)
+    with _patch_urlopen(_healthy_handler):
+        vb = VaultBridge(addr=_ADDR, token="root-token")
+        assert vb.seed_from_env() >= 1
