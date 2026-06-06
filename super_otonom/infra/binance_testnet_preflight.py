@@ -42,14 +42,14 @@ class PreflightResult:
 
 
 def mask(secret: str) -> str:
-    """Sirri maskele — yalnizca uzunluk + ilk2/son2 (kisa ise tamamen gizli)."""
+    """Sirri maskele - yalnizca uzunluk + ilk2/son2 (kisa ise tamamen gizli)."""
     s = str(secret or "")
     n = len(s)
     if n == 0:
         return "<bos>"
     if n <= 6:
         return f"<{n} char, gizli>"
-    return f"{s[:2]}…{s[-2:]} ({n} char)"
+    return f"{s[:2]}...{s[-2:]} ({n} char)"
 
 
 def classify_key(api_key: str, api_secret: str) -> Tuple[bool, str]:
@@ -57,15 +57,15 @@ def classify_key(api_key: str, api_secret: str) -> Tuple[bool, str]:
     ak = str(api_key or "").strip()
     sk = str(api_secret or "").strip()
     if not ak or not sk:
-        return False, "api_key/api_secret BOS — Vault'a anahtar yazilmamis."
+        return False, "api_key/api_secret BOS - Vault'a anahtar yazilmamis."
     if len(ak) < _MIN_KEY_LEN or len(sk) < _MIN_KEY_LEN:
         return False, (
             f"anahtar COK KISA (api_key={len(ak)} char, api_secret={len(sk)} char). "
-            "Gercek anahtarlar ~64 char — getpass paste tam olmamis (1-char bug). "
+            "Gercek anahtarlar ~64 char - getpass paste tam olmamis (1-char bug). "
             "scripts/seed_binance_to_vault.py --from-env ile yeniden seed et."
         )
     if ak != api_key or sk != api_secret:
-        return False, "anahtar bas/son bosluk iceriyor — temiz yapistir."
+        return False, "anahtar bas/son bosluk iceriyor - temiz yapistir."
     return True, "format ok"
 
 
@@ -75,14 +75,14 @@ def diagnose_error(exc: BaseException) -> str:
     name = type(exc).__name__
     low = s.lower()
     if "-2014" in s or "api-key format invalid" in low:
-        return "Anahtar FORMATI gecersiz (-2014). Yanlis/bozuk anahtar — yeniden seed et."
+        return "Anahtar FORMATI gecersiz (-2014). Yanlis/bozuk anahtar - yeniden seed et."
     if "-2015" in s or "invalid api-key" in low:
         return (
             "Anahtar gecersiz veya IP/izin sorunu (-2015). Testnet anahtarini "
             "(testnet.binance.vision) ve IP whitelist'i kontrol et."
         )
     if "Authentication" in name or "401" in s or "signature" in low:
-        return "Kimlik dogrulama basarisiz — api_key/api_secret yanlis veya saat kaymasi."
+        return "Kimlik dogrulama basarisiz - api_key/api_secret yanlis veya saat kaymasi."
     if (
         "Network" in name
         or "timeout" in low
@@ -90,18 +90,59 @@ def diagnose_error(exc: BaseException) -> str:
         or "connection" in low
         or "ssl" in low
     ):
-        return "Ag/erisim hatasi — internet/proxy/DNS veya testnet host erisilemez."
+        return "Ag/erisim hatasi - internet/proxy/DNS veya testnet host erisilemez."
     if "Permission" in name:
-        return "Izin reddedildi — anahtarin testnet izinleri eksik."
+        return "Izin reddedildi - anahtarin testnet izinleri eksik."
+    if (
+        "NotAvailable" in name
+        or "unavailable" in low
+        or "exchangeinfo" in low
+        or "502" in s
+        or "503" in s
+    ):
+        return "Borsa gecici erisilemez (testnet mesgul veya host async/proxy). Birkac dk sonra tekrar dene."
     return f"Bilinmeyen borsa hatasi: {name}: {s[:200]}"
 
 
-def _default_handler(api_key: str, api_secret: str) -> Any:
-    """Gercek AsyncExchangeHandler (testnet=True + BINANCE_TESTNET acik)."""
-    os.environ["BINANCE_TESTNET"] = "true"
-    from super_otonom.exchange_async import AsyncExchangeHandler
+class _SyncTestnetProbe:
+    """Host teshisi icin SENKRON ccxt (requests tabanli).
 
-    return AsyncExchangeHandler("binance", api_key=api_key, api_secret=api_secret, testnet=True)
+    KOK SEBEP: ccxt async (aiohttp + aiodns) Windows host'ta DNS/baglanti hatasi verir
+    (ExchangeNotAvailable), oysa curl/sync ayni host'tan testnet'e sorunsuz ulasir. Bot
+    docker'da (Linux) async kullanir; ama HOST teshisinde senkron ccxt curl kadar
+    guvenilirdir. set_sandbox_mode(True) -> testnet.binance.vision/api/v3.
+    """
+
+    def __init__(self, api_key: str, api_secret: str):
+        import ccxt
+
+        self._ex = ccxt.binance(
+            {
+                "apiKey": api_key,
+                "secret": api_secret,
+                "enableRateLimit": True,
+                "options": {
+                    "fetchCurrencies": False,
+                    # -1021 (host saati sunucudan ileri/geri): ccxt sunucu saatine gore
+                    # zaman damgasini otomatik duzeltsin + genis recvWindow.
+                    "adjustForTimeDifference": True,
+                    "recvWindow": 10_000,
+                },
+            }
+        )
+        self._ex.set_sandbox_mode(True)
+
+    async def fetch_balance(self) -> Any:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._ex.fetch_balance)
+
+    async def close(self) -> None:
+        return None
+
+
+def _default_handler(api_key: str, api_secret: str) -> Any:
+    """Host teshisi: senkron ccxt probe (Windows aiohttp/aiodns sorunundan kacinir)."""
+    return _SyncTestnetProbe(api_key, api_secret)
 
 
 async def probe_testnet(
@@ -130,6 +171,28 @@ async def probe_testnet(
                 pass
 
 
+def _ensure_vault_token() -> None:
+    """VAULT_TOKEN yoksa data/local/vault_init.json root_token'ini yukle.
+
+    seed_binance_to_vault.py ile AYNI yol - host'tan calisan teshis Vault'u okuyabilsin
+    (token olmadan VaultBridge auth edemez, get_secret bos doner). KOK SEBEP: ilk surumde
+    bu yoktu, preflight Vault'u okuyamayip yanlislikla key=<bos> raporladi.
+    """
+    import json
+    from pathlib import Path
+
+    if os.getenv("VAULT_TOKEN", "").strip():
+        return
+    init = Path(__file__).resolve().parents[2] / "data" / "local" / "vault_init.json"
+    if init.is_file():
+        try:
+            tok = (json.loads(init.read_text(encoding="utf-8")) or {}).get("root_token", "")
+            if tok:
+                os.environ["VAULT_TOKEN"] = str(tok).strip()
+        except (OSError, ValueError):
+            pass
+
+
 def _resolve_keys(from_env: bool, addr: str) -> Tuple[str, str, str]:
     """Botun kullandigi anahtari coz. (api_key, api_secret, source)."""
     if from_env:
@@ -140,6 +203,7 @@ def _resolve_keys(from_env: bool, addr: str) -> Tuple[str, str, str]:
         )
         return ak, sk, "env"
     os.environ.setdefault("VAULT_ADDR", addr)
+    _ensure_vault_token()
     from super_otonom.infra.vault_bridge import VaultBridge
 
     vb = VaultBridge()
