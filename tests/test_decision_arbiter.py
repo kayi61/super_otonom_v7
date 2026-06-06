@@ -13,6 +13,7 @@ from super_otonom.pipelines.decision_arbiter import (
     Priority,
     arbitrate,
     arbitrate_from_phases,
+    tick_decision_context,
 )
 
 # Her gate katmaninin test edilecek action secenekleri (ALLOW + bloklayicilar).
@@ -264,3 +265,82 @@ def test_decision_is_serializable():
     assert isinstance(d, ArbiterDecision)
     payload = d.to_dict()
     assert payload["winning_layer"] and "decision_context" in payload
+
+
+# ── 5) tick_decision_context — shadow wiring helper (legacy_mismatch dahil) ──
+
+
+def test_tick_force_close_enter_is_mismatch():
+    # Gercek bug: FAZ80 ENTER isterken force_close aktif -> arbiter izin vermez.
+    ctx = tick_decision_context(
+        emergency_stop=False,
+        force_all_close=True,
+        has_open_position=True,
+        analysis={},
+        execution_action="ENTER",
+        execution_reason="faz80:ENTER",
+    )
+    assert ctx["winning_layer"] == "FORCE_CLOSE"
+    assert ctx["legacy_mismatch"] is True
+    assert ctx["allowed"] is False
+
+
+def test_tick_all_clear_enter_no_mismatch():
+    ctx = tick_decision_context(
+        emergency_stop=False,
+        force_all_close=False,
+        has_open_position=False,
+        analysis={"phase39": {"trade_permission": "ALLOW"}, "phase64": {"trade_permission": "ALLOW"}},
+        execution_action="ENTER",
+    )
+    assert ctx["winning_layer"] == "EXECUTION_POLICY"
+    assert ctx["allowed"] is True
+    assert ctx["legacy_mismatch"] is False
+
+
+def test_tick_signal_quality_block_from_analysis():
+    ctx = tick_decision_context(
+        emergency_stop=False,
+        force_all_close=False,
+        has_open_position=False,
+        analysis={"phase64": {"trade_permission": "BLOCK"}},
+        execution_action="ENTER",
+    )
+    assert ctx["winning_layer"] == "SIGNAL_QUALITY"
+    assert ctx["legacy_mismatch"] is True
+
+
+def test_tick_faz_prefixed_keys_supported():
+    # analysis 'faz39'/'faz64' anahtarlarini da kabul etmeli.
+    ctx = tick_decision_context(
+        emergency_stop=False,
+        force_all_close=False,
+        has_open_position=False,
+        analysis={"faz39": {"trade_permission": "BLOCK"}},
+        execution_action="ENTER",
+    )
+    assert ctx["winning_layer"] == "PRE_TRADE_GATE"
+
+
+def test_tick_analysis_none_safe():
+    ctx = tick_decision_context(
+        emergency_stop=True,
+        force_all_close=False,
+        has_open_position=False,
+        analysis=None,
+        execution_action="ENTER",
+    )
+    assert ctx["winning_layer"] == "EMERGENCY_STOP"
+    assert ctx["legacy_mismatch"] is True
+
+
+def test_tick_wait_not_mismatch():
+    # FAZ80 zaten WAIT diyorsa, gate bloklasa bile ENTER istegi yok -> mismatch False.
+    ctx = tick_decision_context(
+        emergency_stop=False,
+        force_all_close=True,
+        has_open_position=False,
+        analysis={},
+        execution_action="WAIT",
+    )
+    assert ctx["legacy_mismatch"] is False
