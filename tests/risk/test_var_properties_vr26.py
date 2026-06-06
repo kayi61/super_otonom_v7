@@ -63,13 +63,16 @@ _HYP = settings(max_examples=80, deadline=30000, suppress_health_check=[HealthCh
 # verir (kanit: identical values) ama daha hizlidir.
 _SUITE_CFG = RiskConfig(use_models=tuple(m for m in RiskConfig().use_models if m != "fhs"))
 
-# RiskEngineSuite icin ayri Hypothesis profili: deadline=None + dusuk max_examples.
-# Gerekce: bu testler DOGRULUK invariant'ini olcer (var_99>=var_95, cvar>=var, finite),
-# hizi degil. RiskEngine.compute() buyuk pathological serilerde Student-t MLE yakinsamasi
-# nedeniyle 30-40s degisken surebilir; wall-clock deadline yanlis-pozitif uretir
-# (Hypothesis'in kendi onerisi: deadline=None). max_examples=25 ile toplam sure sinirli.
+# RiskEngineSuite Hypothesis profili — GERCEK deadline ile perf'i ZORUNLU kilar (P-3).
+# Tarihce: eskiden deadline=None idi cunku compute() 250-gun (institutional) input'ta
+# 30-40s suruyordu. KOK SEBEP cProfile ile bulundu: Student-t DEGIL, EVT'nin bootstrap
+# GPD fit'i her resample'da scipy Nelder-Mead MLE'yi 500 kez cagiriyordu (evt.py).
+# Fix: vektorel kapali-form PWM (Hosking & Wallis) -> ayni bootstrap birkac ms'de biter.
+# Artik compute() her input'ta <1s; deadline=2000ms bir regresyonu (>2s) test olarak yakalar.
+# max_examples=30: compute() pahali (gercek VaR suite); pahali property'lerde dusuk
+# ornek sayisi standart pratiktir. Asil perf guard'i ayrica test_compute_perf_p3.py'de.
 _HYP_ENGINE = settings(
-    max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow]
+    max_examples=30, deadline=2000, suppress_health_check=[HealthCheck.too_slow]
 )
 
 CONFS = st.sampled_from([0.90, 0.95, 0.975, 0.99])
