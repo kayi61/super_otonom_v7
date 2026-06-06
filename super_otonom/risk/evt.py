@@ -27,40 +27,72 @@ EVT_MIN_EXCEEDANCES = 10
 EVT_BOOTSTRAP_REPS = 500
 
 
+def _gpd_pwm(sorted_samples: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Vectorised Probability-Weighted Moments GPD estimator (Hosking & Wallis 1987).
+
+    ``sorted_samples`` shape ``(reps, n)``, ascending along axis=1. Returns
+    ``(shape, scale)`` arrays of length ``reps`` in scipy ``genpareto`` ``c``
+    convention (``c = ξ``, ``loc = 0``).
+
+    PWM is closed-form (no optimisation) and is the standard small-sample GPD
+    estimator — it replaces the per-resample scipy MLE (Nelder-Mead) that made
+    the bootstrap cost ~40s. Derivation (verified for the exponential ξ=0 case):
+        a0 = mean(x);  b1 = mean((i-1)/(n-1) · x_(i));  a1 = a0 - b1
+        denom = a0 - 2·a1
+        shape c = 2 - a0/denom;   scale = 2·a0·a1/denom
+    """
+    n = sorted_samples.shape[1]
+    weights = np.arange(n, dtype=float) / (n - 1)  # (i-1)/(n-1), i=1..n
+    a0 = sorted_samples.mean(axis=1)
+    b1 = (sorted_samples * weights).mean(axis=1)
+    a1 = a0 - b1
+    denom = a0 - 2.0 * a1
+    with np.errstate(divide="ignore", invalid="ignore"):
+        shape = 2.0 - a0 / denom
+        scale = 2.0 * a0 * a1 / denom
+    return shape, scale
+
+
 def _bootstrap_gpd_fit(
     exceedances: np.ndarray,
     n_bootstrap: int = EVT_BOOTSTRAP_REPS,
     seed: int = 42,
 ) -> Tuple[float, float]:
-    """Bootstrap-robust GPD parameter estimation.
+    """Bootstrap-robust GPD parameter estimation (vectorised PWM).
 
-    Resamples exceedances ``n_bootstrap`` times, fits GPD to each,
-    and returns median(shape), median(scale).  Outlier fits (shape > 2
-    or scale ≤ 0) are discarded.
+    Resamples exceedances ``n_bootstrap`` times, estimates GPD params for each
+    resample via closed-form PWM, and returns median(shape), median(scale).
+    Degenerate fits (scale ≤ 0 or shape outside (-1, 2)) are discarded.
+
+    Previously each resample ran ``scipy.stats.genpareto.fit`` (Nelder-Mead),
+    so 500 resamples cost ~40 s and blocked the trading loop on 250-day inputs
+    (institutional profile). PWM is closed-form and fully vectorised: the same
+    500 resamples now cost a few milliseconds with equivalent robustness.
     """
-    rng = np.random.RandomState(seed)
     n = len(exceedances)
-    shapes: list[float] = []
-    scales: list[float] = []
-
-    for _ in range(n_bootstrap):
-        idx = rng.randint(0, n, size=n)
-        sample = exceedances[idx]
-        try:
-            s, _, sc = genpareto.fit(sample, floc=0)
-            # Discard degenerate fits
-            if sc > 0 and -1.0 < s < 2.0:
-                shapes.append(s)
-                scales.append(sc)
-        except Exception:  # noqa: BLE001
-            continue
-
-    if len(shapes) < 10:
-        # Fallback to single MLE fit
+    if n < 2:
         s, _, sc = genpareto.fit(exceedances, floc=0)
         return float(s), float(sc)
 
-    return float(np.median(shapes)), float(np.median(scales))
+    rng = np.random.RandomState(seed)
+    idx = rng.randint(0, n, size=(n_bootstrap, n))
+    samples = np.sort(exceedances[idx], axis=1)  # (reps, n) ascending
+
+    shapes, scales = _gpd_pwm(samples)
+    mask = (
+        np.isfinite(shapes)
+        & np.isfinite(scales)
+        & (scales > 0.0)
+        & (shapes > -1.0)
+        & (shapes < 2.0)
+    )
+
+    if int(mask.sum()) < 10:
+        # Too many degenerate resamples — fall back to a single MLE fit.
+        s, _, sc = genpareto.fit(exceedances, floc=0)
+        return float(s), float(sc)
+
+    return float(np.median(shapes[mask])), float(np.median(scales[mask]))
 
 
 def pot_var_cvar(
