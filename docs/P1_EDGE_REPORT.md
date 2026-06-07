@@ -100,6 +100,37 @@ python scripts/edge_window_backtest.py --symbol BTC/USDT --timeframe 4h \
 3. **LSTM modelini eğit** (`lstm_trainer`) veya AI fallback davranışını düzelt.
 4. HER değişiklikten sonra bu backtest'i tekrar koş; işlem sayısı + fee sonrası net getiri ölç.
 
+## TAM KÖK-SEBEP ZİNCİRİ — neden bot HİÇ işlem açmıyor (katman katman)
+
+Iteratif teshis (Hurst fix sonrasi, BTC 4h 2024 boga, `edge_window_backtest`):
+
+| # | Kapi | Mekanizma | Durum |
+|---|------|-----------|-------|
+| 1 | **Hurst rejim dedektoru** | q=2 estimator gurultude cokuyor -> trend "noisy" | ✅ DUZELTILDI (q=1) |
+| 2 | **AI fallback** | LSTM (`data/lstm_model.pt`) yok -> floor (dusuk) confidence -> FAZ80 conf>=0.55 + LOW_QUALITY eler | teshis |
+| 3 | **check_volatility_spike** | `current_vol > avg_vol × 2.0` -> giris blok (risk_manager.py:328); trend = volatil -> tam o anda blok | teshis |
+| + | LOW_QUALITY (adj<62), sentiment veto, FAZ80 risk_gate | kumulatif elemeler | yigin |
+
+**Olcum (floor=0.70 teshis kosusu, BTC 4h boga):** rejim %56 TRENDING, analizor 83 BUY
+uretti, FAZ80'den 25 BUY gecti — ama execution katmaninda `volatility_spike` (14×) +
+digerleri ile yine **0 islem.**
+
+### Dürüst hüküm: bot AŞIRI-KAPILI (over-gated)
+Bagimsiz muhafazakar filtreler (rejim + AI guven + volatilite-spike + kalite + sentiment)
+her biri volatil/trendli kosulda bloklar. Kumulatif sonuc: ideal bir +%66 boga kosusunda
+bile **sifir islem.** Her kapi tek basina makul; **birlikte** sistemi felc ediyorlar.
+
+### Sorumlu duzeltme yolu (aylar — kac-hilesi DEGIL)
+Kapilari "islem ciksin diye" topluca acmak felaket olur (kor/zararli bot). Dogru yol:
+1. Her kapiyi tek tek, prensiple recalibre et (volatility_spike trend-yonlu girislerde
+   mutlak esik; AI fallback teknik-kalite tabanli confidence).
+2. Her degisiklikten sonra out-of-sample backtest + fee/slippage ile net P&L olc.
+3. Islemler fee sonrasi istatistiksel anlamli pozitif degilse -> edge yok, oyle raporla.
+4. Aparat eksikleri: backtest'te order book yok (OB-bagimli execution kapilari) +
+   sayfalamali 12 ay HF veri.
+
+Bu, P-2 (karar mimarisi) ile ic ice, cok-oturumluk gercek strateji muhendisligidir.
+
 ## Dürüst sınırlamalar (aparat + metodoloji)
 - **12 ay yüksek-frekans yok:** `fetch_ccxt_candles` tek çağrı (≈1000 bar tavanı, sayfalama yok).
   → 1d ile 16 ay olur ama yanlış-TF; 4h ile yalnızca ~166 gün, 1h ile ~41 gün. **Gerçek 12 ay × 1h/4h
