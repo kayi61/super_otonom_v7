@@ -7,9 +7,29 @@
 > veriyle yapılabilen ilk dürüst ölçüm** ve sonucu acıdır.
 
 ## TL;DR — VERDİKT
-**Sistemin pozitif beklentisi GÖSTERİLEMEDİ. Kabul kriteri gereği: sistem "KAZANAN" DEĞİLDİR.**
-Daha da kötüsü: varsayılan config ile **bot gerçek veride HİÇ işlem açmadı (0 trade, %100 HOLD).**
-Edge ölçülemez bile — çünkü ölçülecek işlem yok.
+**Sistem KAZANAN DEĞİLDİR — out-of-sample NEGATİF edge KANITLANDI.**
+1. Varsayılan config ile bot gerçek veride HİÇ işlem açmıyor (over-gated; 0 trade).
+2. Gate yığını baypas edilip ham sinyal ölçüldüğünde (gerçek soru): **out-of-sample
+   −%20 ila −%44 KAYBEDİYOR** (buy&hold -%3/-%17 iken). In-sample boğada kazanıyor ama
+   buy&hold'u geçemiyor → klasik overfitting.
+3. Yani botun "hiç işlem açmaması" aslında sermayeyi bu kaybeden stratejiden koruyordu.
+   Gateleri açmak para kaybettirir (kanıtlı). Strateji temelden edge'siz.
+
+## EDGE ÖLÇÜMÜ — ham sinyal, gate baypas, in/out-of-sample (asil kanit)
+
+`scripts/edge_raw_signal.py` (analizör BUY/SELL → long/flat, fee 10bps/taraf + slip 5bps):
+
+| Pencere | Rejim | Buy&Hold | **Strateji net** | İşlem | Kazanma | Sharpe |
+|---------|-------|----------|------------------|-------|---------|--------|
+| BTC 2024-01..04 | boğa (in-sample) | +66.8% | +53.2% | 5 | 0.60 | 4.76 |
+| BTC 2023-08..2024-01 | yükseliş | +46.8% | +36.9% | 5 | 0.60 | 2.80 |
+| BTC 2024-05..09 | chop (OOS) | −2.9% | **−20.4%** | 10 | 0.20 | −1.86 |
+| ETH 2024-05..09 | düşüş (OOS) | −17.2% | **−44.1%** | 8 | 0.25 | −3.50 |
+
+**İmza:** trendde buy&hold-altı kazanç; trendsizde 2-3× fazla kayıp. Net = negatif edge.
+Yeniden üretim: `python scripts/edge_raw_signal.py --symbol BTC/USDT --timeframe 4h --start 2024-05-01 --end 2024-09-01 --fee-bps 10`
+
+## (Ek) Varsayılan config: 0 işlem ölçümü
 
 ## Ölçüm (gerçek veri, fee=10 bps/taraf, slippage 2–12 bps)
 
@@ -99,6 +119,37 @@ python scripts/edge_window_backtest.py --symbol BTC/USDT --timeframe 4h \
    geçebileceği gerçekçi bir yol bırak.
 3. **LSTM modelini eğit** (`lstm_trainer`) veya AI fallback davranışını düzelt.
 4. HER değişiklikten sonra bu backtest'i tekrar koş; işlem sayısı + fee sonrası net getiri ölç.
+
+## TAM KÖK-SEBEP ZİNCİRİ — neden bot HİÇ işlem açmıyor (katman katman)
+
+Iteratif teshis (Hurst fix sonrasi, BTC 4h 2024 boga, `edge_window_backtest`):
+
+| # | Kapi | Mekanizma | Durum |
+|---|------|-----------|-------|
+| 1 | **Hurst rejim dedektoru** | q=2 estimator gurultude cokuyor -> trend "noisy" | ✅ DUZELTILDI (q=1) |
+| 2 | **AI fallback** | LSTM (`data/lstm_model.pt`) yok -> floor (dusuk) confidence -> FAZ80 conf>=0.55 + LOW_QUALITY eler | teshis |
+| 3 | **check_volatility_spike** | `current_vol > avg_vol × 2.0` -> giris blok (risk_manager.py:328); trend = volatil -> tam o anda blok | teshis |
+| + | LOW_QUALITY (adj<62), sentiment veto, FAZ80 risk_gate | kumulatif elemeler | yigin |
+
+**Olcum (floor=0.70 teshis kosusu, BTC 4h boga):** rejim %56 TRENDING, analizor 83 BUY
+uretti, FAZ80'den 25 BUY gecti — ama execution katmaninda `volatility_spike` (14×) +
+digerleri ile yine **0 islem.**
+
+### Dürüst hüküm: bot AŞIRI-KAPILI (over-gated)
+Bagimsiz muhafazakar filtreler (rejim + AI guven + volatilite-spike + kalite + sentiment)
+her biri volatil/trendli kosulda bloklar. Kumulatif sonuc: ideal bir +%66 boga kosusunda
+bile **sifir islem.** Her kapi tek basina makul; **birlikte** sistemi felc ediyorlar.
+
+### Sorumlu duzeltme yolu (aylar — kac-hilesi DEGIL)
+Kapilari "islem ciksin diye" topluca acmak felaket olur (kor/zararli bot). Dogru yol:
+1. Her kapiyi tek tek, prensiple recalibre et (volatility_spike trend-yonlu girislerde
+   mutlak esik; AI fallback teknik-kalite tabanli confidence).
+2. Her degisiklikten sonra out-of-sample backtest + fee/slippage ile net P&L olc.
+3. Islemler fee sonrasi istatistiksel anlamli pozitif degilse -> edge yok, oyle raporla.
+4. Aparat eksikleri: backtest'te order book yok (OB-bagimli execution kapilari) +
+   sayfalamali 12 ay HF veri.
+
+Bu, P-2 (karar mimarisi) ile ic ice, cok-oturumluk gercek strateji muhendisligidir.
 
 ## Dürüst sınırlamalar (aparat + metodoloji)
 - **12 ay yüksek-frekans yok:** `fetch_ccxt_candles` tek çağrı (≈1000 bar tavanı, sayfalama yok).
