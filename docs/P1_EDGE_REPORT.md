@@ -39,6 +39,31 @@ python -m super_otonom.signals.edge_evidence --source ccxt --symbol BTC/USDT \
 3. Filtreler o kadar muhafazakâr ki sistem pratikte **hiç oynamıyor.** Bu "para kaybetmek" değil;
    "masaya hiç oturmamak" — ve edge masada kanıtlanır.
 
+## KÖK SEBEP TEŞHİSİ (ölçüldü — hipotez değil)
+
+`scripts/edge_decision_diag.py` ile BTC 4h (365 tick) üzerinde ham sinyal vs nihai karar:
+
+```
+HAM SİNYAL (analyzer):  HOLD=364, SELL=1, BUY=0   (giriş oranı ≈ 0.003)
+REJİM:                  MEAN_REVERTING=301, NOISY=44, TRENDING=20
+NİHAİ SİNYAL:           HOLD=365
+KARAR SEBEBİ:           REGIME_BLOCKED_MEAN_REVERTING=301, REGIME_BLOCKED_NOISY=40, ''=23
+HAM=BUY/SELL iken öldüren: AI_MODEL_FALLBACK=1  (tek SELL adayı)
+```
+
+**Üç katmanlı kök sebep (hepsi gerçek):**
+1. **Analizör neredeyse hiç giriş üretmiyor:** 365 barda 0 BUY, 1 SELL. Kapılar "iyi sinyali"
+   öldürmüyor — ortada sinyal yok.
+2. **Strateji trend-takip ama piyasa %93 trend DEĞİL:** MEAN_REVERTING+NOISY = %93, TRENDING %5.5.
+   Trend botu choppy piyasada doğru olarak kenarda duruyor.
+3. **Rejim filtresi trend-dışı her şeyi blokluyor** (`REGIME_BLOCKED_*`).
+
+Yani 0-işlem = kısmen doğru davranış (trend botu chop'ta beklemeli) + kısmen test penceresi
+trendsizdi + kısmen aparat geçmiş trend dönemini seçip çekemiyor. **Cevaplanmamış asıl soru:
+trend OLAN bir dönemde bu bot fee sonrası kazanıyor mu?** — trendli geçmiş veriye erişim gerek.
+
+Yeniden üretim: `python scripts/edge_decision_diag.py --symbol BTC/USDT --timeframe 4h --limit 400`
+
 ## Dürüst sınırlamalar (aparat + metodoloji)
 - **12 ay yüksek-frekans yok:** `fetch_ccxt_candles` tek çağrı (≈1000 bar tavanı, sayfalama yok).
   → 1d ile 16 ay olur ama yanlış-TF; 4h ile yalnızca ~166 gün, 1h ile ~41 gün. **Gerçek 12 ay × 1h/4h
