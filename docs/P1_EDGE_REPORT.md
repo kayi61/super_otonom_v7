@@ -7,9 +7,29 @@
 > veriyle yapılabilen ilk dürüst ölçüm** ve sonucu acıdır.
 
 ## TL;DR — VERDİKT
-**Sistemin pozitif beklentisi GÖSTERİLEMEDİ. Kabul kriteri gereği: sistem "KAZANAN" DEĞİLDİR.**
-Daha da kötüsü: varsayılan config ile **bot gerçek veride HİÇ işlem açmadı (0 trade, %100 HOLD).**
-Edge ölçülemez bile — çünkü ölçülecek işlem yok.
+**Sistem KAZANAN DEĞİLDİR — out-of-sample NEGATİF edge KANITLANDI.**
+1. Varsayılan config ile bot gerçek veride HİÇ işlem açmıyor (over-gated; 0 trade).
+2. Gate yığını baypas edilip ham sinyal ölçüldüğünde (gerçek soru): **out-of-sample
+   −%20 ila −%44 KAYBEDİYOR** (buy&hold -%3/-%17 iken). In-sample boğada kazanıyor ama
+   buy&hold'u geçemiyor → klasik overfitting.
+3. Yani botun "hiç işlem açmaması" aslında sermayeyi bu kaybeden stratejiden koruyordu.
+   Gateleri açmak para kaybettirir (kanıtlı). Strateji temelden edge'siz.
+
+## EDGE ÖLÇÜMÜ — ham sinyal, gate baypas, in/out-of-sample (asil kanit)
+
+`scripts/edge_raw_signal.py` (analizör BUY/SELL → long/flat, fee 10bps/taraf + slip 5bps):
+
+| Pencere | Rejim | Buy&Hold | **Strateji net** | İşlem | Kazanma | Sharpe |
+|---------|-------|----------|------------------|-------|---------|--------|
+| BTC 2024-01..04 | boğa (in-sample) | +66.8% | +53.2% | 5 | 0.60 | 4.76 |
+| BTC 2023-08..2024-01 | yükseliş | +46.8% | +36.9% | 5 | 0.60 | 2.80 |
+| BTC 2024-05..09 | chop (OOS) | −2.9% | **−20.4%** | 10 | 0.20 | −1.86 |
+| ETH 2024-05..09 | düşüş (OOS) | −17.2% | **−44.1%** | 8 | 0.25 | −3.50 |
+
+**İmza:** trendde buy&hold-altı kazanç; trendsizde 2-3× fazla kayıp. Net = negatif edge.
+Yeniden üretim: `python scripts/edge_raw_signal.py --symbol BTC/USDT --timeframe 4h --start 2024-05-01 --end 2024-09-01 --fee-bps 10`
+
+## (Ek) Varsayılan config: 0 işlem ölçümü
 
 ## Ölçüm (gerçek veri, fee=10 bps/taraf, slippage 2–12 bps)
 
