@@ -67,6 +67,63 @@ def analyzer_signal(symbol: str) -> Callable[[List[Dict[str, Any]]], str]:
     return f
 
 
+# ── Klasik baseline sinyalleri (on-kayitli, overfit DEGIL — R&D referansi) ──
+
+def momentum_signal(n: int = 30):
+    """Fiyat N bar oncesinden yuksekse long; dususe gecince cik. Klasik momentum."""
+    def f(window: List[Dict[str, Any]]) -> str:
+        if len(window) <= n:
+            return "HOLD"
+        now = float(window[-1]["close"])
+        past = float(window[-1 - n]["close"])
+        return "BUY" if now > past else "SELL"
+    return f
+
+
+def donchian_signal(n: int = 20):
+    """Donchian kirilimi: N-bar yuksegini asarsa long, N-bar dusugunu kirarsa cik."""
+    def f(window: List[Dict[str, Any]]) -> str:
+        if len(window) <= n + 1:
+            return "HOLD"
+        highs = [float(c["high"]) for c in window[-n - 1:-1]]
+        lows = [float(c["low"]) for c in window[-n - 1:-1]]
+        px = float(window[-1]["close"])
+        if px > max(highs):
+            return "BUY"
+        if px < min(lows):
+            return "SELL"
+        return "HOLD"
+    return f
+
+
+def ema_cross_signal(fast: int = 12, slow: int = 26):
+    """EMA hizli > yavas -> long; asagi kesince cik."""
+    def _ema(vals, span):
+        k = 2.0 / (span + 1)
+        e = vals[0]
+        for v in vals[1:]:
+            e = v * k + e * (1 - k)
+        return e
+    def f(window: List[Dict[str, Any]]) -> str:
+        if len(window) <= slow:
+            return "HOLD"
+        closes = [float(c["close"]) for c in window]
+        return "BUY" if _ema(closes, fast) > _ema(closes, slow) else "SELL"
+    return f
+
+
+def make_signal(name: str, symbol: str):
+    if name == "analyzer":
+        return analyzer_signal(symbol)
+    if name == "momentum":
+        return momentum_signal()
+    if name == "donchian":
+        return donchian_signal()
+    if name == "ema_cross":
+        return ema_cross_signal()
+    raise ValueError(f"bilinmeyen sinyal: {name}")
+
+
 def collect_trades(symbol: str, candles: List[Dict[str, Any]], signal_fn, fee: float, slip: float):
     """Long/flat: BUY->gir, SELL->cik. Net (fee+slip sonrasi) islem getirileri listesi."""
     pnls: List[float] = []
@@ -111,6 +168,8 @@ def main(argv=None) -> int:
     p.add_argument("--end", required=True)
     p.add_argument("--fee-bps", type=float, default=10.0)
     p.add_argument("--slip-bps", type=float, default=5.0)
+    p.add_argument("--signal", default="analyzer",
+                   choices=("analyzer", "momentum", "donchian", "ema_cross"))
     args = p.parse_args(argv)
 
     fee, slip = args.fee_bps / 10000.0, args.slip_bps / 10000.0
@@ -125,7 +184,7 @@ def main(argv=None) -> int:
         if len(candles) < 100:
             print(f"  {sym}: yetersiz bar ({len(candles)}) — atlandi")
             continue
-        pnls, bh = collect_trades(sym, candles, analyzer_signal(sym), fee, slip)
+        pnls, bh = collect_trades(sym, candles, make_signal(args.signal, sym), fee, slip)
         all_pnls.extend(pnls)
         bh_list.append(bh)
         comp = float(np.prod([1 + x for x in pnls]) - 1.0) if pnls else 0.0

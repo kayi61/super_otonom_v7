@@ -40,3 +40,33 @@ pozitif ama anlamsız + B&H-altı.)
 5. Hayatta kalan → canlı testnet ≥30 gün → P-7 risk validasyonu → ancak sonra gerçek para.
 
 > Acı gerçek: çoğu fikir sınavı geçmez. Bu normal. Sınav, para kaybetmeni önler.
+
+## R&D İterasyon 1-2 — baseline sinyaller (kanonik, ön-kayıtlı)
+
+`--signal {analyzer,momentum,donchian,ema_cross}` ile aynı sınav. **Önemli metodoloji:**
+boğa-yanlı pencere zamanlama stratejisine haksızdır → **tam döngü** (ayı dahil) test edilmeli.
+
+**Boğa-yanlı (2023-01..2024-12):** hepsi B&H-altı (azgın boğada long/flat "hep long"u geçemez).
+
+**TAM DÖNGÜ (2022-01..2024-12, 2022 ayısı dahil, 4 sembol, 4h, fee 10bps):**
+| Sinyal | İşlem | t-stat | Strateji ort | Buy&Hold | Verdikt |
+|--------|-------|--------|--------------|----------|---------|
+| **donchian (20)** | 258 | **2.10** | **+139.8%** | +56.8% | ✅ VALIDATED-tentative |
+| **ema_cross (12/26)** | 413 | **2.03** | **+141.1%** | +56.8% | ✅ VALIDATED-tentative |
+| momentum (30) | 996 | 1.08 | +30.5% | +56.8% | NOT_SIGNIFICANT |
+| analyzer (mevcut bot) | 151 | 1.70 | (boğa: +84.6%) | — | NOT_SIGNIFICANT |
+
+### Bulgu
+**Doğrulanabilir edge basit trend sinyallerinde** (Donchian/EMA cross): tam döngüde B&H'ı
+~2.5× yeniyor + istatistiksel anlamlı. Sebep: 2022 ayısından kaçıp sermaye koruyor.
+**Mevcut karmaşık bot bunların altında** — karmaşıklık edge çıkardı.
+
+### Uyarılar (abartma)
+- 4 sinyalden 2'si geçti (kanonik sinyaller, hafif multiple-comparison).
+- **Hold-out gerekli:** seçimde kullanılmayan dönem/sembol + parametre robustluğu (N taraması).
+- t≈2.1 çıtanın hemen üstü; canlı testnet execution doğrulaması şart.
+
+### Sıradaki (sorumlu)
+1. Donchian/EMA cross'u hold-out dönem + farklı sembollerde + parametre-robustluk ile doğrula.
+2. Hayatta kalırsa: botun karar çekirdeğini bu basit doğrulanmış sinyalle değiştir (over-engineered katmanları emekliye ayır — P-2 ile örtüşür).
+3. Canlı testnet ≥30 gün → P-7 risk validasyonu → ancak sonra gerçek para.
