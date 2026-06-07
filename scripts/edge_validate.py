@@ -112,13 +112,13 @@ def ema_cross_signal(fast: int = 12, slow: int = 26):
     return f
 
 
-def make_signal(name: str, symbol: str):
+def make_signal(name: str, symbol: str, param: int = 0):
     if name == "analyzer":
         return analyzer_signal(symbol)
     if name == "momentum":
-        return momentum_signal()
+        return momentum_signal(param or 30)
     if name == "donchian":
-        return donchian_signal()
+        return donchian_signal(param or 20)
     if name == "ema_cross":
         return ema_cross_signal()
     raise ValueError(f"bilinmeyen sinyal: {name}")
@@ -170,6 +170,7 @@ def main(argv=None) -> int:
     p.add_argument("--slip-bps", type=float, default=5.0)
     p.add_argument("--signal", default="analyzer",
                    choices=("analyzer", "momentum", "donchian", "ema_cross"))
+    p.add_argument("--signal-param", type=int, default=0, help="donchian/momentum N (0=varsayilan)")
     args = p.parse_args(argv)
 
     fee, slip = args.fee_bps / 10000.0, args.slip_bps / 10000.0
@@ -184,7 +185,7 @@ def main(argv=None) -> int:
         if len(candles) < 100:
             print(f"  {sym}: yetersiz bar ({len(candles)}) — atlandi")
             continue
-        pnls, bh = collect_trades(sym, candles, make_signal(args.signal, sym), fee, slip)
+        pnls, bh = collect_trades(sym, candles, make_signal(args.signal, sym, args.signal_param), fee, slip)
         all_pnls.extend(pnls)
         bh_list.append(bh)
         comp = float(np.prod([1 + x for x in pnls]) - 1.0) if pnls else 0.0
