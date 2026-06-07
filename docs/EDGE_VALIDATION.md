@@ -99,3 +99,33 @@ istatistiksel anlamlı + B&H-üstü değil.** Sağlam edge bulunamadı.
 
 Her yeni fikir yine bu harness + hold-out'tan geçmek zorunda. Cherry-pick (geçeni bulana
 kadar sinyal denemek) = p-hacking, yasak.
+
+## R&D İterasyon 4 — FUNDING (yön-edge + hasat), `scripts/edge_funding.py`
+
+12.859 funding noktası (BTC/ETH/SOL/BNB, 2022-2024):
+
+**Yön-edge:** corr(funding, ileri 8h) = -0.082 (gürültü). Aşırı funding decile'ları ters
+dönmüyor (t=0.60 / 0.26). → **funding YÖN tahmin edemiyor (edge yok).**
+
+**Hasat (delta-nötr, long spot + short perp, BRUT):**
+| Sembol | ~yıllık |
+|--------|---------|
+| BTC | +8.8% |
+| ETH | +7.9% |
+| SOL | -7.2% |
+| BNB | -7.6% |
+| **ort** | **~+0.5%** (≈0) |
+
+Naive hasat ≈ %0 brut → net negatif. Seçici (sadece pozitif-funding majör) en iyi
+~%3-6/yıl NET olabilir — mütevazı, market-nötr, **farklı sistem** (iki bacak) + likidasyon riski.
+
+## TOPLU HÜKÜM (3 edge sınıfı, rijit test)
+| Sınıf | Verdikt |
+|-------|---------|
+| Yönlü fiyat-TA (Donchian/EMA/momentum) | hold-out'ta çöktü ❌ |
+| Funding yön sinyali | edge yok (devasa örneklem) ❌ |
+| Funding hasadı (delta-nötr) | ~%0 naive; en iyi ~%3-6/yıl seçici, farklı mimari ⚠️ |
+
+**Test edilen hiçbir edge ezici/sağlam/erişilebilir para makinesi değil.** Kanıt tutarlı:
+halka açık/kalabalık edge'ler arbitrajlanmış. "Gerçek"e en yakın (hasat) bile mütevazı
+yield. Bu, kripto'da solo sistematik edge'in bilinen zor gerçeğidir.
