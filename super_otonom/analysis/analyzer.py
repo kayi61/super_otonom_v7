@@ -130,12 +130,22 @@ def _calculate_hurst(ts: List[float]) -> float:
     if len(ts) < _HURST_MIN_LEN:
         return 0.5
     try:
-        n = len(ts)
-        max_lag = max(3, min(20, n // 4))
-        lags = range(2, max_lag + 1)
-        tau = [np.sqrt(np.std(np.subtract(ts[lag:], ts[:-lag]))) for lag in lags]
-        poly = np.polyfit(np.log(list(lags)), np.log(tau), 1)
-        h = float(poly[0] * 2.0)
+        x = np.asarray(ts, dtype=float)
+        n = len(x)
+        # q=1 yapi fonksiyonu: E[|X(t+lag) - X(t)|] ~ lag^H  =>  H = log-log egim.
+        # KOK SEBEP (P1_EDGE_REPORT): eski q=2 (sqrt(std(...))) varyanti kisa + gurultulu
+        # seride cokuyor, gercek boga trendini (BTC +%21/+%66) MEAN_REVERTING saniyordu
+        # (H~0.09-0.48) -> rejim hep NOISY/MEAN_REVERTING -> bot HIC islem acmiyordu.
+        # q=1 (ortalama mutlak fark) + genis lag araligi gurultuye dayaniklidir; ampirik
+        # dogrulama: trend+%2 gurultu H~0.86, gercek boga H~0.94, random walk H~0.45.
+        max_lag = max(8, n // 2)
+        lags = list(range(2, max_lag))
+        tau = [float(np.mean(np.abs(x[lag:] - x[:-lag]))) for lag in lags]
+        pairs = [(lag, t) for lag, t in zip(lags, tau) if t > 0.0]
+        if len(pairs) < 3:
+            return 0.5
+        lag_ok, tau_ok = zip(*pairs)
+        h = float(np.polyfit(np.log(lag_ok), np.log(tau_ok), 1)[0])
         return max(0.0, min(1.0, h))
     except Exception:
         return 0.5
