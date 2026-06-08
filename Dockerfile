@@ -1,5 +1,7 @@
-# CI matrisi + pyproject requires-python (>=3.10,<3.13) ile hizali
-FROM python:3.14-slim
+# CI matrisi + pyproject requires-python (>=3.10,<3.13) ile hizali.
+# 3.13+ pip install'i kirar (requires-python <3.13). Dependabot 2x 3.14'e bump'ladi
+# (2821ae3, 7da90fc) -> dependabot.yml minor/major bump'i bloklar. 3.12 son destekli.
+FROM python:3.12-slim
 
 WORKDIR /app
 
