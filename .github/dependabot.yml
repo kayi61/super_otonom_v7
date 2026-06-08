@@ -33,10 +33,12 @@ updates:
     labels:
       - dependencies
       - docker
-    # pyproject: requires-python <3.13 — 3.14+ image CD'de pip install'i kirar (PR #94)
+    # pyproject: requires-python <3.13 — 3.13+ image CD'de pip install'i kirar (PR #94).
+    # "3.14*" versions-pattern'i `3.14-slim` tag'ini YAKALAMADI (Dependabot 7da90fc'de
+    # kurala ragmen bump'ladi). Saglam cozum: minor+major bump'i tamamen blokla, sadece
+    # patch (3.12.x guvenlik) gecsin. Python'u 3.13'e cikarmak icin bu kurali bilincli kaldir.
     ignore:
       - dependency-name: "python"
-        versions:
-          - "3.13*"
-          - "3.14*"
-          - "3.15*"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
