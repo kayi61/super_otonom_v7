@@ -69,10 +69,18 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -f "${REPO_ROOT}/.env" ]]; then
+  # .env SIRLAR icindir; CLI kontrol bayraklarini (DRY_RUN/SKIP_RETENTION) EZMEMELI.
+  # set -a ile source her seyi import eder -> .env'deki stray DRY_RUN=true `--dry-run`'i
+  # eziyordu (CI'da flaky, line 310 "unbound variable"). CLI'yi koru, source sonrasi geri yukle.
+  __cli_dry_run="${DRY_RUN}"
+  __cli_skip_retention="${SKIP_RETENTION}"
   set -a
   # shellcheck disable=SC1091
   source "${REPO_ROOT}/.env"
   set +a
+  DRY_RUN="${__cli_dry_run}"
+  SKIP_RETENTION="${__cli_skip_retention}"
+  unset __cli_dry_run __cli_skip_retention
 fi
 
 POSTGRES_USER="${POSTGRES_USER:-superotonom}"
@@ -102,7 +110,7 @@ backup_timescale() {
   done
 
   if docker_ok && container_running "${TIMESCALE_CONTAINER}"; then
-    if [[ "${DRY_RUN}" -eq 1 ]]; then
+    if [[ "${DRY_RUN}" == "1" ]]; then
       log "[dry-run] pg_dump via docker ${TIMESCALE_CONTAINER} tables: ${TIMESCALE_TABLES[*]}"
       return 0
     fi
@@ -112,7 +120,7 @@ backup_timescale() {
     docker exec "${TIMESCALE_CONTAINER}" rm -f /tmp/timescale.dump
     log "OK timescale.dump"
   elif [[ -n "${POSTGRES_PASSWORD}" ]] && command -v pg_dump >/dev/null 2>&1; then
-    if [[ "${DRY_RUN}" -eq 1 ]]; then
+    if [[ "${DRY_RUN}" == "1" ]]; then
       log "[dry-run] pg_dump -h ${TIMESCALE_HOST} tables: ${TIMESCALE_TABLES[*]}"
       return 0
     fi
@@ -138,7 +146,7 @@ backup_vault() {
   storage="$(docker exec "${VAULT_CONTAINER}" vault status -format=json 2>/dev/null | sed -n 's/.*"storage_type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1 || true)"
 
   if [[ "${storage}" == "raft" ]]; then
-    if [[ "${DRY_RUN}" -eq 1 ]]; then
+    if [[ "${DRY_RUN}" == "1" ]]; then
       log "[dry-run] vault operator raft snapshot save"
       return 0
     fi
@@ -148,7 +156,7 @@ backup_vault() {
     log "OK vault_raft.snap"
   else
     log "Vault file storage — archiving /vault/data (not raft snapshot)"
-    if [[ "${DRY_RUN}" -eq 1 ]]; then
+    if [[ "${DRY_RUN}" == "1" ]]; then
       log "[dry-run] vault data tar archive"
       return 0
     fi
@@ -164,7 +172,7 @@ backup_redis() {
   mkdir -p "${out}"
 
   if docker_ok && container_running "${REDIS_CONTAINER}"; then
-    if [[ "${DRY_RUN}" -eq 1 ]]; then
+    if [[ "${DRY_RUN}" == "1" ]]; then
       log "[dry-run] redis-cli BGSAVE + copy dump.rdb"
       return 0
     fi
@@ -176,7 +184,7 @@ backup_redis() {
       warn "Redis RDB copy failed (check /data/dump.rdb path)"
     fi
   elif command -v redis-cli >/dev/null 2>&1; then
-    if [[ "${DRY_RUN}" -eq 1 ]]; then
+    if [[ "${DRY_RUN}" == "1" ]]; then
       log "[dry-run] redis-cli -h ${REDIS_HOST} BGSAVE"
     else
       redis-cli -h "${REDIS_HOST}" BGSAVE
@@ -195,7 +203,7 @@ backup_data_tree() {
     src="${REPO_ROOT}/${rel}"
     if [[ -f "${src}" ]]; then
       name="$(basename "${rel}")"
-      if [[ "${DRY_RUN}" -eq 1 ]]; then
+      if [[ "${DRY_RUN}" == "1" ]]; then
         log "[dry-run] copy ${rel} -> data/${name}"
       else
         cp -f "${src}" "${out}/${name}"
@@ -207,7 +215,7 @@ backup_data_tree() {
     src="${REPO_ROOT}/${rel}"
     if [[ -d "${src}" ]]; then
       name="$(basename "${rel}")"
-      if [[ "${DRY_RUN}" -eq 1 ]]; then
+      if [[ "${DRY_RUN}" == "1" ]]; then
         log "[dry-run] copydir ${rel} -> data/${name}/"
       else
         cp -a "${src}" "${out}/${name}"
@@ -222,7 +230,7 @@ write_manifest() {
   if command -v git >/dev/null 2>&1; then
     git_sha="$(git -C "${REPO_ROOT}" rev-parse HEAD 2>/dev/null || echo unknown)"
   fi
-  if [[ "${DRY_RUN}" -eq 1 ]]; then
+  if [[ "${DRY_RUN}" == "1" ]]; then
     log "[dry-run] write BACKUP_MANIFEST.txt"
     return 0
   fi
@@ -238,7 +246,7 @@ EOF
 }
 
 write_checksums() {
-  if [[ "${DRY_RUN}" -eq 1 ]]; then
+  if [[ "${DRY_RUN}" == "1" ]]; then
     log "[dry-run] write checksums.sha256"
     return 0
   fi
@@ -256,7 +264,7 @@ write_checksums() {
 apply_gfs_retention() {
   local parent="${REPO_ROOT}/${BACKUP_ROOT}"
   [[ -d "${parent}" ]] || return 0
-  if [[ "${DRY_RUN}" -eq 1 ]]; then
+  if [[ "${DRY_RUN}" == "1" ]]; then
     log "[dry-run] GFS retention daily=${DAILY_KEEP} weekly=${WEEKLY_KEEP} monthly=${MONTHLY_KEEP}"
     return 0
   fi
@@ -307,7 +315,7 @@ PY
 
 main() {
   log "dest=${DEST} dry_run=${DRY_RUN}"
-  if [[ "${DRY_RUN}" -eq 0 ]]; then
+  if [[ "${DRY_RUN}" == "0" ]]; then
     mkdir -p "${DEST}"
   fi
 
@@ -318,7 +326,7 @@ main() {
   write_manifest
   write_checksums
 
-  if [[ "${SKIP_RETENTION}" -eq 0 ]]; then
+  if [[ "${SKIP_RETENTION}" == "0" ]]; then
     apply_gfs_retention
   fi
 
