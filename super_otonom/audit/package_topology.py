@@ -31,6 +31,7 @@ ALLOWED_SUBPACKAGES = frozenset({
     "analysis",
     "monitoring",
     "audit",
+    "research",
 })
 IGNORE_DIR_NAMES = frozenset(
     {".pytest_cache", ".scannerwork", "__pycache__", "data", ".mypy_cache", ".ruff_cache"}
