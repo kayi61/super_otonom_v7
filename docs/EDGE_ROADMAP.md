@@ -1,141 +1,129 @@
-# Edge Yol Haritası — Öncelik Sıralı Çalışma Promptları
+# Edge Yol Haritası v2 — EV-Optimal, Exact-Spec Çalışma Promptları
 
-> **Kullanım:** Her prompt'u sırayla bir iş-emri olarak ver. Her biri kendi sınavından
-> (CPCV + Deflated Sharpe + maliyet + hold-out + canlı) geçmek zorunda. Geçmeyen → AT.
-> **Sahte yok.** Her prompt'un dürüst priori + KILL kriteri var. "Kazandı" demek için
-> tüm kapıları geçmesi şart. p-hacking (geçeni bulana kadar deneme) YASAK.
+> **Dürüst çerçeve:** "En iyi roadmap" = edge bulma OLASILIĞINI ve **kendini-kandırmama**yı
+> maksimize eden; başarıyı GARANTİ ETMEYEN. Prompt kalitesi başarıyı garanti etmez (problem
+> zor) — ama kötü roadmap kesin başarısızlık, bu = en yüksek şans. Sıra **beklenen-değere**
+> göre: P(edge bulma) × (edge büyüklüğü) × (bizim uygulayabilirliğimiz). Her EP kendi
+> sınavından geçer ya da ÖLDÜRÜLÜR. %80 hiçbir yerde vaat edilmez.
 
-## META KURALLAR (hepsini yönetir — her prompt'a uygulanır)
-- **Mekanizma zorunlu:** "neden edge var, karşı tarafta kim ödüyor, neden arbitrajlanmamış,
-  decay riski ne?" cevabı yoksa → test etme.
-- **Önce ön-kayıt:** test öncesi hipotez + yöntem `EDGE_LOG.md`'ye yazılır (sonradan kıvırma yok).
-- **Out-of-sample kutsal:** test seti hiç görülmez; sonuç orada açıklanır.
-- **Multiple-testing:** N hipotez denenince Deflated Sharpe / FDR uygulanır.
-- **Maliyet gerçekçi:** maker/taker + slippage + funding + borrow + kapasite.
-- **Robustluk:** parametre aralığı + rejim + sembol + alt-dönem. Tek değer çalışıyorsa = fluke.
-- **KILL > kabul:** işin %95'i red sebebi aramaktır. Duygusal bağlanma yok.
-
----
-
-# ÖNCELİK 0 — TEMEL (bunsuz her test güvenilmez; İLK bu)
-
-## EP-0 — Validasyon sınavını sertleştir (overfit-katili altyapı)
-- **Amaç:** Her stratejinin geçeceği rijit, kandırılamaz sınav.
-- **Yöntem:** Mevcut `edge_validate`'e ekle: (1) **CPCV** (combinatorial purged cross-validation,
-  López de Prado), (2) **Deflated Sharpe Ratio** (çok deneme düzeltmesi), (3) gerçekçi
-  **maliyet/slippage/kapasite** modeli, (4) train/validation/test 3'lü ayrım, (5) `EDGE_LOG.md`
-  araştırma günlüğü iskeleti.
-- **Geçme:** sentetik bilinen-edge'de PASS, bilinen-no-edge'de FAIL verir (kalibrasyon kanıtı).
-- **Prior:** kesin yapılabilir (altyapı işi, edge değil).
-- **Çıktı:** sertleştirilmiş harness + günlük. **Bu olmadan aşağıdaki hiçbir sonuca güvenme.**
+## CROSS-CUTTING DİSİPLİN (HER EP'ye uygulanır — pazarlık yok)
+1. **Mekanizma zorunlu:** "neden edge var, karşıda kim ödüyor, neden arbitrajlanmamış, decay?"
+   cevabı yoksa test etme.
+2. **Ön-kayıt:** test ÖNCESİ hipotez + tam yöntem `EDGE_LOG.md`'ye (şablon EP-0'da). Sonradan kıvırma yok.
+3. **NULL-KONTROL (kritik):** her yöntem ÖNCE rastgele/karıştırılmış veride koşulur → **edge ÇIKMAMALI.**
+   Gürültüde edge çıkıyorsa harness sızdırıyor → önce onu düzelt. (Çoğu sahte "edge" buradan yakalanır.)
+4. **Out-of-sample kutsal:** CPCV (purged) + Deflated Sharpe (çok-deneme düzeltmesi).
+5. **Gerçekçi maliyet + kapasite:** maker/taker + slippage(hacim-bağlı) + funding + borrow + market-impact.
+6. **Robustluk:** parametre ARALIĞI + rejim + sembol + alt-dönem. Tek değer çalışıyorsa = fluke.
+7. **Rejim-koşullu test:** edge sadece belirli rejimde mi (vol/trend)? Koşullu edge gerçek olabilir;
+   ama her koşul örneklemi düşürür → Deflated Sharpe sıkı.
+8. **KILL > kabul:** işin %95'i RED sebebi aramaktır.
 
 ---
 
-# ÖNCELİK 1 — MARKET-NÖTR / CARRY (retail için EN YÜKSEK taban-oran)
+# FAZ 0 — TEMEL (zorunlu; bitmeden hiçbir sonuca güvenme)
 
-## EP-1 — Seçici funding hasadı (delta-nötr carry)
-- **Mekanizma:** Kaldıraçlı long talebi short'u aşınca perp long'lar funding ÖDEMEK zorunda;
-  sen long-spot + short-perp ile market-nötr durup funding'i HASAT edersin. Karşı taraf =
-  sabırsız kaldıraçlı longlar.
-- **Yöntem:** Yalnız pozitif-funding majörlerde gir; negatif-funding'de çık. Rebalance + iki-bacak
-  maliyeti + **short bacak likidasyon riski** modellenir. Net APR ölç (brut değil).
-- **Geçme:** net (maliyet+risk sonrası) ≥ %8/yıl, çok-sembol, çok-dönem; t anlamlı.
-- **KILL:** net < risksiz USD (~%4-5) ya da likidasyon riski getiriyi yutuyor.
-- **Prior:** ORTA (gerçek ama mütevazı; ~%3-6/yıl net çıkabilir). **En somut ilk aday.**
-
-## EP-2 — Cash-and-carry basis hasadı
-- **Mekanizma:** Boğada perp/futures spot'a prim yapar (contango); long-spot + short-future ile
-  primi vade boyu hasat. Karşı taraf = primi ödeyen kaldıraçlı boğa.
-- **Yöntem:** Basis (future-spot) ölç; eşik üstünde gir, yakınsayınca çık. Funding ile ilişkisini
-  ayrıştır (çift-sayım yok).
-- **Geçme/KILL:** EP-1 ile aynı çıta. **Prior:** ORTA.
-
-## EP-3 — Cross-exchange funding/fiyat dislokasyonu (çok-borsa fizibilse)
-- **Mekanizma:** Borsalar arası funding/fiyat farkları (segmentasyon). İki borsada zıt bacak.
-- **Yöntem:** İki borsa API + transfer/latency maliyeti modellenir.
-- **KILL:** transfer/withdraw maliyeti farkı yutuyor (genelde yutar). **Prior:** DÜŞÜK-ORTA
-  (operasyonel ağır). Sadece EP-1/2 sonuç verirse.
+## EP-0 — Sınav altyapısı + null-kalibrasyon
+- **Amaç:** Kandırılamaz, kalibre edilmiş bir sınav.
+- **Exact yöntem:** `edge_validate`'e ekle:
+  - **CPCV** (López de Prado, purged+embargo k-fold) — sızıntısız out-of-sample.
+  - **Deflated Sharpe Ratio** (denenen hipotez sayısını argüman al → şişmeyi düzelt).
+  - **Maliyet modeli:** taker 5bps + slippage = f(emir/ADV), funding tahakkuku, borrow.
+  - **Kapasite tahmini:** emrin fiyatı kaç bps iteceği (order-book derinliği / ADV %).
+  - **3'lü split:** train(%60)/validation(%20)/**test(%20, mühürlü)**.
+  - **`EDGE_LOG.md` şablonu:** [tarih, hipotez, mekanizma, yöntem, ön-kayıt-tarihi, sonuç, verdikt].
+- **NULL-KALİBRASYON:** rastgele sinyalde → "NO_EDGE", sentetik-gömülü-edge'de → "VALIDATED".
+  İkisi de doğruysa harness güvenilir.
+- **Geçme:** iki kalibrasyon da doğru. **Prior:** kesin (altyapı, edge değil).
+- **Çıktı:** sertleştirilmiş harness + günlük. **Olmadan aşağısı geçersiz.**
 
 ---
 
-# ÖNCELİK 2 — CROSS-SECTIONAL (akademik olarak en sağlam faktör)
+# FAZ 1 — EN YÜKSEK BEKLENEN-DEĞER (iki paralel bahis: bir "tavan", bir "taban")
 
-## EP-4 — Cross-sectional momentum (market-nötr)
-- **Mekanizma:** Kazananlar kısa-orta vadede kazanmaya, kaybedenler kaybetmeye devam eder
-  (sürü + bilgi yayılım gecikmesi). Mutlak yön değil, **göreceli güç.**
-- **Yöntem:** 15-30 likit alt; geçmiş N-period getiriye göre sırala; üst %20 LONG, alt %20 SHORT
-  (dolar-nötr). Periyodik rebalance. Mutlak piyasadan arındırılmış → boğa/ayıdan bağımsız test.
-- **Geçme:** market-nötr net Sharpe > 1, Deflated Sharpe anlamlı, hold-out + alt-dönem robust.
-- **KILL:** sadece boğada çalışıyor / nötr Sharpe < 0.5 / parametreye duyarlı.
-- **Prior:** ORTA-YÜKSEK (akademik literatürde kripto'da en güçlü faktör). **Test etmeye en değer.**
+## EP-1 — Cross-sectional momentum *(BAŞLANGIÇ — en yüksek tavan + akademik kanıt)*
+- **Mekanizma:** Göreceli güç kısa-orta vadede kalıcıdır (bilgi yayılım gecikmesi + sürü). Mutlak
+  yön DEĞİL — kazananı kaybedene karşı. Karşı taraf = geç tepki veren retail.
+- **Exact yöntem:** 20-30 likit alt (BTC hariç tutulabilir). Her rebalance'ta geçmiş **{7,14,30,60,90}
+  gün** getiriye göre sırala → üst %20 LONG, alt %20 SHORT, **dolar-nötr + beta-nötr.** Rebalance
+  {günlük, 3-gün, haftalık}. Fee+slip dahil. **Piyasadan arındırılmış** (boğa/ayıdan bağımsız).
+- **Null-kontrol:** sembol etiketlerini karıştır → edge sıfırlanmalı.
+- **Geçme:** market-nötr net **Sharpe > 1.0**, **Deflated Sharpe p<0.05**, parametre aralığında
+  stabil (tek lookback'e bağlı değil), hold-out + alt-dönem robust, kapasite makul.
+- **KILL:** sadece boğada çalışıyor / nötr Sharpe < 0.5 / tek parametreye duyarlı / null sızdırıyor.
+- **Prior:** ORTA-YÜKSEK. **İlk gerçek hipotez bu olmalı** (en yüksek EV).
 
-## EP-5 — Cross-sectional carry/value
-- **Mekanizma:** Yüksek-funding altları short, düşük/negatif-funding'i long (carry faktörü).
-- **Yöntem:** EP-4 iskeleti, sıralama metriği = funding. **Prior:** ORTA.
+## EP-2 — Funding/basis carry (delta-nötr) *(TABAN — mekanik, en olası-gerçek)*
+- **Mekanizma:** Kaldıraçlı boğa funding/prim ÖDEMEK zorunda; sen market-nötr (long-spot+short-perp)
+  durup hasat edersin. Karşı taraf = sabırsız kaldıraçlı long.
+- **Exact yöntem:** Seçici — yalnız pozitif-funding majör; negatif-funding'de çık. İki-bacak fee +
+  rebalance + **short bacak likidasyon marjı** modellenir. **Net APR** (brut değil) ölç. Basis
+  versiyonu: future-spot primi ayrı (funding ile çift-sayım yok).
+- **Geçme:** net (maliyet+likidasyon-tampon sonrası) **≥ %8/yıl**, çok-sembol/dönem, t anlamlı.
+- **KILL:** net < risksiz USD (~%4-5) / likidasyon riski getiriyi yutuyor.
+- **Prior:** ORTA (gerçek ama mütevazı tavan ~%3-8/yıl net). **Floor stratejisi.**
 
----
-
-# ÖNCELİK 3 — EVENT-DRIVEN (test edilebilir nişler)
-
-## EP-6 — Yeni-listeleme paterni
-- **Mekanizma:** Listeleme anı dikkat + likidite şoku → tekrar eden pump/dump paterni.
-- **Yöntem:** Tarihsel Binance listelemeleri; listeleme sonrası saatlik getiri dağılımı + paternin
-  istatistiksel kalıcılığı. **KILL:** patern dönemler arası tutmuyor. **Prior:** DÜŞÜK-ORTA.
-
-## EP-7 — Token-unlock öncesi baskı
-- **Mekanizma:** Büyük unlock öncesi bilinen arz baskısı → öngörülebilir zayıflık.
-- **Yöntem:** Unlock takvimi + event-çevresi getiri çalışması. **KILL:** etki zaten fiyatlanmış.
-  **Prior:** DÜŞÜK-ORTA.
-
-## EP-8 — Koşullu funding ekstremi (naive DEĞİL)
-- **Mekanizma:** Funding tek başına yön vermiyor (kanıtlandı), ama **confluence** (ekstrem funding
-  + OI sıçraması + likidite boşluğu) koşullu bir edge olabilir.
-- **Yöntem:** Çok-koşullu filtre; ama her ek koşul overfit riski → Deflated Sharpe sıkı.
-  **KILL:** koşul sayısı arttıkça örneklem düşer, anlamlılık kaybolur. **Prior:** DÜŞÜK.
+> Faz 1 mantığı: EP-1 yüksek-tavan şansı (Sharpe>1 olabilir), EP-2 düşük-tavan ama yüksek-kesinlik
+> floor. İkisini paralel test → ya gerçek bir faktör (EP-1) ya da mütevazı carry (EP-2) ya da hiçbiri.
 
 ---
 
-# ÖNCELİK 4 — ZOR / DÜŞÜK PRIOR (yalnız üsttekiler tükenirse)
+# FAZ 2 — FAKTÖR GENİŞLETME + ENSEMBLE
 
-## EP-9 — Statistical arbitrage / pairs (kointegrasyon)
-- **Mekanizma:** Kointegre iki varlığın spread'i ortalamaya döner; ayrıldığında bahse gir.
-- **Yöntem:** Kointegrasyon testi + spread z-score + market-nötr. **KILL:** çift decohere oluyor /
-  in-sample kointegrasyon out-of-sample bozuluyor. **Prior:** ORTA-DÜŞÜK (kalabalık).
+## EP-3 — Cross-sectional carry/value (funding-faktörü)
+- **Mekanizma:** Yüksek-funding altları short, negatif-funding'i long — yön değil, **göreceli carry.**
+- **Yöntem:** EP-1 iskeleti, sıralama metriği = funding (ve/veya basis). **Prior:** ORTA.
 
-## EP-10 — On-chain sinyaller (ücretli veri kapısı)
-- **Mekanizma:** Exchange giriş/çıkış, stablecoin akışı, smart-money — yapısal akış bilgisi.
-- **Yöntem:** Glassnode/CryptoQuant API (ÜCRETLİ — önce veri kararı). Sinyal → forward getiri
-  çalışması. **KILL:** rijit testte zayıf (genelde öyle çıkar). **Prior:** DÜŞÜK + maliyet engeli.
-
----
-
-# ÖNCELİK 5 — SENTEZ & KONUŞLANDIRMA (yalnız hayatta-kalan varsa)
-
-## EP-11 — Portföy: korelasyonsuz edge'leri birleştir
-- **Mekanizma:** Tek edge kırılgan; 2-5 **düşük korelasyonlu** edge = pürüzsüz, sağlam.
-- **Yöntem:** Hayatta kalanların korelasyon matrisi + risk-parity/eşit-risk ağırlık.
-- **KILL:** tüm edge'ler aynı rejimde ölüyorsa (gizli korelasyon). **Prior:** sentez işi.
-
-## EP-12 — Canlı testnet ileri-doğrulama
-- **Amaç:** Backtest ≠ canlı. Hayatta kalan portföyü **≥1-3 ay testnette** çalıştır.
-- **Geçme:** canlı performans backtest'in ≥%50'si + tracking-error makul + alpha-decay yok.
-- **KILL:** canlı çöküyor → backtest'te gizli sızıntı vardı. **Prior:** çoğu burada ölür (normal).
-
-## EP-13 — Risk/sizing + mikro gerçek sermaye (P-7)
-- **Yöntem:** Fractional Kelly / vol-target sizing + mevcut risk motoru (kill-switch, drawdown).
-  **EN KÜÇÜK** gerçek miktar → canlı vs beklenti izle → sadece tutarsa ölçekle.
-- **KILL:** mikro-canlı beklentiden saparsa → DUR. **Prior:** sadece her şey geçtiyse.
+## EP-4 — Çok-faktör ensemble (momentum + carry, düşük korelasyon)
+- **Mekanizma:** Tek faktör kırılgan; **korelasyonsuz faktörler birleşince** Sharpe artar, drawdown düşer.
+  (Gerçek sistematik fonların yaptığı budur — tek sinyal değil.)
+- **Yöntem:** EP-1,2,3'ten geçenlerin korelasyon matrisi → risk-parity ağırlık → birleşik nötr portföy.
+- **Geçme:** birleşik Sharpe > bileşenlerin en iyisi + drawdown düşüyor. **Prior:** sentez (geçenler varsa).
 
 ---
 
-## TOPLU KARAR KAPILARI (ön-taahhüt)
+# FAZ 3 — EVENT-DRIVEN (test edilebilir nişler; yalnız Faz 1-2 umut verdiyse)
+
+## EP-5 — Yeni-listeleme paterni · EP-6 — Token-unlock öncesi baskı · EP-7 — Koşullu funding (confluence)
+- **Mekanizma/yöntem/KILL:** event-çevresi getiri dağılımı + paternin dönemler-arası kalıcılığı;
+  her ek koşul örneklemi düşürür → Deflated Sharpe sıkı. **Prior:** DÜŞÜK-ORTA.
+
+---
+
+# FAZ 4 — ZOR / DÜŞÜK PRIOR (yalnız üsttekiler tükendiyse)
+
+## EP-8 — Stat-arb / pairs (kointegrasyon, market-nötr) · EP-9 — On-chain (ÜCRETLİ veri kapısı)
+- **KILL:** çift decohere / on-chain rijit testte zayıf. **Prior:** DÜŞÜK.
+
+---
+
+# FAZ 5 — SENTEZ & KONUŞLANDIRMA (yalnız hayatta-kalan varsa)
+
+## EP-10 — Canlı testnet ileri-doğrulama (≥1-3 ay)
+- **Geçme:** canlı ≥ backtest'in %50'si + tracking-error makul + alpha-decay yok. **KILL:** canlı
+  çöküyor → backtest'te gizli sızıntı. Çoğu burada ölür (normal).
+
+## EP-11 — Risk/sizing (P-7) + mikro gerçek sermaye
+- **Yöntem:** fractional Kelly / vol-target + mevcut risk motoru (kill-switch, drawdown). **EN KÜÇÜK**
+  miktar → canlı vs beklenti → sadece tutarsa ölçekle. **KILL:** mikro-canlı saparsa DUR.
+
+---
+
+## TOPLU KARAR KAPILARI (ön-taahhüt — duygusal değil)
 - EP-0 bitmeden hiçbir edge sonucuna güvenme.
-- ÖNCELİK 1-2'de (EP-1,2,4) **3-4 ciddi deneme de geçmezse → dürüstçe "bu setup'ta edge yok",
-  dur ya da pivot.** Boşuna ÖNCELİK 3-4'e aylar gömme.
-- Bir şey geçse bile **mütevazı** (net birkaç-çift hane %/yıl); **%80 hedefi hiçbir aşamada
-  vaat EDİLMEZ** — o fantezidir.
+- **Faz 1'de (EP-1 + EP-2) ikisi de geçmezse + EP-3,4 da → ~3-4 yüksek-EV deneme başarısız → dürüstçe
+  "bu setup'ta sağlam edge yok", DUR/pivot.** Alt-fazlara aylar gömme.
+- Bir şey geçse bile **mütevazı** (net birkaç-çift hane %/yıl, market-nötr). **%80 fantezi — vaat YOK.**
 
-## DÜRÜST ÖZET
-Bu sıralama **şansı maksimize eder, garanti vermez.** En yüksek-prior yollar (carry, cross-sectional)
-önce. Her adım bir red makinesi; geçen nadirdir. Edge bulunursa küçük + gerçek olur — ve o bile
-nadir bir başarıdır. Sahte umut yok; sadece disiplinli, sıralı, kanıt-temelli arama.
+## NEDEN BU SIRA "EN İYİ" (dürüst gerekçe)
+- **EP-0 önce:** sağlam sınav olmadan her sonuç gürültü; null-kontrol sahte-edge'i baştan yakalar.
+- **EP-1 (cross-sectional momentum) ilk:** kripto'da akademik olarak **en güçlü dokümante faktör** +
+  market-nötr (rejimden bağımsız) + en yüksek tavan = en yüksek EV.
+- **EP-2 paralel:** mekanik/kesin-gerçek bir **floor** verir (ya küçük carry bulursun ya da hiçbiri).
+- **Ensemble (EP-4):** gerçek fonların tutarlılık sırrı — korelasyonsuz faktör birleşimi.
+- **Event/stat-arb/on-chain sonra:** düşük prior + veri/operasyon engeli; ancak yüksek-EV'liler
+  tükenirse.
+- **Testnet + mikro sermaye en son:** backtest yalan söyleyebilir; gerçek para sadece her şey geçince.
+
+> Sahte umut yok. Bu sıra **şansı maksimize eden** sıradır — garanti değil. En olası sonuç hâlâ
+> "mütevazı bir şey ya da hiçbiri." Ama yapılırsa, **doğru ve kendini-kandırmadan** yapılır.
