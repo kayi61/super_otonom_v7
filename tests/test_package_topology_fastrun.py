@@ -39,6 +39,7 @@ def test_scan_god_package_flat() -> None:
         "infra",
         "monitoring",
         "pipelines",
+        "research",
         "risk",
         "signals",
         "trading",
